@@ -5,7 +5,7 @@ from sklearn import datasets
 
 def linearly_separable():
     X, y = datasets.make_blobs(
-        n_samples=100, n_features=2, centers=2, cluster_std=1.15
+        n_samples=100, n_features=2, centers=2, cluster_std=1.15, random_state=2
     )
 
     def plot():

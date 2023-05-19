@@ -7,7 +7,7 @@ class Optimizer:
         self.lr = lr
 
     @torch.no_grad()
-    def step(self, zero_grad=True):
+    def step(self):
         for param in self._params:
             param -= self.lr * param.grad
             
