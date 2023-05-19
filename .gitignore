@@ -1,2 +1,2 @@
-/src/lib/__pycache__/*.pyc
+*.pyc
 /.idea

@@ -1,3 +1,4 @@
+import torch
 from matplotlib import pyplot as plt
 from sklearn import datasets
 
@@ -11,5 +12,5 @@ def linearly_separable():
         plt.scatter(X[:, 0], X[:, 1], c=y, edgecolors='k')
         plt.xlabel(f'$x_1$')
         plt.ylabel(f'$x_2$')
-    
-    return X, y, plot
+
+    return torch.Tensor(X), torch.Tensor(y), plot
