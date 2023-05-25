@@ -28,7 +28,7 @@ for Model in (Perceptron, SVN, LeastSquareRegression, LogisticRegression):
         cost.backward()
         optimizer.step().zero_grad()
 
-        history.append((model.params[0].flatten().detach(), cost.item()))
+        history.append((model.params[0].flatten().detach().clone(), cost.item()))
         if i < 10 or i % 100 == 1 or i+1 == EPOCHS:
             print(f'#{i:<3} matched={torch.sum(model.predict(X)==y).item()}/{y.shape[0]}, cost={cost.item()} ')
         if i > 10 and abs(cost.item() - history[-10][1]) < 1e-5:
@@ -39,7 +39,7 @@ for Model in (Perceptron, SVN, LeastSquareRegression, LogisticRegression):
     plt.subplot(311)
     plt.plot(range(len(loss)), loss, label=model.__class__.__name__); plt.xscale('log'); plt.title('Loss'); plt.xlabel('iterations'); plt.yscale('log'); plt.legend()
     plt.subplot(312)
-    plt.scatter(W[:, 0], W[:, 1], s=2, alpha=0.5, label=model.__class__.__name__); plt.title('Parameters (weight) space'); plt.xlabel(f'$w_1$'); plt.ylabel(f'$w_2$'); plt.legend()
+    plt.scatter(W[:, 0], W[:, 1], s=2, alpha=0.5, label=model.__class__.__name__); plt.title('Parameters (weight) evolution'); plt.xlabel(f'$w_1$'); plt.ylabel(f'$w_2$'); plt.legend()
     plt.subplot(313)
     plots.decision_boundary_2d(X, y, model.predict)
 
