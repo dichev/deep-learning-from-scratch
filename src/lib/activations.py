@@ -8,3 +8,8 @@ def unit_step(x):
 
 def sigmoid(x):
     return 1 / (1 + torch.exp(-x))
+
+def softmax(z):
+    e = torch.exp(z)
+    return e / e.sum(axis=-1, keepdims=True)
+
