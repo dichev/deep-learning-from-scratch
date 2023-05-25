@@ -1,7 +1,7 @@
 import torch
 from matplotlib import pyplot as plt
+from sklearn import datasets
 from lib import plots, optimizers
-from data import data_gen
 from shallow_models import Perceptron, SVN, LeastSquareRegression, LogisticRegression
 
 
@@ -10,15 +10,18 @@ LEARN_RATE = 0.01
 EPOCHS = 1000
 plt.figure(figsize=(6, 10))
 
+
+# Gather data
+n_samples, n_features, n_classes = N, D, C = 100, 2, 2
+_X, _y = datasets.make_blobs(n_samples=N, n_features=D, centers=C, cluster_std=1.2, random_state=2)
+# plt.scatter(_X[:, 0], _X[:, 1], c=_y, edgecolors='k');  plt.xlabel(f'$x_1$'); plt.ylabel(f'$x_2$'); plt.show()
+X = torch.Tensor(_X)
+y = torch.where(torch.Tensor(_y).long() == 0, -1, 1)
+
 # Define the model
 for Model in (Perceptron, SVN, LeastSquareRegression, LogisticRegression):
-    model = Model(input_size=2)
+    model = Model(input_size=D)
     optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
-
-    # Gather data
-    X, y, data_plot = data_gen.linearly_separable()
-    y = torch.where(y == 0, -1, 1)  # remap the target labels to be {-1, 1}, not {0, 1}
-    N, D = X.shape
 
     # Fit the data
     history = []
