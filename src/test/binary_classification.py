@@ -2,7 +2,7 @@ import torch
 from matplotlib import pyplot as plt
 from sklearn import datasets
 from lib import plots, optimizers
-from shallow_models import Perceptron, SVN, LeastSquareRegression, LogisticRegression
+from shallow_models import Perceptron, SVM, LeastSquareRegression, LogisticRegression
 
 
 # Hyperparams
@@ -20,7 +20,7 @@ y = torch.where(torch.Tensor(_y).long() == 0, -1, 1)
 
 
 # Define the model
-for Model in (Perceptron, SVN, LeastSquareRegression, LogisticRegression):
+for Model in (Perceptron, SVM, LeastSquareRegression, LogisticRegression):
     model = Model(input_size=D)
     optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
 

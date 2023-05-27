@@ -1,11 +1,12 @@
 import torch
+import torch.nn.functional as F
 from lib.activations import sigmoid, softmax
 
 
 class Linear:
     def __init__(self, input_size, output_size=1):
-        self.W = torch.zeros(input_size, output_size, requires_grad=True)  # (D, C)
-        self.b = torch.zeros(1, output_size, requires_grad=True)           # (1, C)
+        self.W = torch.rand(input_size, output_size, requires_grad=True)  # (D, C)
+        self.b = torch.rand(1, output_size, requires_grad=True)           # (1, C)
         self.params = (self.W, self.b)
 
     def forward(self, X):
@@ -34,7 +35,7 @@ class Perceptron:
         y_hat = torch.sign(z).long()
         return y_hat
 
-class SVN(Perceptron):
+class SVM(Perceptron):
     def cost(self, y, y_hat):  # perceptron_criterion
         assert torch.all((y == -1) | (y == 1))
 
@@ -73,6 +74,47 @@ class LogisticRegression:
         return y_hat
 
 
+class MulticlassPerceptron:
+    def __init__(self, input_size, output_size):
+        self.linear = Linear(input_size, output_size)
+        self.params = self.linear.params
+        self.output_size = output_size
+
+    def forward(self, X):
+        Z = self.linear.forward(X)
+        return Z
+
+    def cost(self, y, y_hat):
+        y_hat_correct = (y_hat*y).sum(dim=1).view(-1, 1)  # y is one-hot vector
+
+        margin = (y_hat - y_hat_correct)
+        margin[margin < 0] = 0.
+
+        isMisclassified = (torch.argmax(y_hat, dim=1) != torch.argmax(y, dim=1)).view(-1, 1)
+        isMaximum = F.one_hot(margin.argmax(dim=1), num_classes=self.output_size)
+
+        loss = margin * isMisclassified * isMaximum
+        return loss.sum()
+
+    @torch.no_grad()
+    def predict(self, X):
+        P = self.forward(X)
+        return torch.argmax(P, dim=-1)
+
+
+class MulticlassSVM(MulticlassPerceptron):
+
+    def cost(self, y, y_hat):
+        y_hat_correct = (y_hat*y).sum(dim=1).view(-1, 1)  # y is one-hot vector
+
+        isMisclassified = (torch.argmax(y_hat, dim=1) != torch.argmax(y, dim=1)).view(-1, 1)
+
+        loss = (y_hat - y_hat_correct + 1) * isMisclassified
+        loss[loss < 0] = 0.
+
+        return loss.sum()
+
+
 class MultinomialLogisticRegression:
     def __init__(self, input_size, output_size):
         self.linear = Linear(input_size, output_size)
@@ -93,5 +135,4 @@ class MultinomialLogisticRegression:
     def predict(self, X):
         P = self.forward(X)
         return torch.argmax(P, dim=-1)
-
 
