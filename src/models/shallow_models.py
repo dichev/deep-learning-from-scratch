@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from lib.activations import sigmoid, softmax
+from functions.activations import sigmoid, softmax
 
 
 class Linear:

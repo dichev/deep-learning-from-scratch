@@ -2,8 +2,9 @@ import torch
 import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from sklearn import datasets
-from lib import plots, optimizers
-from shallow_models import MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression
+from models import optimizers
+from utils import plots
+from models.shallow_models import MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression
 
 # Hyperparams
 LEARN_RATE = 0.005
