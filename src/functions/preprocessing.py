@@ -1,0 +1,12 @@
+import torch
+
+def integer_encoder(labels):  # ['cat', 'dog', 'fish', 'dog', ..., 'cow'] => [0, 1, 2, 1, ..., n]
+    if hasattr(labels, 'unique'):  # pandas series, torch tensors
+        unique = labels.unique()
+    else:
+        unique = list(set(labels))
+
+    key_to_idx = {cls: idx for idx, cls in enumerate(unique)}
+    encoded = torch.tensor([key_to_idx[d] for d in labels], dtype=torch.long)
+    return encoded, key_to_idx
+
