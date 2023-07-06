@@ -10,3 +10,9 @@ class MatrixFactorization:
         # dot only along the known ratings in the data, not over all like U @ V.T
         R_hat = (self.U[user] * self.V[anime]).sum(axis=1)     # sum[ (N, k)*(N, k) ]  --> (N)
         return R_hat
+
+
+    @torch.no_grad()
+    def predict(self, user, anime):
+        predictions = self.U[user] @ self.V[anime].T
+        return predictions.detach().cpu()
