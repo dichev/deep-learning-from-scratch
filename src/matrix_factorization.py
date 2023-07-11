@@ -3,7 +3,7 @@ import pandas as pd
 from models import optimizers
 from matplotlib import pyplot as plt
 from models.autoencoders import MatrixFactorization
-from functions.preprocessing import integer_encoder
+from preprocessing.integer import index_encoder
 from scipy import sparse
 
 # Hyperparams & settings
@@ -17,8 +17,8 @@ DEVICE = 'cuda'
 # Data preprocessing
 df_meta = pd.read_csv('./data/anime-metadata.csv')
 df = pd.read_csv('./data/anime-users-ratings-filtered.csv')
-df['user_idx'], user_to_idx, idx_to_user = integer_encoder(df['user_id'])
-df['anime_idx'], anime_to_idx, idx_to_anime = integer_encoder(df['anime_id'])
+df['user_idx'], user_to_idx, idx_to_user = index_encoder(df['user_id'])
+df['anime_idx'], anime_to_idx, idx_to_anime = index_encoder(df['anime_id'])
 N = df.shape[0]
 # print(df_meta.head())
 # print(df)

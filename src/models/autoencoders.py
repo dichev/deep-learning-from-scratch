@@ -1,5 +1,6 @@
 import torch
-from models.shallow_models import Linear
+from models.layers import Linear
+
 
 class MatrixFactorization:
     def __init__(self, n_users, n_animes, rank, device='cpu'):
