@@ -19,6 +19,10 @@ sequence_length = 10
 # training settings
 EPOCH = 100
 BATCH_SIZE = 10240
+LEARN_RATE = 0.5
+WORD_EMBEDDINGS_DIM = 10
+DEVICE = 'cuda'
+
 
 def generate_training_batch(sequences, vocab_size):
     targets_, contexts_, labels_ = [], [], []  # the first dimension  will vary
@@ -59,16 +63,16 @@ with open('../data/shakespeare.txt', 'r') as f:
 text_tokenized = [word_tokenizer(line) for line in docs]
 vocab = TextVocabulary(text_tokenized, max_vocab_size=max_vocab_size)
 text_encoded = vocab.encode(text_tokenized)
+vocab.print_human(text_encoded[:5])
 
 # Prepare training batch
-targets, contexts, labels = generate_training_batch(text_encoded, vocab.size)
-vocab.print_human(text_encoded[:5])
+data = generate_training_batch(text_encoded, vocab.size)  # todo: doubled tensors
+targets, contexts, labels = [torch.tensor(d, device=DEVICE) for d in data]
 print('\ntargets:', targets.shape, '\ncontexts:', contexts.shape, '\nlabels:', labels.shape, '\n')
 
-
 # Train a Word2Vec model
-word2vec = Word2Vec(vocab.size, 10)
-optimizer = Optimizer(word2vec.params, lr=0.5)
+word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM, device=DEVICE)
+optimizer = Optimizer(word2vec.params, lr=LEARN_RATE)
 
 print('Fit word2vec model..')
 N = len(targets)
@@ -87,7 +91,8 @@ for epoch in range(1, EPOCH):
         optimizer.zero_grad()
 
         loss += cost.item()
-        accuracy += (torch.sum(torch.argmax(y_hat_logit, dim=1) == torch.argmax(y, dim=1)) / BATCH_SIZE).item()
+        predicted, actual = y_hat_logit.argmax(1), y.argmax(1)
+        accuracy += (predicted == actual).float().mean().item()
         pbar.set_postfix(cost=loss/i, accuracy=accuracy/i)
 
     history.append((loss/pbar.total, accuracy/pbar.total))
