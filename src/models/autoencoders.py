@@ -1,5 +1,5 @@
 import torch
-from models.layers import Linear
+from models.layers import Linear, Embedding
 
 
 class MatrixFactorization:
@@ -30,4 +30,16 @@ class AutoencoderLinear:
         V = self.decoder.forward(U)
         return V
 
+
+class Word2Vec:
+    def __init__(self, vocab_size, embedding_size, device='cpu'):
+        self.target = Embedding(vocab_size, embedding_size, device=device)
+        self.context = Embedding(vocab_size, embedding_size, device=device)
+        self.params = (self.target.params, self.context.params)
+
+    def forward(self, targets, contexts):
+        target_vectors = self.target.forward(targets)       # (B, 1) -> (B, embed)
+        context_vectors = self.context.forward(contexts)    # (B, context) -> (B, context, embed)
+        z = torch.einsum('be,bce->bc', target_vectors, context_vectors)  # (B, E)  @  (B, C, E).T  -> (B, C)
+        return z  # logits
 

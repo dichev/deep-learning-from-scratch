@@ -14,7 +14,7 @@ class Linear:
 
 class Embedding:  # aka lookup table
     def __init__(self, vocab_size, output_size, padding_idx=None, device='cpu'):
-        self.W = torch.randn(vocab_size, output_size, device=device)
+        self.W = torch.randn(vocab_size, output_size, device=device, requires_grad=True)
         if padding_idx is not None:
             with torch.no_grad():
                 self.W[padding_idx] = 0.
@@ -23,7 +23,7 @@ class Embedding:  # aka lookup table
         self.params = (self.W, )
 
     def forward(self, indices):
-        assert isinstance(indices, torch.LongTensor), 'Use only LongTensor as indices, to avoid fancy indexing surprises'
+        assert torch.is_tensor(indices) and not torch.is_floating_point(indices), 'Use only tensor integer as indices, to avoid fancy indexing surprises'
         z = self.W[indices]
         return z
 
