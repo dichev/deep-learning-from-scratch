@@ -33,14 +33,14 @@ def generate_training_batch(sequences, vocab_size):
             continue  # no grams for single word or no word
 
         # Generate positive skip-grams  # todo: exclude <unknown> words?
-        skip_grams = text.skip_grams(sequence, half_window=half_window, n=2)
+        skip_grams, full_context = text.skip_grams(sequence, half_window=half_window, n=2)
 
         # Sample negative skip-grams
-        indices = np.arange(1, vocab_size)  # skips padding at 0
+        indices = np.arange(vocab_size)
         negative_samples = []
-        for target, context in skip_grams:
-            window = np.arange(max(target-half_window, 0), min(target+half_window+1, vocab_size)) - 1  # skips padding at 0
-            neg_samples = pick_uniform(indices, n_negative_samples, exclude=window)  # todo: in real applications sample from log uniform distribution over *ordered by frequency* vocabulary (Zipf's law)
+        for full_context_ in full_context:
+            exclude = [0] + full_context_  # skips also the <padding> at 0
+            neg_samples = pick_uniform(indices, n_negative_samples, exclude=exclude)  # todo: in real applications sample from log uniform distribution over *ordered by frequency* vocabulary (Zipf's law)
             negative_samples.append(neg_samples)
         negative_samples = np.array(negative_samples)
 

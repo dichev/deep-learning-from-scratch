@@ -28,14 +28,18 @@ def n_grams(doc, n=3):
 
 def skip_grams(sequence, half_window=2, n=2):
     assert type(sequence) is list
-    grams = []
+    grams, full_context = [], []
     for i in range(len(sequence)):
         word, neighbours = sequence[i], sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
-        grams += [[word, *comb] for comb in combinations(neighbours, n-1)]
-    return grams
+        for comb in combinations(neighbours, n - 1):
+            grams.append([word, *comb])
+            full_context.append(neighbours)
 
-# skip_grams('the wide road shimmered in the hot sun'.split(), half_window=2, n=2)   # -> [..., ['wide, the'], ['wide, road'], ['wide, shimmered'] ..]
-# skip_grams([0, 1, 2, 3, 4, 0, 5, 6], half_window=2, n=2)
+    return grams, full_context
+
+# grams, full_context = skip_grams('the wide road shimmered in the hot sun'.split(), half_window=2, n=2)   # -> [..., ['wide, the'], ['wide, road'], ['wide, shimmered'] ..]
+# grams, full_context = skip_grams([0, 1, 2, 3, 4, 0, 5, 6], half_window=2, n=2)
+
 
 
 class TextVocabulary:
