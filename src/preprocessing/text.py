@@ -26,14 +26,17 @@ def n_grams(doc, n=3):
 # n_grams('the wide road shimmered in the hot sun', n=2)  # -> [['the wide'], ['wide road'], ..]
 
 
-def skip_grams(sequence, half_window=2, n=2):
+def skip_grams(sequence, half_window=2, n=2, padding_idx=0):
     assert type(sequence) is list
     grams, full_context = [], []
-    for i in range(len(sequence)):
-        word, neighbours = sequence[i], sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
-        for comb in combinations(neighbours, n - 1):
-            grams.append([word, *comb])
-            full_context.append(neighbours)
+    for i, word in enumerate(sequence):
+        if word != padding_idx:
+            neighbours = sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
+            neighbours = [n for n in neighbours if n != padding_idx]
+            if neighbours:
+                for comb in combinations(neighbours, n-1):
+                    grams.append([word, *comb])
+                    full_context.append(neighbours)
 
     return grams, full_context
 
@@ -46,15 +49,15 @@ class TextVocabulary:
 
     def __init__(self, sequences, max_vocab_size=None, padding='<PAD>', unknown='<UNK>'):
         words = [token for seq in sequences for token in seq]
-        dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()  # [(word, freq)]
+        dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()  # [(word, counts)]
 
         if max_vocab_size:
             assert max_vocab_size > 2, 'The vocabulary size cannot be less than 2, because it must include the <padding> and <unknown> tokens'
             dictionary = dictionary[:max_vocab_size]
 
         self.size = len(dictionary)
-        self.frequencies = np.array([freq for word, freq in dictionary])
-        self.to_idx = {word: idx for idx, (word, freq) in enumerate(dictionary)}
+        self.counts = np.array([counts for word, counts in dictionary])
+        self.to_idx = {word: idx for idx, (word, counts) in enumerate(dictionary)}
         self.to_token = {idx: word for word, idx in self.to_idx.items()}
 
     def encode(self, sequences, seq_length=10):
