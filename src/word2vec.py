@@ -64,12 +64,12 @@ def generate_training_batch(sequences, word_counts, subsampling=True):
 
             # Construct training batches
             n = len(skip_grams)
-            batch = torch.hstack((torch.tensor(skip_grams), torch.tensor(negative_samples)))
+            batch = np.hstack((skip_grams, negative_samples))
             targets_.append(batch[:, 0])
             contexts_.append(batch[:, 1:])
-            labels_.append(torch.hstack((torch.ones((n, 1)), torch.zeros((n, n_negative_samples)))))
+            labels_.append(np.hstack((np.ones((n, 1)), np.zeros((n, n_negative_samples)))))
 
-    return torch.hstack(targets_), torch.vstack(contexts_), torch.vstack(labels_)
+    return np.hstack(targets_), np.vstack(contexts_), np.vstack(labels_)
 
 
 # Read the text documents
@@ -84,11 +84,10 @@ text_encoded = vocab.encode(text_tokenized, seq_length=sequence_length)
 vocab.print_human(text_encoded[:5])
 
 # Prepare training batch
-data = generate_training_batch(text_encoded, vocab.counts, subsampling=True)  # todo: doubled tensors
+data = generate_training_batch(text_encoded, vocab.counts, subsampling=True)
 targets, contexts, labels = [torch.tensor(d, device=DEVICE) for d in data]
-assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data contains paddings or unknown words'
 print('\ntargets:', targets.shape, '\ncontexts:', contexts.shape, '\nlabels:', labels.shape, '\n')
-
+assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data contains paddings or unknown words'
 
 # Train a Word2Vec model
 word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM, device=DEVICE)
