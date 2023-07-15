@@ -26,22 +26,20 @@ def n_grams(doc, n=3):
 # n_grams('the wide road shimmered in the hot sun', n=2)  # -> [['the wide'], ['wide road'], ..]
 
 
-def skip_grams(sequence, half_window=2, n=2, padding_idx=0):
-    assert type(sequence) is list
+def skip_grams(sequence, half_window=2, n=2, padding_token=0):
     grams, full_context = [], []
-    for i, word in enumerate(sequence):
-        if word != padding_idx:
+    sequence = [s for s in sequence if s != padding_token]  # drop the paddings
+    if len(sequence) > 1:
+        for i, word in enumerate(sequence):
             neighbours = sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
-            neighbours = [n for n in neighbours if n != padding_idx]
-            if neighbours:
-                for comb in combinations(neighbours, n-1):
-                    grams.append([word, *comb])
-                    full_context.append(neighbours)
+            for comb in combinations(neighbours, n-1):
+                grams.append([word, *comb])
+                full_context.append(neighbours)
 
     return grams, full_context
 
-# grams, full_context = skip_grams('the wide road shimmered in the hot sun'.split(), half_window=2, n=2)   # -> [..., ['wide, the'], ['wide, road'], ['wide, shimmered'] ..]
-# grams, full_context = skip_grams([0, 1, 2, 3, 4, 0, 5, 6], half_window=2, n=2)
+# grams, full_context = skip_grams('the wide road shimmered in the hot sun'.split(), half_window=2, n=2, padding_token='\n')   # -> [..., ['wide, the'], ['wide, road'], ['wide, shimmered'] ..]
+# grams, full_context = skip_grams([0, 1, 2, 3, 4, 0, 5, 6], half_window=2, n=2, padding_token=0)
 
 
 

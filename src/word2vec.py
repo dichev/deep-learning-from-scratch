@@ -39,7 +39,7 @@ def generate_training_batch(sequences, word_counts, subsampling=True):
     # Generate distribution for the negative sampling (the factor 3/4 is empirically recommended in the word2vec paper)
     word_frequencies = word_counts ** (3/4) / np.sum(word_counts ** (3/4))
 
-    # Subsampling by word frequency (more frequent words will be less likely to be sampled)
+    # Subsampling - i.e. downsampling the more frequent words
     # Note the padding and unknown tokens have zero prob
     if subsampling:
         sampling_table = word_sampling_table(word_counts)
@@ -50,7 +50,7 @@ def generate_training_batch(sequences, word_counts, subsampling=True):
     for sequence in progress(sequences):
 
         # Generate positive skip-grams
-        skip_grams, full_context = text.skip_grams(sequence.tolist(), half_window=half_window, n=2)
+        skip_grams, full_context = text.skip_grams(sequence, half_window=half_window, n=2, padding_token=0)
 
         if skip_grams:
             # Sample negative skip-grams
