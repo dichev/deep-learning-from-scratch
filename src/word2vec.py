@@ -17,7 +17,7 @@ n_negative_samples = 4
 max_vocab_size = 4096
 sequence_length = 15
 # training settings
-EPOCH = 1000
+EPOCHS = 1000
 BATCH_SIZE = 1024
 LEARN_RATE = 0.5
 WORD_EMBEDDINGS_DIM = 10
@@ -96,7 +96,7 @@ optimizer = Optimizer(word2vec.params, lr=LEARN_RATE)
 N = len(targets)
 history = []
 print(f'Fit {N} training samples in word2vec model..')
-pbar = trange(1, EPOCH+1, desc='EPOCH')
+pbar = trange(1, EPOCHS+1, desc='EPOCH')
 for epoch in pbar:
     accuracy, loss = [], []
     indices = torch.randperm(N)

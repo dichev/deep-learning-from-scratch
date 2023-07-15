@@ -1,11 +1,12 @@
 import torch
 import pandas as pd
+from tqdm import trange
 from models import optimizers
 from matplotlib import pyplot as plt
 from models.autoencoders import MatrixFactorization
 from preprocessing.integer import index_encoder
 from scipy import sparse
-
+# todo one-hot + linear = indices +embedding
 # Hyperparams & settings
 LEARN_RATE = 0.5
 EPOCHS = 50
@@ -15,6 +16,7 @@ DEVICE = 'cuda'
 
 
 # Data preprocessing
+print('Data preprocessing..')
 df_meta = pd.read_csv('./data/anime-metadata.csv')
 df = pd.read_csv('./data/anime-users-ratings-filtered.csv')
 df['user_idx'], user_to_idx, idx_to_user = index_encoder(df['user_id'])
@@ -26,27 +28,32 @@ N = df.shape[0]
 
 # Model
 model = MatrixFactorization(n_users=len(user_to_idx), n_animes=len(anime_to_idx), rank=MATRIX_RANK, device=DEVICE)
-
+optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
 
 # Fit the data
 history = []
-optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
-for i in range(1, EPOCHS * N//BATCH_SIZE):
-    # batch
-    batch = df.iloc[torch.randint(0, N, (BATCH_SIZE,))]
-    ratings, users, animes = batch[['rating', 'user_idx', 'anime_idx']].values.T
-    ratings = torch.tensor(ratings, device=DEVICE)
+print('Fitting data to MatrixFactorization..')
+print(f' - training data: {N} samples ({N//BATCH_SIZE} batches with batch size {BATCH_SIZE})')
 
-    # optimize
-    predictions = model.forward(users, animes)
-    cost = ((ratings - predictions)**2).mean()
-    cost.backward()
-    optimizer.step().zero_grad()
+pbar = trange(1, EPOCHS+1, desc='EPOCH')
+for epoch in pbar:
+    indices = torch.randperm(N)
+    for i in range(0, N, BATCH_SIZE):
 
-    # collect metrics
-    history.append((cost.item(),))
-    if i <= 10 or i % 100 == 0 or i == EPOCHS:
-        print(f'#{i}/{EPOCHS * N//BATCH_SIZE} cost={cost.item()} ')
+        # batch
+        batch = df.iloc[indices[i:i+BATCH_SIZE]]
+        ratings, users, animes = batch[['rating', 'user_idx', 'anime_idx']].values.T
+        ratings = torch.tensor(ratings, device=DEVICE)
+
+        # optimize
+        predictions = model.forward(users, animes)
+        cost = ((ratings - predictions)**2).mean()
+        cost.backward()
+        optimizer.step().zero_grad()
+
+        # collect metrics
+        history.append((cost.item(),))
+        pbar.set_postfix(cost=cost.item())
 
 
 # Plot the loss function
