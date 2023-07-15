@@ -97,12 +97,11 @@ optimizer = Optimizer(word2vec.params, lr=LEARN_RATE)
 N = len(targets)
 history = []
 print(f'Fit {N} training samples in word2vec model..')
-for epoch in range(1, EPOCH):
-    pbar = trange(1, N // BATCH_SIZE + 1, desc=f'EPOCH #{epoch}/{EPOCH}')
-    accuracy, loss = 0., 0.
+pbar = trange(1, EPOCH+1, desc='EPOCH')
+for epoch in pbar:
+    accuracy, loss = [], []
     indices = torch.randperm(N)
-    for i in pbar:
-        # batch = torch.randint(0, N, (BATCH_SIZE,))
+    for i in range(0, N, BATCH_SIZE):
         batch = indices[i:i+BATCH_SIZE]
         y = labels[batch]
         y_hat_logit = word2vec.forward(targets[batch], contexts[batch])
@@ -112,14 +111,17 @@ for epoch in range(1, EPOCH):
         optimizer.step()
         optimizer.zero_grad()
 
-        loss += cost.item()
+        loss.append(cost.item())
         predicted, actual = y_hat_logit.argmax(1), y.argmax(1)
-        accuracy += (predicted == actual).float().mean().item()
-        pbar.set_postfix(cost=loss/i, accuracy=accuracy/i)
+        accuracy.append((predicted == actual).float().mean().item())
 
-    history.append((loss/pbar.total, accuracy/pbar.total))
+    epoch_loss, epoch_accuracy = np.mean(loss), np.mean(accuracy)  # todo: not accurate for batches less than BATCH_SIZE
+    pbar.set_postfix(cost=epoch_loss, accuracy=epoch_accuracy)
+    history.append((epoch_loss, epoch_accuracy))
 
 
 # Plot the loss function
 loss, accuracy = zip(*history)
-plt.plot(range(len(loss)), loss); plt.title('Loss'); plt.xlabel('iterations'); plt.show()
+plt.plot(range(len(loss)), loss, label=f'loss = {loss[-1]:.2f}')
+plt.plot(range(len(accuracy)), accuracy, label=f'accuracy = {accuracy[-1]:.2f}')
+plt.title('Loss & accuracy'); plt.xlabel('iterations'); plt.legend(); plt.show()
