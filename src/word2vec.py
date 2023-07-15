@@ -5,7 +5,7 @@ from tqdm import trange, tqdm as progress
 
 from preprocessing.text import word_tokenizer, TextVocabulary
 import preprocessing.text as text
-from utils.rng import pick_uniform
+from utils.rng import pick_uniform, sample_from
 from functions.losses import cross_entropy
 from models.optimizers import Optimizer
 from models.autoencoders import Word2Vec
@@ -27,6 +27,9 @@ DEVICE = 'cuda'
 def generate_training_batch(sequences, vocab_size):
     targets_, contexts_, labels_ = [], [], []  # the first dimension  will vary
 
+    # Generate distribution for the negative sampling (the factor 3/4 is empirically recommended in the word2vec paper)
+    freq_distribution = vocab.frequencies ** (3/4) / np.sum(vocab.frequencies ** (3/4))
+
     for sequence in progress(sequences):
         sequence = list(np.trim_zeros(sequence, 'b'))  # remove right padding
         if len(sequence) < 2:
@@ -36,11 +39,11 @@ def generate_training_batch(sequences, vocab_size):
         skip_grams, full_context = text.skip_grams(sequence, half_window=half_window, n=2)
 
         # Sample negative skip-grams
-        indices = np.arange(vocab_size)
         negative_samples = []
         for full_context_ in full_context:
             exclude = [0] + full_context_  # skips also the <padding> at 0
-            neg_samples = pick_uniform(indices, n_negative_samples, exclude=exclude)  # todo: in real applications sample from log uniform distribution over *ordered by frequency* vocabulary (Zipf's law)
+            # neg_samples = pick_uniform(np.arange(vocab_size), n_negative_samples, exclude=exclude)
+            neg_samples = sample_from(freq_distribution, n_negative_samples, exclude=exclude)
             negative_samples.append(neg_samples)
         negative_samples = np.array(negative_samples)
 

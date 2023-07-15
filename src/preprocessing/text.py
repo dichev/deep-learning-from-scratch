@@ -46,15 +46,15 @@ class TextVocabulary:
 
     def __init__(self, sequences, max_vocab_size=None, padding='<PAD>', unknown='<UNK>'):
         words = [token for seq in sequences for token in seq]
-        dictionary = [padding, unknown]
-        dictionary += [word for word, freq in Counter(words).most_common()]
+        dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()  # [(word, freq)]
 
         if max_vocab_size:
             assert max_vocab_size > 2, 'The vocabulary size cannot be less than 2, because it must include the <padding> and <unknown> tokens'
             dictionary = dictionary[:max_vocab_size]
 
         self.size = len(dictionary)
-        self.to_idx = {word: idx for idx, word in enumerate(dictionary)}
+        self.frequencies = np.array([freq for word, freq in dictionary])
+        self.to_idx = {word: idx for idx, (word, freq) in enumerate(dictionary)}
         self.to_token = {idx: word for word, idx in self.to_idx.items()}
 
     def encode(self, sequences, seq_length=10):
