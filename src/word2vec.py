@@ -15,7 +15,7 @@ from models.autoencoders import Word2Vec
 half_window = 2
 n_negative_samples = 4
 max_vocab_size = 4096
-sequence_length = 10
+sequence_length = 15
 # training settings
 EPOCH = 1000
 BATCH_SIZE = 1024
@@ -80,7 +80,7 @@ with open('../data/shakespeare.txt', 'r') as f:
 # Tokenize and index
 text_tokenized = [word_tokenizer(line) for line in docs]
 vocab = TextVocabulary(text_tokenized, max_vocab_size=max_vocab_size)
-text_encoded = vocab.encode(text_tokenized)
+text_encoded = vocab.encode(text_tokenized, seq_length=sequence_length)
 vocab.print_human(text_encoded[:5])
 
 # Prepare training batch

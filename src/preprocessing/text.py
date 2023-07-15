@@ -78,7 +78,7 @@ class TextVocabulary:
 # ]
 # docs_tokenized = [word_tokenizer(doc) for doc in docs]
 # vocab = TextVocabulary(docs_tokenized, max_vocab_size=100)
-# vocab.encode([word_tokenizer('Welcome to the AI world!')])
+# vocab.encode([word_tokenizer('Welcome to the AI world!')], seq_length=10)
 # vocab.translate([4, 5, 3, 6, 7, 0, 0])
 # sequences = vocab.encode(docs_tokenized, seq_length=10)
 # vocab.print_human(sequences)
