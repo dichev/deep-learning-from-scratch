@@ -13,7 +13,7 @@ def softmax(z, dim=-1):
     """ Shift with the max value to avoid numerical overflows:
     ->  softmax(z) =  e^{z_i} / sum e^z  * e^{-c}/e^{-c} = e^{z_i-c} / sum e^{z-c} = softmax(z-c)
     """
-    e = torch.exp(z - z.max(dim, keepdim=True))
+    e = torch.exp(z - z.max(dim, keepdim=True)[0])
     return e / e.sum(dim, keepdim=True)
 
 def log_softmax(z, dim=-1):
