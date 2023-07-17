@@ -1,4 +1,11 @@
 import numpy as np
+import torch
+import random
+
+def seed_global(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 def pick_uniform(arr, n=1, exclude=None):
     if exclude is not None:
