@@ -15,15 +15,11 @@ def word_tokenizer(doc, split=True):
         doc = pattern.sub(repl, doc)
     return doc.split() if split else doc
 
-# word_tokenizer("Hello- @$#A?I    w%%orld \n!") # -> ['hello', 'ai', 'world']
-
 
 def n_grams(doc, n=3):
     words = doc.split()
     grams = [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
     return grams
-
-# n_grams('the wide road shimmered in the hot sun', n=2)  # -> [['the wide'], ['wide road'], ..]
 
 
 def skip_grams(sequence, half_window=2, n=2, padding_token=0):
@@ -37,10 +33,6 @@ def skip_grams(sequence, half_window=2, n=2, padding_token=0):
                 full_context.append(neighbours)
 
     return grams, full_context
-
-# grams, full_context = skip_grams('the wide road shimmered in the hot sun'.split(), half_window=2, n=2, padding_token='\n')   # -> [..., ['wide, the'], ['wide, road'], ['wide, shimmered'] ..]
-# grams, full_context = skip_grams([0, 1, 2, 3, 4, 0, 5, 6], half_window=2, n=2, padding_token=0)
-
 
 
 class TextVocabulary:
@@ -70,26 +62,4 @@ class TextVocabulary:
     def print_human(self, sequences):
         for seq in sequences:
             print(f'{seq} -> ', ' '.join([self.to_token[idx] for idx in seq if idx>0]))
-
-
-# docs = [
-#     'Welcome to the AI world!',
-#     'The wide road shimmered in the hot hot hot hot sun.',
-# ]
-# docs_tokenized = [word_tokenizer(doc) for doc in docs]
-# vocab = TextVocabulary(docs_tokenized, max_vocab_size=100)
-# vocab.encode([word_tokenizer('Welcome to the AI world!')], seq_length=10)
-# vocab.translate([4, 5, 3, 6, 7, 0, 0])
-# sequences = vocab.encode(docs_tokenized, seq_length=10)
-# vocab.print_human(sequences)
-# print(vocab.to_token)
-
-
-
-
-
-
-
-
-
 
