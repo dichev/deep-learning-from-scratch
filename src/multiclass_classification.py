@@ -24,7 +24,7 @@ Y = F.one_hot(torch.Tensor(_y).long())
 idx = 0
 for Model in (MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression):
     model = Model(input_size=D, output_size=C)
-    optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
+    optimizer = optimizers.Optimizer(model.parameters, lr=LEARN_RATE)
 
     # Fit the data
     history = []
@@ -34,7 +34,7 @@ for Model in (MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression
         cost.backward()
         optimizer.step().zero_grad()
 
-        history.append((model.params[0].flatten().detach().clone(), model.params[1].flatten().detach().clone(), cost.item()))
+        history.append((tuple(model.parameters(named=False))[0].flatten().detach().clone(), tuple(model.parameters(named=False))[1].flatten().detach().clone(), cost.item()))
         if i < 10 or i % 100 == 1 or i+1 == EPOCHS:
             print(f'#{i:<3} matched={torch.sum(model.predict(X)==torch.argmax(Y, dim=-1)).item()}/{Y_hat.shape[0]}, cost={cost.item()} ')
         if i > 10 and abs(cost.item() - history[-10][-1]) < 1e-5:

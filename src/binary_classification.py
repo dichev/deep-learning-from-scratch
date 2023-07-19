@@ -23,7 +23,7 @@ y = torch.where(torch.Tensor(_y).long() == 0, -1, 1)
 # Define the model
 for Model in (Perceptron, SVM, LeastSquareRegression, LogisticRegression):
     model = Model(input_size=D)
-    optimizer = optimizers.Optimizer(model.params, lr=LEARN_RATE)
+    optimizer = optimizers.Optimizer(model.parameters, lr=LEARN_RATE)
 
     # Fit the data
     history = []
@@ -33,7 +33,7 @@ for Model in (Perceptron, SVM, LeastSquareRegression, LogisticRegression):
         cost.backward()
         optimizer.step().zero_grad()
 
-        history.append((model.params[0].flatten().detach().clone(), cost.item()))
+        history.append((tuple(model.parameters(named=False))[0].flatten().detach().clone(), cost.item()))
         if i < 10 or i % 100 == 1 or i+1 == EPOCHS:
             print(f'#{i:<3} matched={torch.sum(model.predict(X)==y).item()}/{y.shape[0]}, cost={cost.item()} ')
         if i > 10 and abs(cost.item() - history[-10][1]) < 1e-5:

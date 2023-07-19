@@ -1,13 +1,12 @@
 import torch
 import torch.nn.functional as F
 from functions.activations import sigmoid, softmax
-from models.layers import Linear
+from models.layers import Module, Linear
 
 
-class Perceptron:
+class Perceptron(Module):
     def __init__(self, input_size):
         self.linear = Linear(input_size)
-        self.params = self.linear.params
 
     def forward(self, X):
         return self.linear.forward(X)
@@ -41,10 +40,9 @@ class LeastSquareRegression(Perceptron):
         return losses.mean()
 
 
-class LogisticRegression:
+class LogisticRegression(Module):
     def __init__(self, input_size):
         self.linear = Linear(input_size)
-        self.params = self.linear.params
 
     def forward(self, X):
         z = self.linear.forward(X)
@@ -64,10 +62,9 @@ class LogisticRegression:
         return y_hat
 
 
-class MulticlassPerceptron:
+class MulticlassPerceptron(Module):
     def __init__(self, input_size, output_size):
         self.linear = Linear(input_size, output_size)
-        self.params = self.linear.params
         self.output_size = output_size
 
     def forward(self, X):
@@ -105,10 +102,9 @@ class MulticlassSVM(MulticlassPerceptron):
         return loss.sum()
 
 
-class MultinomialLogisticRegression:
+class MultinomialLogisticRegression(Module):
     def __init__(self, input_size, output_size):
         self.linear = Linear(input_size, output_size)
-        self.params = self.linear.params
         self.output_size = output_size
 
     def forward(self, X):

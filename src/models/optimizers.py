@@ -2,19 +2,20 @@ import torch
 
 class Optimizer:
 
-    def __init__(self, params, lr):
-        self._params = params
+    def __init__(self, parameters, lr):
+        assert callable(parameters), 'Expected the argument "parameter" to be an iterator function'
+        self._parameters = parameters
         self.lr = lr
 
     @torch.no_grad()
     def step(self):
-        for param in nested(self._params):
+        for name, param in self._parameters():
             param -= self.lr * param.grad
             
         return self
 
     def zero_grad(self):
-        for param in nested(self._params):
+        for name, param in self._parameters():
             param.grad.zero_()
 
 

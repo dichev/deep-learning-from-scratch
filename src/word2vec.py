@@ -91,7 +91,7 @@ assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data co
 
 # Train a Word2Vec model
 word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM, device=DEVICE)
-optimizer = Optimizer(word2vec.params, lr=LEARN_RATE)
+optimizer = Optimizer(word2vec.parameters, lr=LEARN_RATE)
 
 N = len(targets)
 history = []
