@@ -1,12 +1,13 @@
 import torch
 from models.layers import Module, Linear, Embedding
-from models.parameters import Param, init_normal
+from functions import init
+from models.parameters import Param
 
 
 class MatrixFactorization(Module):
     def __init__(self, n_users, n_animes, rank, device='cpu'):
-        self.U = Param(n_users, rank, init=init_normal, device=device, requires_grad=True)   # (user, k)
-        self.V = Param(n_animes, rank, init=init_normal, device=device, requires_grad=True)  # (anime, k)
+        self.U = Param(n_users, rank, init=init.normal, device=device, requires_grad=True)   # (user, k)
+        self.V = Param(n_animes, rank, init=init.normal, device=device, requires_grad=True)  # (anime, k)
 
     def forward(self, user, anime):
         # dot only along the known ratings in the data, not over all like U @ V.T

@@ -1,5 +1,6 @@
 import torch
-from models.parameters import Param, init_xavier, init_zeros, init_normal
+from functions import init
+from models.parameters import Param
 
 
 class Module:
@@ -13,8 +14,8 @@ class Module:
 
 class Linear(Module):
     def __init__(self, input_size, output_size=1, device='cpu'):
-        self.W = Param(input_size, output_size, init=init_xavier, device=device, requires_grad=True)  # (D, C)
-        self.b = Param(1, output_size, init=init_zeros, device=device, requires_grad=True)  # (D, C)
+        self.W = Param(input_size, output_size, init=init.xavier_normal, device=device, requires_grad=True)  # (D, C)
+        self.b = Param(1, output_size, init=init.zeros, device=device, requires_grad=True)  # (D, C)
 
     def forward(self, X):
         z = X @ self.W + self.b    # (N, D)x(D, C) + (1, C)  --> (N, C)
@@ -23,7 +24,7 @@ class Linear(Module):
 
 class Embedding(Module):  # aka lookup table
     def __init__(self, vocab_size, output_size, padding_idx=None, device='cpu'):
-        self.W = Param(vocab_size, output_size, init=init_normal, device=device, requires_grad=True)
+        self.W = Param(vocab_size, output_size, init=init.normal, device=device, requires_grad=True)
         if padding_idx is not None:
             with torch.no_grad():
                 self.W[padding_idx] = 0.
