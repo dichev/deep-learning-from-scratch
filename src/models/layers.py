@@ -13,8 +13,8 @@ class Module:
 
 
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, device='cpu'):
-        self.W = Param(input_size, output_size, init=init.xavier_normal, device=device, requires_grad=True)  # (D, C)
+    def __init__(self, input_size, output_size=1, device='cpu', weights_init=init.kaiming_normal_relu):
+        self.W = Param(input_size, output_size, init=weights_init, device=device, requires_grad=True)  # (D, C)
         self.b = Param(1, output_size, init=init.zeros, device=device, requires_grad=True)  # (D, C)
 
     def forward(self, X):

@@ -25,3 +25,7 @@ def xavier_uniform(in_size, out_size, device=None):
     tensor = torch.rand(in_size, out_size, device=device)*(b-a) + a
     return tensor
 
+def kaiming_normal_relu(in_size, out_size, device=None):
+    tensor = torch.randn(in_size, out_size, device=device)
+    tensor *= sqrt(2. / in_size)  # 2 is the ReLU's mean
+    return tensor

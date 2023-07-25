@@ -9,6 +9,13 @@ def unit_step(x):
 def sigmoid(x):
     return 1 / (1 + torch.exp(-x))
 
+def tanh(x):
+    e = torch.exp(x)
+    return (e - 1/e) / (e + 1/e)
+
+def relu(x):
+    return torch.clip(x, 0)
+
 def softmax(z, dim=-1):
     """ Shift with the max value to avoid numerical overflows:
     ->  softmax(z) =  e^{z_i} / sum e^z  * e^{-c}/e^{-c} = e^{z_i-c} / sum e^{z-c} = softmax(z-c)
