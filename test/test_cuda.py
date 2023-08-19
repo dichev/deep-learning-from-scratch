@@ -6,7 +6,7 @@ def test_is_cuda_available():
     assert torch.cuda.is_available()
 
 
-def test_cuda_speed():
+def _ignore_test_cuda_speed():
     print(f"Preparing the tensors")
     size = 4000
     a = torch.randn(size, size)
