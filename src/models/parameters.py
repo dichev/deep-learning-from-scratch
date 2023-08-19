@@ -6,7 +6,7 @@ class Param(torch.Tensor):
 
         data = init(in_size, out_size, device=device)
         instance = torch.Tensor._make_subclass(cls, data)
-        instance._is_parameter = True  # will be used to detect all module's Parameters
+        # instance._is_parameter = True  # will be used to detect all module's Parameters
         instance.requires_grad = True
         return instance
 

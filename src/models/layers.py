@@ -9,23 +9,42 @@ class Module:
         for key, val in vars(self).items():
             if isinstance(val, Module):
                 yield from val.parameters(named, prefix=f'{key}.')
-            elif hasattr(val, '_is_parameter') and getattr(val, '_is_parameter') is True:
+            elif isinstance(val, Param):
+                yield (prefix + key, val) if named else val
+
+    def modules(self, named=True, prefix=''):
+        for key, val in vars(self).items():
+            if isinstance(val, Module):
+                yield from val.modules(named, prefix=f'{key}.')
                 yield (prefix + key, val) if named else val
 
     def summary(self):
         print(self)
-        for key, val in self.parameters():
-            print(f'\t{key}: {val.__class__.__name__}{list(val.size())}')
+        for name, module in self.modules():
+            print(f'\t{name}:', module)
+            for param_name, param in module.parameters():
+                print(f'\t\t{name}.{param_name}', list(param.size()))
 
     def export(self, filename='./logs/model.json'):
         print('Export model to:', filename)
-        params = {key: value.tolist() for key, value in self.parameters(named=True)}
+
+        network = {'layers': []}
+        for name, module in self.modules():
+            layer = {
+                'type': module.__class__.__name__,
+                'name': name,
+            }
+            for param_name, param in module.parameters():
+                layer[param_name] = param.tolist()
+            network['layers'].append(layer)
+
         with open(filename, 'w') as f:
-            json.dump(params, f, indent=2)
+            json.dump(network, f, indent=2)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}()'
-
+        input = self.input_size if hasattr(self, 'input_size') else ''
+        output = self.output_size if hasattr(self, 'output_size') else ''
+        return f'{self.__class__.__name__}({input}, {output})'
 
 
 class Linear(Module):
@@ -39,7 +58,7 @@ class Linear(Module):
         return z
 
     def __repr__(self):
-        return f'Linear({self.input_size}, {self.output_size})'
+        return f'Linear({self.input_size}, {self.output_size}, bias=true)'
 
 
 class Embedding(Module):  # aka lookup table
@@ -57,5 +76,5 @@ class Embedding(Module):  # aka lookup table
         return z
 
     def __repr__(self):
-        return f'Embedding({self.input_size}, {self.output_size})'
+        return f'Embedding({self.input_size}, {self.output_size}, bias=false)'
 
