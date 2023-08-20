@@ -1,10 +1,10 @@
 import torch
-import torch.nn.functional as F
 from matplotlib import pyplot as plt
 from sklearn import datasets
 from models import optimizers
 from utils import plots
 from models.shallow_models import MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression
+from preprocessing.integer import one_hot
 
 # Hyperparams
 LEARN_RATE = 0.005
@@ -17,7 +17,7 @@ n_samples, n_features, n_classes = N, D, C = 100, 2, 5
 _X, _y = datasets.make_blobs(n_samples=N, n_features=D, centers=C, cluster_std=0.6, random_state=2)
 # plt.scatter(_X[:, 0], _X[:, 1], c=_y, edgecolors='k');  plt.xlabel(f'$x_1$'); plt.ylabel(f'$x_2$'); plt.show()
 X = torch.Tensor(_X)
-Y = F.one_hot(torch.Tensor(_y).long())
+Y = one_hot(torch.Tensor(_y).long())
 
 
 # Define the model

@@ -15,3 +15,11 @@ def index_encoder(labels):
     vocab_inverse = {idx: cls for cls, idx in vocab.items()}
     encoded = torch.tensor([vocab[d] for d in labels], dtype=torch.long)
     return encoded, vocab, vocab_inverse
+
+
+def one_hot(x, num_classes=None):
+    I = torch.eye(num_classes or x.max() + 1)
+    return I[x]
+
+
+

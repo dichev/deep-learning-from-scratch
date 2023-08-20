@@ -1,5 +1,5 @@
 import torch
-import torch.nn.functional as F
+from preprocessing.integer import one_hot
 from functions.activations import sigmoid, softmax
 from models.layers import Module, Linear
 
@@ -78,7 +78,7 @@ class MulticlassPerceptron(Module):
         margin[margin < 0] = 0.
 
         isMisclassified = (torch.argmax(y_hat, dim=1) != torch.argmax(y, dim=1)).view(-1, 1)
-        isMaximum = F.one_hot(margin.argmax(dim=1), num_classes=self.output_size)
+        isMaximum = one_hot(margin.argmax(dim=1), num_classes=self.output_size)
 
         loss = margin * isMisclassified * isMaximum
         return loss.sum()

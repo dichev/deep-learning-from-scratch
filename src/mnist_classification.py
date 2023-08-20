@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import datasets
 from torchvision.utils import make_grid
@@ -11,6 +10,7 @@ from functions.losses import cross_entropy
 from models.layers import Module, Linear
 from models.optimizers import Optimizer
 from preprocessing.floats import normalizeMinMax
+from preprocessing.integer import one_hot
 
 writer = SummaryWriter(flush_secs=2)
 
@@ -33,7 +33,8 @@ writer.add_image('images', make_grid(train.data[:100].unsqueeze(1).float(), 10, 
 
 data = train.data.view(-1, n_features).float().to(DEVICE)
 data = normalizeMinMax(data, dim=-1)
-targets = F.one_hot(train.targets).float().to(DEVICE)
+targets = one_hot(train.targets).to(DEVICE)
+
 
 # Model
 class Net(Module):
