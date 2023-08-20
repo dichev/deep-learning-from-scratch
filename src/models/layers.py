@@ -25,7 +25,7 @@ class Module:
             for param_name, param in module.parameters():
                 print(f'\t\t{name}.{param_name}', list(param.size()))
 
-    def export(self, filename='./logs/model.json'):
+    def export(self, filename='./runs/model.json'):
         print('Export model to:', filename)
 
         network = {'layers': []}
