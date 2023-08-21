@@ -79,15 +79,14 @@ for epoch in pbar:
         optimizer.step()
         optimizer.zero_grad()
 
-        loss += cost.item() * len(batch)
+        loss += cost.item() * len(batch) / N
         predicted, actual = y_hat_logit.argmax(1), y.argmax(1)
-        accuracy += (predicted == actual).float().mean().item() * len(batch)
+        accuracy += (predicted == actual).float().mean().item() * len(batch) / N
 
-    epoch_loss, epoch_accuracy = loss/N, accuracy/N
-    pbar.set_postfix(cost=epoch_loss, accuracy=epoch_accuracy)
+    pbar.set_postfix(cost=loss, accuracy=accuracy)
 
-    writer.add_scalar('Loss/train', epoch_loss, epoch)
-    writer.add_scalar('Accuracy/train', epoch_accuracy, epoch)
+    writer.add_scalar('Loss/train', loss, epoch)
+    writer.add_scalar('Accuracy/train', accuracy, epoch)
     if epoch % 10 == 0:
         for name, param in net.parameters():
             writer.add_histogram(name.replace('.', '/'), param, epoch)
