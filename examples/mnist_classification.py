@@ -8,7 +8,7 @@ from functions import init
 from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear
-from models.optimizers import Optimizer
+from models.optimizers import SGD
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 
@@ -59,7 +59,7 @@ class Net(Module):
 net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
-optimizer = Optimizer(net.parameters, lr=LEARN_RATE)
+optimizer = SGD(net.parameters, lr=LEARN_RATE)
 
 
 # Training loop

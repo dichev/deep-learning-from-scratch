@@ -7,7 +7,7 @@ from preprocessing.text import word_tokenizer, TextVocabulary
 import preprocessing.text as text
 from utils.rng import pick_uniform, sample_from
 from functions.losses import cross_entropy
-from models.optimizers import Optimizer
+from models.optimizers import SGD
 from models.autoencoders import Word2Vec
 
 
@@ -91,7 +91,7 @@ assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data co
 
 # Train a Word2Vec model
 word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM, device=DEVICE)
-optimizer = Optimizer(word2vec.parameters, lr=LEARN_RATE)
+optimizer = SGD(word2vec.parameters, lr=LEARN_RATE)
 
 N = len(targets)
 history = []
