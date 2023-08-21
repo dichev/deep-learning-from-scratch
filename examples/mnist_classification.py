@@ -8,7 +8,7 @@ from functions import init
 from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear
-from models.optimizers import SGD
+from models import optimizers
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 
@@ -59,7 +59,8 @@ class Net(Module):
 net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
-optimizer = SGD(net.parameters, lr=LEARN_RATE)
+optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
+lr_scheduler = optimizers.LR_Scheduler(optimizer, exp_decay=0.1, min_lr=1e-5)
 
 
 # Training loop
@@ -83,13 +84,16 @@ for epoch in pbar:
         predicted, actual = y_hat_logit.argmax(1), y.argmax(1)
         accuracy += (predicted == actual).float().mean().item() * len(batch) / N
 
-    pbar.set_postfix(cost=loss, accuracy=accuracy)
-
-    writer.add_scalar('Loss/train', loss, epoch)
-    writer.add_scalar('Accuracy/train', accuracy, epoch)
+    # Metrics
+    pbar.set_postfix(cost=loss, accuracy=accuracy, lr=optimizer.lr)
+    writer.add_scalar('a/Loss', loss, epoch)
+    writer.add_scalar('a/Accuracy', accuracy, epoch)
+    writer.add_scalar('a/Learn rate', optimizer.lr, epoch)
     if epoch % 10 == 0:
         for name, param in net.parameters():
             writer.add_histogram(name.replace('.', '/'), param, epoch)
+
+    lr_scheduler.step()
 
 
 net.export('../deeper/data/model-trained.json')
