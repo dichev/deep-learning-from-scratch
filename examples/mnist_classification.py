@@ -60,7 +60,8 @@ net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
-lr_scheduler = optimizers.LR_Scheduler(optimizer, exp_decay=0.1, min_lr=1e-5)
+#lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
+lr_scheduler = optimizers.LR_StepScheduler(optimizer, step_size=10, decay=0.99, min_lr=1e-5)
 
 
 # Training loop
