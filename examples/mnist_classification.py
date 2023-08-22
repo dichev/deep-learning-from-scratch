@@ -9,6 +9,7 @@ from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear
 from models import optimizers
+from models.regularizers import L2_norm
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 
@@ -22,7 +23,8 @@ n_classes  = 10   # len(train.classes)
 # training hyperparams & settings
 EPOCHS = 100
 BATCH_SIZE = 1024
-LEARN_RATE = 0.05
+LEARN_RATE = 0.1
+WEIGHT_DECAY = 0.001
 DEVICE = 'cuda'
 
 
@@ -60,8 +62,8 @@ net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
-#lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
-lr_scheduler = optimizers.LR_StepScheduler(optimizer, step_size=10, decay=0.99, min_lr=1e-5)
+lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
+# lr_scheduler = optimizers.LR_StepScheduler(optimizer, step_size=10, decay=0.99, min_lr=1e-5)
 
 
 # Training loop
@@ -76,7 +78,7 @@ for epoch in pbar:
         y = targets[batch]
         y_hat_logit = net.forward(data[batch].view(-1, n_features).float())
 
-        cost = cross_entropy(y_hat_logit, y, logits=True)
+        cost = cross_entropy(y_hat_logit, y, logits=True) + L2_norm(net.parameters(), WEIGHT_DECAY)
         cost.backward()
         optimizer.step()
         optimizer.zero_grad()
