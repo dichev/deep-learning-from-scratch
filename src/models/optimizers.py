@@ -28,6 +28,9 @@ class LR_Scheduler:
         self.min_lr = min_lr
 
     def step(self):  # must be called after each epoch, not after each batch
+        self.reduce_lr()
+
+    def reduce_lr(self):
         optim = self.optimizer
         if optim.lr > self.min_lr:
             next_lr = optim.lr * self.decay  # using discrete (compounded) decay instead exp(-self.decay), because the epochs are not continuous
@@ -41,7 +44,27 @@ class LR_StepScheduler(LR_Scheduler):
         self.step_size = step_size
         self.epoch = 0
 
-    def step(self):  # must be called after each epoch, not after each batch
+    def step(self):
         self.epoch += 1
         if self.epoch % self.step_size == 0:
-            super().step()
+            self.reduce_lr()
+
+
+class LR_PlateauScheduler(LR_Scheduler):
+
+    def __init__(self, optimizer, patience=5, decay=.90, min_lr=1e-5, threshold=1e-5):
+        super().__init__(optimizer, decay=decay, min_lr=min_lr)
+        self.patience = patience
+        self.epoch = 0
+        self.best = math.inf
+        self.threshold = threshold
+
+    def step(self, loss):
+        self.epoch += 1
+        if loss < self.best - self.threshold:
+            self.best = loss
+            self.epoch = 0
+        elif self.epoch > self.patience:
+            self.reduce_lr()
+            self.epoch = 0
+

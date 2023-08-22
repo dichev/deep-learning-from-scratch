@@ -24,7 +24,7 @@ n_classes  = 10   # len(train.classes)
 EPOCHS = 100
 BATCH_SIZE = 1024
 LEARN_RATE = 0.1
-WEIGHT_DECAY = 0.001
+WEIGHT_DECAY = 0.01
 DEVICE = 'cuda'
 
 
@@ -62,8 +62,9 @@ net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
-lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
+# lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
 # lr_scheduler = optimizers.LR_StepScheduler(optimizer, step_size=10, decay=0.99, min_lr=1e-5)
+lr_scheduler = optimizers.LR_PlateauScheduler(optimizer, patience=5, decay=0.99, min_lr=1e-5, threshold=1e-2)
 
 
 # Training loop
@@ -96,7 +97,7 @@ for epoch in pbar:
         for name, param in net.parameters():
             writer.add_histogram(name.replace('.', '/'), param, epoch)
 
-    lr_scheduler.step()
+    lr_scheduler.step(cost)
 
 
 net.export('../deeper/data/model-trained.json')
