@@ -64,6 +64,13 @@ class Net(Module):
         # x = softmax(x)
         return x
 
+    @torch.no_grad()
+    def evaluate(self, y_hat, y):
+        predicted, actual = y_hat.argmax(1), y.argmax(1)
+        correct = (predicted == actual)
+        return correct.float().mean().item()
+
+
 net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
@@ -90,8 +97,7 @@ for epoch in pbar:
         optimizer.step().zero_grad()
 
         loss += cost.item() * len(batch) / N
-        predicted, actual = y_hat_logit.argmax(1), y.argmax(1)
-        accuracy += (predicted == actual).float().mean().item() * len(batch) / N
+        accuracy += net.evaluate(y_hat_logit, y) * len(batch) / N
 
     # Metrics
     train_writer.add_scalar('whp/Learn rate', optimizer.lr, epoch)
@@ -104,7 +110,7 @@ for epoch in pbar:
         with torch.no_grad():
             y_hat_logit = net.forward(X_test.view(-1, n_features).float())
             test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() + L2_norm(net.parameters(), WEIGHT_DECAY).item()
-            test_accuracy = (y_hat_logit.argmax(1) == y_test.argmax(1)).float().mean().item()
+            test_accuracy = net.evaluate(y_hat_logit, y_test)
             test_writer.add_scalar('t/Loss', test_loss, epoch)
             test_writer.add_scalar('t/Accuracy', test_accuracy, epoch)
 
