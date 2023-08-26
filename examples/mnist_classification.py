@@ -74,10 +74,11 @@ class Net(Module):
 net = Net(n_features, n_classes, n_hidden)
 net.summary()
 net.export('../deeper/data/model.json')
-optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
+# optimizer = optimizers.SGD(net.parameters, lr=LEARN_RATE)
+optimizer = optimizers.SGD_Momentum(net.parameters, lr=LEARN_RATE, momentum=0.9)
 # lr_scheduler = optimizers.LR_Scheduler(optimizer, decay=0.99, min_lr=1e-5)
 # lr_scheduler = optimizers.LR_StepScheduler(optimizer, step_size=10, decay=0.99, min_lr=1e-5)
-lr_scheduler = optimizers.LR_PlateauScheduler(optimizer, patience=5, decay=0.99, min_lr=1e-5, threshold=1e-2)
+# lr_scheduler = optimizers.LR_PlateauScheduler(optimizer, patience=5, decay=0.99, min_lr=1e-5, threshold=1e-2)
 
 
 # Training loop
@@ -92,7 +93,7 @@ for epoch in pbar:
         y = y_train[batch]
         y_hat_logit = net.forward(X_train[batch].view(-1, n_features).float())
 
-        cost = cross_entropy(y_hat_logit, y, logits=True) + L2_norm(net.parameters(), WEIGHT_DECAY)
+        cost = cross_entropy(y_hat_logit, y, logits=True) # + L2_norm(net.parameters(), WEIGHT_DECAY)
         cost.backward()
         optimizer.step().zero_grad()
 
@@ -103,19 +104,20 @@ for epoch in pbar:
     train_writer.add_scalar('whp/Learn rate', optimizer.lr, epoch)
     train_writer.add_scalar('t/Loss', loss, epoch)
     train_writer.add_scalar('t/Accuracy', accuracy, epoch)
-    if epoch % 10 == 1:
+    if epoch == 1 or epoch % 10 == 0:
         for name, param in net.parameters():
             train_writer.add_histogram(name.replace('.', '/'), param, epoch)
 
         with torch.no_grad():
             y_hat_logit = net.forward(X_test.view(-1, n_features).float())
-            test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() + L2_norm(net.parameters(), WEIGHT_DECAY).item()
+            test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
             test_accuracy = net.evaluate(y_hat_logit, y_test)
             test_writer.add_scalar('t/Loss', test_loss, epoch)
             test_writer.add_scalar('t/Accuracy', test_accuracy, epoch)
 
+
     pbar.set_postfix(cost=f"{loss:.4f}|{test_loss:.4f}", accuracy=f"{accuracy:.4f}|{test_accuracy:.4f}", lr=optimizer.lr)
-    lr_scheduler.step(cost)
+    # lr_scheduler.step(cost)
 
 
 net.export('../deeper/data/model-trained.json')

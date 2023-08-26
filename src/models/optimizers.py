@@ -11,13 +11,35 @@ class SGD:
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters():
-            param -= self.lr * param.grad
+            param += -self.lr * param.grad
             
         return self
 
     def zero_grad(self):
         for name, param in self._parameters():
             param.grad.zero_()
+
+
+class SGD_Momentum(SGD):
+
+        def __init__(self, parameters, lr, momentum=0.9):
+            super().__init__(parameters, lr)
+            self.momentum = momentum
+            self.velocities = {}
+            for name, param in self._parameters():
+                if name in self.velocities:
+                    Exception(f'Parameter {name} is already registered in the optimizer')
+                self.velocities[name] = torch.zeros_like(param)
+
+        @torch.no_grad()
+        def step(self):
+            beta = self.momentum
+            for name, param in self._parameters():
+                V = self.velocities[name]
+                self.velocities[name] = beta * V - self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
+                param += self.velocities[name]
+
+            return self
 
 
 class LR_Scheduler:
