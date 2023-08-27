@@ -1,7 +1,8 @@
 import torch
 import math
 
-class SGD:
+
+class Optimizer:
 
     def __init__(self, parameters, lr):
         assert callable(parameters), 'Expected the argument "parameter" to be an iterator function'
@@ -12,7 +13,7 @@ class SGD:
     def step(self):
         for name, param in self._parameters():
             param += -self.lr * param.grad
-            
+
         return self
 
     def zero_grad(self):
@@ -20,7 +21,13 @@ class SGD:
             param.grad.zero_()
 
 
-class SGD_Momentum(SGD):
+class SGD(Optimizer):
+
+        def __init__(self, parameters, lr):
+            super().__init__(parameters, lr)
+
+
+class SGD_Momentum(Optimizer):
 
         def __init__(self, parameters, lr, momentum=0.9):
             super().__init__(parameters, lr)
@@ -28,7 +35,7 @@ class SGD_Momentum(SGD):
             self.velocities = {}
             for name, param in self._parameters():
                 if name in self.velocities:
-                    Exception(f'Parameter {name} is already registered in the optimizer')
+                    raise Exception(f'Parameter {name} is already registered in the optimizer')
                 self.velocities[name] = torch.zeros_like(param)
 
         @torch.no_grad()
@@ -40,6 +47,27 @@ class SGD_Momentum(SGD):
                 param += self.velocities[name]
 
             return self
+
+
+class AdaGrad(Optimizer):
+
+    def __init__(self, parameters, lr):
+        super().__init__(parameters, lr)
+        self.eps = 1e-8
+        self.magnitudes = {}
+        for name, param in self._parameters():
+            if name in self.magnitudes:
+                raise Exception(f'Parameter {name} is already registered in the optimizer')
+            self.magnitudes[name] = torch.zeros_like(param)
+
+    @torch.no_grad()
+    def step(self):
+        for name, param in self._parameters():
+            self.magnitudes[name] += param.grad**2
+            lr_reduce = torch.sqrt(self.magnitudes[name] + self.eps)
+            param += -(self.lr / lr_reduce) * param.grad
+
+        return self
 
 
 class LR_Scheduler:
