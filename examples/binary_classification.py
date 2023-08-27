@@ -23,7 +23,7 @@ y = torch.where(torch.Tensor(_y).long() == 0, -1, 1)
 # Define the model
 for Model in (Perceptron, SVM, LeastSquareRegression, LogisticRegression):
     model = Model(input_size=D)
-    optimizer = optimizers.SGD(model.parameters, lr=LEARN_RATE)
+    optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
 
     # Fit the data
     history = []

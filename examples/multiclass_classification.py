@@ -24,7 +24,7 @@ Y = one_hot(torch.Tensor(_y).long())
 idx = 0
 for Model in (MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression):
     model = Model(input_size=D, output_size=C)
-    optimizer = optimizers.SGD(model.parameters, lr=LEARN_RATE)
+    optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
 
     # Fit the data
     history = []

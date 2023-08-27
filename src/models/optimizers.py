@@ -5,48 +5,49 @@ import math
 class Optimizer:
 
     def __init__(self, parameters, lr):
-        assert callable(parameters), 'Expected the argument "parameter" to be an iterator function'
-        self._parameters = parameters
+        assert hasattr(parameters, '__iter__'), f'Expected the argument "parameters" to be an iterable, but got {type(parameters)}'
+        self._parameters = list(parameters)
+
+        param_names = [name for name, param in self._parameters]
+        assert len(param_names) == len(set(param_names)), f'Expected unique parameter names, but got {param_names}'
+
         self.lr = lr
 
     @torch.no_grad()
     def step(self):
-        for name, param in self._parameters():
+        for name, param in self._parameters:
             param += -self.lr * param.grad
 
         return self
 
     def zero_grad(self):
-        for name, param in self._parameters():
+        for name, param in self._parameters:
             param.grad.zero_()
 
 
 class SGD(Optimizer):
 
-        def __init__(self, parameters, lr):
-            super().__init__(parameters, lr)
+    def __init__(self, parameters, lr):
+        super().__init__(parameters, lr)
 
 
 class SGD_Momentum(Optimizer):
 
-        def __init__(self, parameters, lr, momentum=0.9):
-            super().__init__(parameters, lr)
-            self.momentum = momentum
-            self.velocities = {}
-            for name, param in self._parameters():
-                if name in self.velocities:
-                    raise Exception(f'Parameter {name} is already registered in the optimizer')
-                self.velocities[name] = torch.zeros_like(param)
+    def __init__(self, parameters, lr, momentum=0.9):
+        super().__init__(parameters, lr)
+        self.momentum = momentum
+        self.velocities = {name: torch.zeros_like(param) for name, param in self._parameters}
 
-        @torch.no_grad()
-        def step(self):
-            beta = self.momentum
-            for name, param in self._parameters():
-                V = self.velocities[name]
-                self.velocities[name] = beta * V - self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
-                param += self.velocities[name]
+    @torch.no_grad()
+    def step(self):
+        beta = self.momentum
+        for name, param in self._parameters:
+            V = self.velocities[name]
+            self.velocities[
+                name] = beta * V - self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
+            param += self.velocities[name]
 
-            return self
+        return self
 
 
 class AdaGrad(Optimizer):
@@ -54,16 +55,12 @@ class AdaGrad(Optimizer):
     def __init__(self, parameters, lr):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.magnitudes = {}
-        for name, param in self._parameters():
-            if name in self.magnitudes:
-                raise Exception(f'Parameter {name} is already registered in the optimizer')
-            self.magnitudes[name] = torch.zeros_like(param)
+        self.magnitudes = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
-        for name, param in self._parameters():
-            self.magnitudes[name] += param.grad**2
+        for name, param in self._parameters:
+            self.magnitudes[name] += param.grad ** 2
             lr_reduce = torch.sqrt(self.magnitudes[name] + self.eps)
             param += -(self.lr / lr_reduce) * param.grad
 
@@ -117,4 +114,3 @@ class LR_PlateauScheduler(LR_Scheduler):
         elif self.epoch > self.patience:
             self.reduce_lr()
             self.epoch = 0
-
