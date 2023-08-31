@@ -10,7 +10,9 @@ max_iterations = 100
 
 
 def f(x, y):
-    return (x/5)**2 + y**2
+    a = 1/25
+    b = 1
+    return a*(x**2) + b*(y**2)
 
 class Model:
     def __init__(self, x_start=10., y_start=10.):
@@ -22,7 +24,7 @@ class Model:
 
 
 paths = []
-for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, optimizers.RMSProp]:
+for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, optimizers.RMSProp, optimizers.AdaDelta]:
     model = Model()
     optimizer = optimizer([('x', model.x), ('y', model.y)], lr)
 
@@ -58,3 +60,4 @@ for name, path in paths:
         plt.arrow(path[i-1, 0], path[i-1, 1], path[i, 0]-path[i-1, 0], path[i, 1]-path[i-1, 1], color=pos.get_facecolor()[0], head_width=0.2, head_length=0.2, length_includes_head=True)
 plt.legend()
 plt.show()
+

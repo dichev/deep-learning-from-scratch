@@ -62,14 +62,14 @@ class AdaGrad(Optimizer):
     def __init__(self, parameters, lr):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.grad_sq_avg = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
-            self.grad_sq_avg[name] += param.grad ** 2
-            lr_reduce = (self.grad_sq_avg[name] + self.eps).sqrt()
-            param += -(self.lr / lr_reduce) * param.grad
+            self.grad_squared[name] += param.grad ** 2
+            adjusted_lr = self.lr / (self.grad_squared[name] + self.eps).sqrt()
+            param -= adjusted_lr * param.grad
 
         return self
 
@@ -83,19 +83,44 @@ class RMSProp(Optimizer):
     def __init__(self, parameters, lr):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.smoothing = 0.9
-        self.grad_running_avg = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.decay = 0.9
+        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
-        r = self.smoothing
+        r = self.decay
         for name, param in self._parameters:
-            self.grad_running_avg[name] = r*self.grad_running_avg[name] + (1-r)*(param.grad**2)
-            lr_reduce = (self.grad_running_avg[name] + self.eps).sqrt()
-            param += -(self.lr / lr_reduce) * param.grad
+            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
+            adjusted_lr = self.lr / (self.grad_squared[name] + self.eps).sqrt()
+            param -= adjusted_lr * param.grad
 
         return self
 
+
+class AdaDelta(Optimizer):
+    """
+    + Adapts learning rate for each parameter - by scaling with the exponential moving average of past derivatives.
+    + No diminishing learning rates - because the exponential moving average
+    + No learning rate parameter
+    """
+    def __init__(self, parameters, lr=None):
+        super().__init__(parameters, lr)
+        self.eps = 1e-8
+        self.decay = 0.9
+        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.lr_delta = {name: torch.ones_like(param) for name, param in self._parameters}
+
+    @torch.no_grad()
+    def step(self):
+        r = self.decay
+        for name, param in self._parameters:
+            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
+            adjusted_lr = torch.sqrt(self.lr_delta[name] / (self.grad_squared[name] + self.eps))
+            param_delta = adjusted_lr * param.grad
+            self.lr_delta[name] = r*self.lr_delta[name] + (1-r)*(param_delta**2)
+            param -= param_delta
+
+        return self
 
 
 class LR_Scheduler:
