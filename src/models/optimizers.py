@@ -40,15 +40,14 @@ class SGD_Momentum(Optimizer):
     def __init__(self, parameters, lr, momentum=0.9):
         super().__init__(parameters, lr)
         self.momentum = momentum
-        self.velocities = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.exp_avg = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
         beta = self.momentum
         for name, param in self._parameters:
-            V = self.velocities[name]
-            self.velocities[name] = beta * V + (1-beta) * param.grad
-            param -= self.lr * self.velocities[name]
+            self.exp_avg[name] = beta * self.exp_avg[name] + (1 - beta) * param.grad
+            param -= self.lr * self.exp_avg[name]
 
         return self
 
@@ -62,13 +61,13 @@ class AdaGrad(Optimizer):
     def __init__(self, parameters, lr):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.grad_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
-            self.grad_squared[name] += param.grad ** 2
-            adjusted_lr = self.lr / (self.grad_squared[name] + self.eps).sqrt()
+            self.grad_sq[name] += param.grad ** 2
+            adjusted_lr = self.lr / (self.grad_sq[name] + self.eps).sqrt()
             param -= adjusted_lr * param.grad
 
         return self
@@ -84,14 +83,14 @@ class RMSProp(Optimizer):
         super().__init__(parameters, lr)
         self.eps = 1e-8
         self.decay = 0.9
-        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
-        r = self.decay
+        beta = self.decay
         for name, param in self._parameters:
-            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
-            adjusted_lr = self.lr / (self.grad_squared[name] + self.eps).sqrt()
+            self.exp_avg_sq[name] = beta * self.exp_avg_sq[name] + (1 - beta) * (param.grad ** 2)
+            adjusted_lr = self.lr / (self.exp_avg_sq[name] + self.eps).sqrt()
             param -= adjusted_lr * param.grad
 
         return self
@@ -107,17 +106,17 @@ class AdaDelta(Optimizer):
         super().__init__(parameters, lr)
         self.eps = 1e-8
         self.decay = 0.99
-        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
-        self.lr_delta = {name: torch.ones_like(param) for name, param in self._parameters}
+        self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.exp_avg_sq_delta = {name: torch.ones_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
-        r = self.decay
+        beta = self.decay
         for name, param in self._parameters:
-            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
-            adjusted_lr = torch.sqrt(self.lr_delta[name] / (self.grad_squared[name] + self.eps))
+            self.exp_avg_sq[name] = beta*self.exp_avg_sq[name] + (1-beta)*(param.grad**2)
+            adjusted_lr = torch.sqrt(self.exp_avg_sq_delta[name] / (self.exp_avg_sq[name] + self.eps))
             param_delta = adjusted_lr * param.grad
-            self.lr_delta[name] = r*self.lr_delta[name] + (1-r)*(param_delta**2)
+            self.exp_avg_sq_delta[name] = beta * self.exp_avg_sq_delta[name] + (1 - beta) * (param_delta ** 2)
             param -= param_delta
 
         return self
@@ -134,26 +133,29 @@ class Adam(Optimizer):
         self.eps = 1e-8
         self.momentum = 0.9
         self.decay = 0.999
-        self.velocities = {name: torch.zeros_like(param) for name, param in self._parameters}    # i.e. first moment
-        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}  # i.e. second moment
-        self.iteration = 0
+        self.exp_avg = {name: torch.zeros_like(param) for name, param in self._parameters}     # i.e. first moment
+        self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}  # i.e. second moment
+        self.steps = 0
 
     @torch.no_grad()
     def step(self):
-        self.iteration += 1
-        beta = self.momentum
-        r = self.decay
-        t = self.iteration
+        self.steps += 1
+        beta1 = self.momentum
+        beta2 = self.decay
+        t = self.steps
+        bias_correction1 = 1 - beta1**t
+        bias_correction2 = 1 - beta2**t
+
         for name, param in self._parameters:
-            self.velocities[name] = beta * self.velocities[name] + (1 - beta) * self.lr * param.grad
-            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
+            self.exp_avg[name] = beta1 * self.exp_avg[name] + (1 - beta1) * self.lr * param.grad
+            self.exp_avg_sq[name] = beta2 * self.exp_avg_sq[name] + (1 - beta2) * (param.grad**2)
 
             # bias_corrections
-            V = self.velocities[name] / (1 - beta**t)
-            G = self.grad_squared[name] / (1 - r**t)
+            exp_avg_corrected = self.exp_avg[name] / bias_correction1
+            exp_avg_sq_corrected = self.exp_avg_sq[name] / bias_correction2
 
-            adjusted_lr = self.lr * 1 / (G + self.eps).sqrt()
-            param -= adjusted_lr * V
+            adjusted_lr = self.lr / (exp_avg_sq_corrected + self.eps).sqrt()
+            param -= adjusted_lr * exp_avg_corrected
 
         return self
 
