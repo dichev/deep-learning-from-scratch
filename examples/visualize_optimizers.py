@@ -24,7 +24,9 @@ class Model:
 
 
 paths = []
-for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, optimizers.RMSProp, optimizers.AdaDelta]:
+for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, optimizers.RMSProp, optimizers.AdaDelta, optimizers.Adam]:
+    name = optimizer.__name__
+    print('Optimizing with', name)
     model = Model()
     optimizer = optimizer([('x', model.x), ('y', model.y)], lr)
 
@@ -38,7 +40,7 @@ for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, o
             break
 
     path = np.array(path)
-    paths.append((optimizer.__class__.__name__, path))
+    paths.append((name, path))
 
 
 # Visualize the path of the optimizers:

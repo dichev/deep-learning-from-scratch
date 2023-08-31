@@ -47,8 +47,8 @@ class SGD_Momentum(Optimizer):
         beta = self.momentum
         for name, param in self._parameters:
             V = self.velocities[name]
-            self.velocities[name] = beta * V - (1-beta) * self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
-            param += self.velocities[name]
+            self.velocities[name] = beta * V + (1-beta) * param.grad
+            param -= self.lr * self.velocities[name]
 
         return self
 
@@ -106,7 +106,7 @@ class AdaDelta(Optimizer):
     def __init__(self, parameters, lr=None):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.decay = 0.9
+        self.decay = 0.99
         self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}
         self.lr_delta = {name: torch.ones_like(param) for name, param in self._parameters}
 
@@ -119,6 +119,41 @@ class AdaDelta(Optimizer):
             param_delta = adjusted_lr * param.grad
             self.lr_delta[name] = r*self.lr_delta[name] + (1-r)*(param_delta**2)
             param -= param_delta
+
+        return self
+
+class Adam(Optimizer):
+    """
+    + Adapts learning rate for each parameter - by scaling with the exponential moving average of past derivatives.
+    + No diminishing learning rates - because the exponential moving average
+    + Initial bias correction
+    + Reduces zigzagging (momentum) - by averaging previous gradients
+    """
+    def __init__(self, parameters, lr):
+        super().__init__(parameters, lr)
+        self.eps = 1e-8
+        self.momentum = 0.9
+        self.decay = 0.999
+        self.velocities = {name: torch.zeros_like(param) for name, param in self._parameters}    # i.e. first moment
+        self.grad_squared = {name: torch.zeros_like(param) for name, param in self._parameters}  # i.e. second moment
+        self.iteration = 0
+
+    @torch.no_grad()
+    def step(self):
+        self.iteration += 1
+        beta = self.momentum
+        r = self.decay
+        t = self.iteration
+        for name, param in self._parameters:
+            self.velocities[name] = beta * self.velocities[name] + (1 - beta) * self.lr * param.grad
+            self.grad_squared[name] = r*self.grad_squared[name] + (1-r)*(param.grad**2)
+
+            # bias_corrections
+            V = self.velocities[name] / (1 - beta**t)
+            G = self.grad_squared[name] / (1 - r**t)
+
+            adjusted_lr = self.lr * 1 / (G + self.eps).sqrt()
+            param -= adjusted_lr * V
 
         return self
 
