@@ -22,7 +22,7 @@ class Model:
 
 
 paths = []
-for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad]:
+for optimizer in [optimizers.SGD, optimizers.SGD_Momentum, optimizers.AdaGrad, optimizers.RMSProp]:
     model = Model()
     optimizer = optimizer([('x', model.x), ('y', model.y)], lr)
 

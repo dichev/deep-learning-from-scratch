@@ -32,6 +32,10 @@ class SGD(Optimizer):
 
 
 class SGD_Momentum(Optimizer):
+    """
+    + Reduces zigzagging - by averaging previous gradients
+    - Same learning rate for all parameters
+    """
 
     def __init__(self, parameters, lr, momentum=0.9):
         super().__init__(parameters, lr)
@@ -43,28 +47,55 @@ class SGD_Momentum(Optimizer):
         beta = self.momentum
         for name, param in self._parameters:
             V = self.velocities[name]
-            self.velocities[
-                name] = beta * V - self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
+            self.velocities[name] = beta * V - (1-beta) * self.lr * param.grad  # *(1-beta) term is assumed to be integrated into the learning rate
             param += self.velocities[name]
 
         return self
 
 
 class AdaGrad(Optimizer):
+    """
+    + Adapts learning rate for each parameter - by scaling with the inverse of the sum of squares of past derivatives.
+    - Diminishing learning rates - the sum of squares of past derivatives increases.
+    """
 
     def __init__(self, parameters, lr):
         super().__init__(parameters, lr)
         self.eps = 1e-8
-        self.magnitudes = {name: torch.zeros_like(param) for name, param in self._parameters}
+        self.grad_sq_avg = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
-            self.magnitudes[name] += param.grad ** 2
-            lr_reduce = torch.sqrt(self.magnitudes[name] + self.eps)
+            self.grad_sq_avg[name] += param.grad ** 2
+            lr_reduce = (self.grad_sq_avg[name] + self.eps).sqrt()
             param += -(self.lr / lr_reduce) * param.grad
 
         return self
+
+
+class RMSProp(Optimizer):
+    """
+    + Adapts learning rate for each parameter - by scaling with the exponential moving average of past derivatives.
+    + No diminishing learning rates - because the exponential moving average
+    - Initial bias - The initial running estimate is zero, causing a bias in the early iterations.
+    """
+    def __init__(self, parameters, lr):
+        super().__init__(parameters, lr)
+        self.eps = 1e-8
+        self.smoothing = 0.9
+        self.grad_running_avg = {name: torch.zeros_like(param) for name, param in self._parameters}
+
+    @torch.no_grad()
+    def step(self):
+        r = self.smoothing
+        for name, param in self._parameters:
+            self.grad_running_avg[name] = r*self.grad_running_avg[name] + (1-r)*(param.grad**2)
+            lr_reduce = (self.grad_running_avg[name] + self.eps).sqrt()
+            param += -(self.lr / lr_reduce) * param.grad
+
+        return self
+
 
 
 class LR_Scheduler:
