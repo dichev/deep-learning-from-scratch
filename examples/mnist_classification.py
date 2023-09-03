@@ -10,7 +10,7 @@ from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear
 from models import optimizers
-from models.regularizers import L2_norm
+from models.regularizers import L2_regularizer, grad_clip_, grad_clip_norm_
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 
@@ -87,24 +87,28 @@ N = len(train.data)
 print(f'Fit {N} training samples in model: {net}')
 pbar = trange(1, EPOCHS+1, desc='EPOCH')
 for epoch in pbar:
-    accuracy, loss = 0, 0
+    accuracy, loss, grad_norm = 0, 0, 0
     indices = torch.randperm(N)
     for i in range(0, N, BATCH_SIZE):
         batch = indices[i:i+BATCH_SIZE]
         y = y_train[batch]
         y_hat_logit = net.forward(X_train[batch].view(-1, n_features).float())
 
-        cost = cross_entropy(y_hat_logit, y, logits=True) # + L2_norm(net.parameters(), WEIGHT_DECAY)
+        cost = cross_entropy(y_hat_logit, y, logits=True) # + L2_regularizer(net.parameters(), WEIGHT_DECAY)
         cost.backward()
+        grad_norm_batch = grad_clip_norm_(net.parameters(), 0.9)
         optimizer.step().zero_grad()
 
         loss += cost.item() * len(batch) / N
         accuracy += net.evaluate(y_hat_logit, y) * len(batch) / N
+        grad_norm += grad_norm_batch * len(batch) / N
 
     # Metrics
     train_writer.add_scalar('whp/Learn rate', optimizer.lr, epoch)
     train_writer.add_scalar('t/Loss', loss, epoch)
     train_writer.add_scalar('t/Accuracy', accuracy, epoch)
+    train_writer.add_scalar('Gradients Norm', grad_norm, epoch)
+
     if epoch == 1 or epoch % 10 == 0:
         for name, param in net.parameters():
             train_writer.add_histogram(name.replace('.', '/'), param, epoch)
