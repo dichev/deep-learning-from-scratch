@@ -9,7 +9,7 @@ class Module:
         for key, val in vars(self).items():
             if isinstance(val, Module):
                 yield from val.parameters(named, prefix=f'{key}.')
-            elif isinstance(val, Param):
+            elif type(val) is Param:  # don't use isinstance, because Param is a subclass of Tensor
                 yield (prefix + key, val) if named else val
 
     def modules(self, named=True, prefix=''):
