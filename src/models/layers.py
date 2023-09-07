@@ -78,3 +78,31 @@ class Embedding(Module):  # aka lookup table
     def __repr__(self):
         return f'Embedding({self.input_size}, {self.output_size}, bias=false)'
 
+
+class BatchNorm(Module):
+
+    def __init__(self, size, device='cpu'):
+        self.beta = Param(1, size, init=init.zeros, device=device, requires_grad=True)
+        self.gamma = Param(1, size, init=init.ones, device=device, requires_grad=True)
+
+        self.running_mean = torch.zeros(1, size, device=device)
+        self.running_var = torch.ones(1, size, device=device)
+        self.decay = 0.9
+
+    def forward(self, x):
+        # mini-batch statistics
+        if torch.is_grad_enabled():
+            assert len(x) > 1, 'BatchNorm layer requires at least 2 samples in batch'
+
+            mu, var = x.mean(dim=0), x.var(dim=0)
+            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
+            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var
+        else:
+            mu, var = self.running_mean, self.running_var
+
+        # normalize x along the mini-batch
+        x = (x - mu) / (var + 1e-5).sqrt()
+        x = self.gamma * x + self.beta
+
+        return x
+

@@ -5,6 +5,9 @@ from math import sqrt
 def zeros(in_size, out_size, device=None):
     return torch.zeros(in_size, out_size, device=device)
 
+def ones(in_size, out_size, device=None):
+    return torch.ones(in_size, out_size, device=device)
+
 def uniform(in_size, out_size, a=-1, b=1, device=None):
     return torch.rand(in_size, out_size, device=device)*(b-a) + a
 

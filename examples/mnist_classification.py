@@ -8,7 +8,7 @@ from datetime import datetime
 from functions import init
 from functions.activations import relu
 from functions.losses import cross_entropy
-from models.layers import Module, Linear
+from models.layers import Module, Linear, BatchNorm
 from models import optimizers
 from models.regularizers import L2_regularizer, grad_clip_, grad_clip_norm_
 from preprocessing.floats import normalizeMinMax
@@ -48,17 +48,23 @@ y_test  = one_hot(test.targets).to(DEVICE)
 class Net(Module):
     def __init__(self, input_size, output_size, hidden_size):  # over-parameterized model for testing purposes
         self.l1 = Linear(input_size, hidden_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.bn1 = BatchNorm(hidden_size, device=DEVICE)
         self.l2 = Linear(hidden_size, hidden_size//2, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.bn2 = BatchNorm(hidden_size//2, device=DEVICE)
         self.l3 = Linear(hidden_size//2, hidden_size//4, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.bn3 = BatchNorm(hidden_size//4, device=DEVICE)
         self.l4 = Linear(hidden_size//4, output_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
         self.input_size, self.output_size = input_size, output_size
 
     def forward(self, x):
         x = self.l1.forward(x)
+        x = self.bn1.forward(x)
         x = relu(x)
         x = self.l2.forward(x)
+        x = self.bn2.forward(x)
         x = relu(x)
         x = self.l3.forward(x)
+        x = self.bn3.forward(x)
         x = relu(x)
         x = self.l4.forward(x)
         # x = softmax(x)
