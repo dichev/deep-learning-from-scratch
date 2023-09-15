@@ -11,6 +11,7 @@ from functions.losses import cross_entropy
 from models.layers import Module, Linear, BatchNorm
 from models import optimizers
 from models.regularizers import L2_regularizer, grad_clip_, grad_clip_norm_
+from models.training import batches
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 from preprocessing.dataset import data_split
@@ -102,25 +103,23 @@ optimizer = optimizers.SGD(net.parameters(), lr=LEARN_RATE)
 
 
 # Training loop
-N = len(y_train.data)
+N = len(y_train)
 print(f'Fit {N} training samples in model: {net}')
 pbar = trange(1, EPOCHS+1, desc='EPOCH')
 for epoch in pbar:
     accuracy, loss, grad_norm = 0, 0, 0
-    indices = torch.randperm(N)
-    for i in range(0, N, BATCH_SIZE):
-        batch = indices[i:i+BATCH_SIZE]
-        y = y_train[batch].to(DEVICE)
-        y_hat_logit = net.forward(X_train[batch].to(DEVICE))
 
-        cost = cross_entropy(y_hat_logit, y, logits=True) # + L2_regularizer(net.parameters(), WEIGHT_DECAY)
+    for X, y, batch_fraction in batches(X_train, y_train, BATCH_SIZE, shuffle=True, device=DEVICE):
+        y_hat_logit = net.forward(X)
+
+        cost = cross_entropy(y_hat_logit, y, logits=True)  # + L2_regularizer(net.parameters(), WEIGHT_DECAY)
         cost.backward()
         grad_norm_batch = grad_clip_norm_(net.parameters(), 0.9)
         optimizer.step().zero_grad()
 
-        loss += cost.item() * len(batch) / N
-        accuracy += net.evaluate(y_hat_logit, y) * len(batch) / N
-        grad_norm += grad_norm_batch * len(batch) / N
+        loss += cost.item() * batch_fraction
+        accuracy += net.evaluate(y_hat_logit, y) * batch_fraction
+        grad_norm += grad_norm_batch * batch_fraction
 
     # Metrics
     train_writer.add_scalar('whp/Learn rate', optimizer.lr, epoch)
