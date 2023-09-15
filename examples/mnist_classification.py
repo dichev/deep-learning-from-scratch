@@ -31,17 +31,25 @@ WEIGHT_DECAY = 0.001
 DEVICE = 'cuda'
 
 
-# Prepare date
+# Get data
 train = datasets.MNIST('./data/', download=True, train=True)
-test  = datasets.MNIST('./data/', download=True, train=False)  # ignored for now
+test  = datasets.MNIST('./data/', download=True, train=False)
 train_writer.add_image('images', make_grid(train.data[:100].unsqueeze(1).float(), 10, normalize=True), 0)
 
+# Split data
+X_train, y_train, = train.data.view(-1, n_features), train.targets
+X_test, y_test = test.data.view(-1, n_features), test.targets
 
-X_train = normalizeMinMax(train.data.view(-1, n_features).float().to(DEVICE), dim=-1)
-X_test  = normalizeMinMax(test.data.view(-1, n_features).float().to(DEVICE), dim=-1)
-y_train = one_hot(train.targets).to(DEVICE)
-y_test  = one_hot(test.targets).to(DEVICE)
+# Normalize and encode data
+(x_min, x_max), num_classes = (0, 255), 10  # always reuse the normalization factors based on the training set
+X_train = normalizeMinMax(X_train, x_min, x_max)
+X_test  = normalizeMinMax(X_test, x_min, x_max)
+y_train = one_hot(y_train, num_classes)
+y_test  = one_hot(y_test, num_classes)
 
+# Add everything to the device
+X_test  = X_test.to(DEVICE)
+y_test  = y_test.to(DEVICE)
 
 
 # Model
@@ -89,7 +97,7 @@ optimizer = optimizers.SGD(net.parameters(), lr=LEARN_RATE)
 
 
 # Training loop
-N = len(train.data)
+N = len(y_train.data)
 print(f'Fit {N} training samples in model: {net}')
 pbar = trange(1, EPOCHS+1, desc='EPOCH')
 for epoch in pbar:
@@ -97,8 +105,8 @@ for epoch in pbar:
     indices = torch.randperm(N)
     for i in range(0, N, BATCH_SIZE):
         batch = indices[i:i+BATCH_SIZE]
-        y = y_train[batch]
-        y_hat_logit = net.forward(X_train[batch].view(-1, n_features).float())
+        y = y_train[batch].to(DEVICE)
+        y_hat_logit = net.forward(X_train[batch].to(DEVICE))
 
         cost = cross_entropy(y_hat_logit, y, logits=True) # + L2_regularizer(net.parameters(), WEIGHT_DECAY)
         cost.backward()
@@ -120,15 +128,16 @@ for epoch in pbar:
             train_writer.add_histogram(name.replace('.', '/'), param, epoch)
 
         with torch.no_grad():
-            y_hat_logit = net.forward(X_test.view(-1, n_features).float())
+            y_hat_logit = net.forward(X_test)
             test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
             test_accuracy = net.evaluate(y_hat_logit, y_test)
             test_writer.add_scalar('t/Loss', test_loss, epoch)
             test_writer.add_scalar('t/Accuracy', test_accuracy, epoch)
 
-
     pbar.set_postfix(cost=f"{loss:.4f}|{test_loss:.4f}", accuracy=f"{accuracy:.4f}|{test_accuracy:.4f}", lr=optimizer.lr)
     # lr_scheduler.step(cost)
+
+    # deeper.step()
 
 
 net.export('../deeper/data/model-trained.json')

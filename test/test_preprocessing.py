@@ -25,13 +25,8 @@ def test_normalizeMinMax():
 
     # Test with a tensor of zeros and non-zero number
     a = torch.Tensor([[0., 0., 0.], [5., 5., 5.]])
-    b = torch.Tensor([[0., 0., 0.], [0., 0., 0.]])
+    b = torch.Tensor([[0., 0., 0.], [1., 1., 1.]])
     assert torch.all(normalizeMinMax(a) == b)
-
-    # Test with a tensor on a different dim value
-    x = torch.tensor([[1, 2, 3], [4, 5, 6]])
-    y = torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
-    assert torch.all(normalizeMinMax(x, dim=0) == y)
 
 
 def test_index_encoder_with_python_list():
