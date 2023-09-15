@@ -1,7 +1,7 @@
 import torch
 
 
-def data_split(X, y, sizes: list | tuple, shuffle=True):
+def data_split(X, y, sizes: list | tuple, shuffle=True, seed=None):
     n = len(X)
     assert n == len(y), f"The data size {n} doesn't match to the targets size {len(y)}"
 
@@ -13,7 +13,8 @@ def data_split(X, y, sizes: list | tuple, shuffle=True):
 
     # shuffle data
     if shuffle:
-        shuffled = torch.randperm(n)
+        generator = torch.Generator().manual_seed(seed) if seed else None
+        shuffled = torch.randperm(n, generator=generator)
         X, y = X[shuffled], y[shuffled]
 
     # split data

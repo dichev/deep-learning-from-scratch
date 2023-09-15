@@ -30,7 +30,7 @@ BATCH_SIZE = 1024
 LEARN_RATE = 0.1
 WEIGHT_DECAY = 0.001
 DEVICE = 'cuda'
-
+SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to avoid validation data leakage into the training set
 
 # Get data
 train = datasets.MNIST('./data/', download=True, train=True)
@@ -38,7 +38,7 @@ test  = datasets.MNIST('./data/', download=True, train=False)
 train_writer.add_image('images', make_grid(train.data[:100].unsqueeze(1).float(), 10, normalize=True), 0)
 
 # Split data
-X_train, y_train, X_val, y_val = data_split(train.data.view(-1, n_features), train.targets, (0.85, 0.15))
+X_train, y_train, X_val, y_val = data_split(train.data.view(-1, n_features), train.targets, (0.85, 0.15), seed=SEED_DATA)
 X_test, y_test = test.data.view(-1, n_features), test.targets
 
 # Normalize and encode data
@@ -141,7 +141,6 @@ for epoch in pbar:
 
     pbar.set_postfix(cost=f"{loss:.4f}|{val_loss:.4f}", accuracy=f"{accuracy:.4f}|{val_accuracy:.4f}", lr=optimizer.lr)
     # lr_scheduler.step(cost)
-
     # deeper.step()
 
 
