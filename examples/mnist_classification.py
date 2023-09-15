@@ -13,10 +13,11 @@ from models import optimizers
 from models.regularizers import L2_regularizer, grad_clip_, grad_clip_norm_
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
+from preprocessing.dataset import data_split
 
 now = datetime.now().strftime('%b%d %H-%M-%S')
 train_writer = SummaryWriter(f'runs/{now} - train', flush_secs=2)
-test_writer = SummaryWriter(f'runs/{now} - test', flush_secs=2)
+val_writer = SummaryWriter(f'runs/{now} - val', flush_secs=2)
 
 # model hyperparams
 n_features = 784  # train.data.shape[1] * train.data.shape[2]
@@ -37,18 +38,22 @@ test  = datasets.MNIST('./data/', download=True, train=False)
 train_writer.add_image('images', make_grid(train.data[:100].unsqueeze(1).float(), 10, normalize=True), 0)
 
 # Split data
-X_train, y_train, = train.data.view(-1, n_features), train.targets
+X_train, y_train, X_val, y_val = data_split(train.data.view(-1, n_features), train.targets, (0.85, 0.15))
 X_test, y_test = test.data.view(-1, n_features), test.targets
 
 # Normalize and encode data
 (x_min, x_max), num_classes = (0, 255), 10  # always reuse the normalization factors based on the training set
 X_train = normalizeMinMax(X_train, x_min, x_max)
+X_val   = normalizeMinMax(X_val, x_min, x_max)
 X_test  = normalizeMinMax(X_test, x_min, x_max)
 y_train = one_hot(y_train, num_classes)
+y_val   = one_hot(y_val, num_classes)
 y_test  = one_hot(y_test, num_classes)
 
-# Add everything to the device
+# Add test/val sets to the device
+X_val   = X_val.to(DEVICE)
 X_test  = X_test.to(DEVICE)
+y_val   = y_val.to(DEVICE)
 y_test  = y_test.to(DEVICE)
 
 
@@ -128,16 +133,23 @@ for epoch in pbar:
             train_writer.add_histogram(name.replace('.', '/'), param, epoch)
 
         with torch.no_grad():
-            y_hat_logit = net.forward(X_test)
-            test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
-            test_accuracy = net.evaluate(y_hat_logit, y_test)
-            test_writer.add_scalar('t/Loss', test_loss, epoch)
-            test_writer.add_scalar('t/Accuracy', test_accuracy, epoch)
+            y_hat_logit = net.forward(X_val)
+            val_loss = cross_entropy(y_hat_logit, y_val, logits=True).item()  # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
+            val_accuracy = net.evaluate(y_hat_logit, y_val)
+            val_writer.add_scalar('t/Loss', val_loss, epoch)
+            val_writer.add_scalar('t/Accuracy', val_accuracy, epoch)
 
-    pbar.set_postfix(cost=f"{loss:.4f}|{test_loss:.4f}", accuracy=f"{accuracy:.4f}|{test_accuracy:.4f}", lr=optimizer.lr)
+    pbar.set_postfix(cost=f"{loss:.4f}|{val_loss:.4f}", accuracy=f"{accuracy:.4f}|{val_accuracy:.4f}", lr=optimizer.lr)
     # lr_scheduler.step(cost)
 
     # deeper.step()
+
+
+with torch.no_grad():
+    y_hat_logit = net.forward(X_test)
+    test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item()  # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
+    test_accuracy = net.evaluate(y_hat_logit, y_test)
+    print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
 
 
 net.export('../deeper/data/model-trained.json')
