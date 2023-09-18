@@ -10,7 +10,7 @@ from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear, BatchNorm
 from models import optimizers
-from models.regularizers import L2_regularizer, grad_clip_, grad_clip_norm_
+from models.regularizers import L2_regularizer, L1_regularizer, elastic_regularizer, grad_clip_, grad_clip_norm_
 from models.training import batches
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
@@ -62,23 +62,23 @@ y_test  = y_test.to(DEVICE)
 class Net(Module):
     def __init__(self, input_size, output_size, hidden_size):  # over-parameterized model for testing purposes
         self.l1 = Linear(input_size, hidden_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.bn1 = BatchNorm(hidden_size, device=DEVICE)
+        # self.bn1 = BatchNorm(hidden_size, device=DEVICE)
         self.l2 = Linear(hidden_size, hidden_size//2, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.bn2 = BatchNorm(hidden_size//2, device=DEVICE)
+        # self.bn2 = BatchNorm(hidden_size//2, device=DEVICE)
         self.l3 = Linear(hidden_size//2, hidden_size//4, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.bn3 = BatchNorm(hidden_size//4, device=DEVICE)
+        # self.bn3 = BatchNorm(hidden_size//4, device=DEVICE)
         self.l4 = Linear(hidden_size//4, output_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
         self.input_size, self.output_size = input_size, output_size
 
     def forward(self, x):
         x = self.l1.forward(x)
-        x = self.bn1.forward(x)
+        # x = self.bn1.forward(x)
         x = relu(x)
         x = self.l2.forward(x)
-        x = self.bn2.forward(x)
+        # x = self.bn2.forward(x)
         x = relu(x)
         x = self.l3.forward(x)
-        x = self.bn3.forward(x)
+        # x = self.bn3.forward(x)
         x = relu(x)
         x = self.l4.forward(x)
         # x = softmax(x)
@@ -112,7 +112,7 @@ for epoch in pbar:
     for X, y, batch_fraction in batches(X_train, y_train, BATCH_SIZE, shuffle=True, device=DEVICE):
         y_hat_logit = net.forward(X)
 
-        cost = cross_entropy(y_hat_logit, y, logits=True)  # + L2_regularizer(net.parameters(), WEIGHT_DECAY)
+        cost = cross_entropy(y_hat_logit, y, logits=True) + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8)
         cost.backward()
         grad_norm_batch = grad_clip_norm_(net.parameters(), 0.9)
         optimizer.step().zero_grad()
@@ -133,7 +133,7 @@ for epoch in pbar:
 
         with torch.no_grad():
             y_hat_logit = net.forward(X_val)
-            val_loss = cross_entropy(y_hat_logit, y_val, logits=True).item()  # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
+            val_loss = cross_entropy(y_hat_logit, y_val, logits=True).item() + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
             val_accuracy = net.evaluate(y_hat_logit, y_val)
             val_writer.add_scalar('t/Loss', val_loss, epoch)
             val_writer.add_scalar('t/Accuracy', val_accuracy, epoch)
@@ -145,7 +145,7 @@ for epoch in pbar:
 
 with torch.no_grad():
     y_hat_logit = net.forward(X_test)
-    test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item()  # + L2_norm(net.parameters(), WEIGHT_DECAY).item()
+    test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
     test_accuracy = net.evaluate(y_hat_logit, y_test)
     print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
 

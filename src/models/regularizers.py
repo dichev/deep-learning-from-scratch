@@ -1,9 +1,19 @@
 import torch
 
-def L2_regularizer(parameters, lambd=1):
-    norm = 0
+def L2_regularizer(parameters, lambd=1.):
+    norm = 0.
     for name, param in parameters:
         norm += lambd * (param**2).sum()
+    return norm
+
+def L1_regularizer(parameters, lambd=1.):
+    norm = 0.
+    for name, param in parameters:
+        norm += lambd * param.abs().sum()
+    return norm
+
+def elastic_regularizer(parameters, lambd=1., alpha=.5):
+    norm = alpha * L1_regularizer(parameters, lambd) + (1 - alpha) * L2_regularizer(parameters, lambd)
     return norm
 
 def grad_clip_(params, limit_value):
