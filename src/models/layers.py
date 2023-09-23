@@ -106,3 +106,19 @@ class BatchNorm(Module):
 
         return x
 
+
+class Dropout(Module):
+
+    def __init__(self, p=.5):  # as prob to be zeroed
+        assert 0 <= p < 1, f'Dropout probability must be in [0, 1], but got {p}'
+        self.p = p
+
+    def forward(self, x):  # note that each sample in the mini-batch is zeroed independently
+        if torch.is_grad_enabled():
+            x = x.clone()
+            dropped = torch.rand_like(x) < self.p  # same as torch.bernoulli(x, self.p)
+            x[dropped] = 0
+            x /= (1 - self.p)  # This ensures that for any hidden unit the expected output (under the distribution used to drop units at training time) is the same as the actual output at test time
+
+        return x
+
