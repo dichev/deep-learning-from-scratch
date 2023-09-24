@@ -16,6 +16,15 @@ def elastic_regularizer(parameters, lambd=1., alpha=.5):
     norm = alpha * L1_regularizer(parameters, lambd) + (1 - alpha) * L2_regularizer(parameters, lambd)
     return norm
 
+@torch.no_grad()
+def max_norm_constraint_(parameters, c=3., dim=0):  # after parameter update: ||w|| ≤ c 
+    for name, param in parameters:
+        if 'bias' not in name:
+            norm = (param**2).sum(dim).sqrt()
+            mask = norm > c
+            param[:, mask] *= c / norm[mask]
+
+
 def grad_clip_(params, limit_value):
     for name, param in params:
         param.grad.clamp_(-limit_value, limit_value)

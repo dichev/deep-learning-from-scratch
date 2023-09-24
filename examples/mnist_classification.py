@@ -10,26 +10,25 @@ from functions.activations import relu
 from functions.losses import cross_entropy
 from models.layers import Module, Linear, BatchNorm, Dropout
 from models import optimizers
-from models.regularizers import L2_regularizer, L1_regularizer, elastic_regularizer, grad_clip_, grad_clip_norm_
+from models.regularizers import L2_regularizer, L1_regularizer, elastic_regularizer, grad_clip_, grad_clip_norm_, max_norm_constraint_
 from models.training import batches
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 from preprocessing.dataset import data_split
 
-log_id = 'Dropout - '
+log_id = 'Dropout with max norm - '
 now = datetime.now().strftime('%b%d %H-%M-%S')
 train_writer = SummaryWriter(f'runs/{log_id}{now} - train', flush_secs=2)
 val_writer = SummaryWriter(f'runs/{log_id}{now} - val', flush_secs=2)
 
 # model hyperparams
 n_features = 784  # train.data.shape[1] * train.data.shape[2]
-n_hidden   = 100   # tmp. must be 100
 n_classes  = 10   # len(train.classes)
 
 # training hyperparams & settings
 EPOCHS = 200
 BATCH_SIZE = 1024
-LEARN_RATE = 0.1
+LEARN_RATE = 0.3
 WEIGHT_DECAY = 0.001
 DEVICE = 'cuda'
 SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to avoid validation data leakage into the training set
@@ -61,20 +60,19 @@ y_test  = y_test.to(DEVICE)
 
 # Model
 class Net(Module):
-    def __init__(self, input_size, output_size, hidden_size):  # over-parameterized model for testing purposes
-        self.l1 = Linear(input_size, hidden_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.drop1 = Dropout(0.2)
-        # self.bn1 = BatchNorm(hidden_size, device=DEVICE)
-        self.l2 = Linear(hidden_size, hidden_size//2, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.drop2 = Dropout(0.1)
-        # self.bn2 = BatchNorm(hidden_size//2, device=DEVICE)
-        self.l3 = Linear(hidden_size//2, hidden_size//4, weights_init=init.kaiming_normal_relu, device=DEVICE)
-        self.drop3 = Dropout(0.1)
-        # self.bn3 = BatchNorm(hidden_size//4, device=DEVICE)
-        self.l4 = Linear(hidden_size//4, output_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
+    def __init__(self, input_size, output_size):  # over-parameterized model for testing purposes
+        self.drop0 = Dropout(0.2)
+        self.l1 = Linear(input_size, 300, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.drop1 = Dropout(0.5)
+        # self.bn1 = BatchNorm(300, device=DEVICE)
+        self.l2 = Linear(300, 200, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.drop2 = Dropout(0.5)
+        # self.bn2 = BatchNorm(200, device=DEVICE)
+        self.l3 = Linear(200, output_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
         self.input_size, self.output_size = input_size, output_size
 
     def forward(self, x):
+        x = self.drop0.forward(x)
         x = self.l1.forward(x)
         x = self.drop1.forward(x)
         # x = self.bn1.forward(x)
@@ -84,10 +82,6 @@ class Net(Module):
         # x = self.bn2.forward(x)
         x = relu(x)
         x = self.l3.forward(x)
-        x = self.drop3.forward(x)
-        # x = self.bn3.forward(x)
-        x = relu(x)
-        x = self.l4.forward(x)
         # x = softmax(x)
         return x
 
@@ -98,7 +92,7 @@ class Net(Module):
         return correct.float().mean().item()
 
 
-net = Net(n_features, n_classes, n_hidden)
+net = Net(n_features, n_classes)
 net.summary()
 net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters(), lr=LEARN_RATE)
@@ -123,6 +117,7 @@ for epoch in pbar:
         cost.backward()
         grad_norm_batch = grad_clip_norm_(net.parameters(), 0.9)
         optimizer.step().zero_grad()
+        max_norm_constraint_(net.parameters(), 3.)
 
         loss += cost.item() * batch_fraction
         accuracy += net.evaluate(y_hat_logit, y) * batch_fraction
@@ -132,7 +127,8 @@ for epoch in pbar:
     train_writer.add_scalar('whp/Learn rate', optimizer.lr, epoch)
     train_writer.add_scalar('t/Loss', loss, epoch)
     train_writer.add_scalar('t/Accuracy', accuracy, epoch)
-    train_writer.add_scalar('Gradients Norm', grad_norm, epoch)
+    train_writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
+    train_writer.add_scalar('a/Weights Norm', torch.tensor([p.norm(dim=0).mean() for name, p in net.parameters() if 'bias' not in name]).mean().item(), epoch)
 
     if epoch == 1 or epoch % 10 == 0:
         for name, param in net.parameters():
@@ -155,6 +151,6 @@ with torch.no_grad():
     test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
     test_accuracy = net.evaluate(y_hat_logit, y_test)
     print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
-
+    print(f'[Report only]: Failed on {int((1-test_accuracy)*len(y_test))} samples out of {len(y_test)}')
 
 net.export('../deeper/data/model-trained.json')
