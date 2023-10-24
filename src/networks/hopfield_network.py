@@ -1,4 +1,5 @@
 import torch
+from functions.activations import sigmoid
 
 class HopfieldNetwork:
 
@@ -54,3 +55,63 @@ class HopfieldNetworkOptimized(HopfieldNetwork):
 
     def avg_energy(self, X):
         return torch.tensor([self.energy(x) for x in X]).mean()
+
+
+class RestrictedBoltzmannMachine:
+
+    def __init__(self, n_visible, n_hidden, device='cpu'):
+        self.W = torch.randn(n_visible, n_hidden, device=device) * 0.01
+        self.v_bias = torch.zeros(n_visible, device=device, dtype=torch.float)
+        self.h_bias = torch.zeros(n_hidden, device=device, dtype=torch.float)
+
+    def sample_h(self, v, as_probs=False):
+        h = sigmoid(v @ self.W + self.h_bias)
+        if not as_probs:
+            h = torch.bernoulli(h)
+        return h
+
+    def sample_v(self, h, as_probs=False):
+        v = sigmoid(h @ self.W.T + self.v_bias)
+        if not as_probs:
+            v = torch.bernoulli(v)
+        return v
+
+    def update(self, x, lr=0.1, k_reconstructions=1):
+        B, N = x.shape
+
+        # positive phase
+        v = x
+        h = self.sample_h(v, as_probs=True)
+        pos_gradient = v.T @ h  # outer sum product (track correlations between v and h)
+
+        # negative phase (contrastive divergence)
+        h_k, v_k = h, v
+        for i in range(k_reconstructions):  # additional k iterations
+            v_k = self.sample_v(h_k, as_probs=True)
+            if i < k_reconstructions - 1:
+                h_k = self.sample_h(v_k, as_probs=False)
+            else:  # last iteration must yield binary hidden states
+                h_k = self.sample_h(v_k, as_probs=True)
+        neg_gradient = v_k.T @ h_k  # outer sum product
+
+        # update
+        self.W += lr * (pos_gradient - neg_gradient) / B
+        self.v_bias += lr * (v.mean(dim=0) - v_k.mean(dim=0))
+        self.h_bias += lr * (h.mean(dim=0) - h_k.mean(dim=0))
+
+    def sample(self, x=None, n_samples=1, burn_in=10):
+        if x is not None:
+            assert x.unique().tolist() == [0, 1], f'Expected input to be a binary tensor [0, 1], but got {x.unique().tolist()}'
+            v = x
+        else:
+            probs = torch.full_like(self.v_bias, .5).reshape(1, -1)
+            v = torch.bernoulli(probs)
+
+        samples = []
+        for i in range(burn_in + n_samples):  # Gibbs sampling
+            h = self.sample_h(v)
+            v = self.sample_v(h)
+            if i >= burn_in:
+                samples.append(v)
+
+        return torch.stack(samples)
