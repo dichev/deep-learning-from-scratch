@@ -6,7 +6,7 @@ import os
 import torch
 from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
-from networks.hopfield_network import RestrictedBoltzmannMachine
+from networks.energy_based_models import RestrictedBoltzmannMachine
 from models.training import batches
 
 

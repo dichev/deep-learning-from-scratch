@@ -3,7 +3,7 @@ from matplotlib import pyplot as plt
 from sklearn import datasets
 from models import optimizers
 from utils import plots
-from models.shallow_models import Perceptron, SVM, LeastSquareRegression, LogisticRegression
+from networks.shallow_models import Perceptron, SVM, LeastSquareRegression, LogisticRegression
 
 
 # Hyperparams
