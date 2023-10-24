@@ -54,22 +54,26 @@ for epoch in pbar:
 # Reconstruct the images from noisy images
 images_noisy = images.copy()
 images_noisy[:, 20:80, 20:80] = 0.
+images_sampled = []
 images_reconstructed = []
 n_samples, burn_in = 6, 2
 for i, img_noisy in enumerate(images_noisy):
     print(f'reconstructing image {i+1}/{B}')
     img_noisy = torch.tensor(img_noisy.ravel(), device=DEVICE, dtype=torch.float)
     samples = net.sample(img_noisy, burn_in=burn_in, n_samples=n_samples).detach().cpu().numpy().reshape(n_samples, width, height)
-    images_reconstructed.append(samples)
+    images_sampled.append(samples)
+    reconstructed = net.reconstruct(img_noisy).detach().cpu().numpy().reshape(width, height)
+    images_reconstructed.append(reconstructed)
 
 
 # Plot the corrupted and reconstructed images for comparison
-fig, ax = plt.subplots(B, 3, figsize=(2+n_samples, B * 1.3), gridspec_kw={'width_ratios': [1, 1, n_samples]})
-for i, (img, img_noisy, img_reconstructed) in enumerate(zip(images, images_noisy, images_reconstructed)):
+fig, ax = plt.subplots(B, 4, figsize=(+n_samples+3, B * 1.3), gridspec_kw={'width_ratios': [2, 2, 2, n_samples]})
+for i, (img, img_noisy, img_reconstructed, img_sampled) in enumerate(zip(images, images_noisy, images_reconstructed, images_sampled)):
     ax[i, 0].imshow(img, cmap='gray_r'); ax[i, 0].axis('off')
     ax[i, 1].imshow(img_noisy, cmap='gray_r'); ax[i, 1].axis('off')
-    ax[i, 2].imshow(np.hstack(img_reconstructed), cmap='gray_r'); ax[i, 2].axis('off')
-plt.suptitle(f'Pattern  →  Corrupted  →  Reconstructed({n_samples})')
+    ax[i, 2].imshow(img_reconstructed, cmap='gray_r'); ax[i, 2].axis('off')
+    ax[i, 3].imshow(np.hstack(img_sampled), cmap='gray_r'); ax[i, 3].axis('off')
+plt.suptitle(f'Pattern  →  Corrupted  →  Reconstructed  →  Sampled({n_samples})')
 plt.tight_layout()
 plt.show()
 

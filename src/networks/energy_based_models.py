@@ -115,3 +115,12 @@ class RestrictedBoltzmannMachine:
                 samples.append(v)
 
         return torch.stack(samples)
+
+    def reconstruct(self, x):  # given corrupted input image, returns the expected probs (not binary states) of the encoded image
+        assert x.unique().tolist() == [0, 1], f'Expected input to be a binary tensor [0, 1], but got {x.unique().tolist()}'
+        v = x
+
+        h = self.sample_h(v, as_probs=True)
+        v = self.sample_v(h, as_probs=True)
+
+        return v
