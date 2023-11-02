@@ -33,3 +33,8 @@ def decision_boundary_3d(X, Y, classifier):
     ax.set_zlabel('Class')
     plt.title('Decision boundary')
 
+def LaTeX(title, expression):
+    plt.title(title)
+    plt.text(0.1, 0.2, expression, size=20)
+    plt.axis('off')
+    plt.show()

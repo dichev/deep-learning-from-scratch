@@ -5,6 +5,7 @@ from models.parameters import Param
 
 class Module:
 
+
     def parameters(self, named=True, prefix=''):
         for key, val in vars(self).items():
             if isinstance(val, Module):
@@ -41,10 +42,14 @@ class Module:
         with open(filename, 'w') as f:
             json.dump(network, f, indent=2)
 
+    @property
+    def n_params(self):
+        return sum(p.numel() for p in self.parameters(named=False))
+
     def __repr__(self):
         input = self.input_size if hasattr(self, 'input_size') else ''
         output = self.output_size if hasattr(self, 'output_size') else ''
-        return f'{self.__class__.__name__}({input}, {output})'
+        return f'{self.__class__.__name__}({input}, {output}): {self.n_params} parameters'
 
 
 class Linear(Module):

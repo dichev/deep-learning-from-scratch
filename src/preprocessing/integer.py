@@ -18,7 +18,7 @@ def index_encoder(labels):
 
 
 def one_hot(x, num_classes=None):
-    I = torch.eye(num_classes or x.max() + 1)
+    I = torch.eye(num_classes or x.max() + 1, device=x.device)
     return I[x]
 
 

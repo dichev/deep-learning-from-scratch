@@ -77,10 +77,10 @@ def test_text_vocabulary():
     docs_tokenized = [word_tokenizer(doc) for doc in docs]
     vocab = TextVocabulary(docs_tokenized, max_vocab_size=100)
 
-    assert np.all(vocab.encode([word_tokenizer('Welcome to the AI world!')], seq_length=10) == np.array([[4, 5, 3, 6, 7, 0, 0, 0, 0, 0]]))
-    assert vocab.translate([4, 5, 3, 6, 7, 0, 0]) == 'welcome to the ai world'
+    assert np.all(vocab.encode_batch([word_tokenizer('Welcome to the AI world!')], seq_length=10) == np.array([[4, 5, 3, 6, 7, 0, 0, 0, 0, 0]]))
+    assert vocab.decode([4, 5, 3, 6, 7, 0, 0]) == 'welcome to the ai world'
 
-    sequences = vocab.encode(docs_tokenized, seq_length=10)
+    sequences = vocab.encode_batch(docs_tokenized, seq_length=10)
     vocab.print_human(sequences)
 
     assert np.all(sequences == np.array([[ 4,  5,  3,  6,  7,  0,  0,  0,  0,  0], [ 3,  8,  9, 10, 11,  3,  2,  2,  2,  2]]))

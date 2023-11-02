@@ -74,13 +74,13 @@ def generate_training_batch(sequences, word_counts, subsampling=True):
 
 # Read the text documents
 print('Data preprocessing..')
-with open('../data/shakespeare.txt', 'r') as f:
+with open('./data/shakespeare.txt', 'r') as f:
     docs = [line.strip() for line in f if line.strip()]
 
 # Tokenize and index
 text_tokenized = [word_tokenizer(line) for line in docs]
 vocab = TextVocabulary(text_tokenized, max_vocab_size=max_vocab_size)
-text_encoded = vocab.encode(text_tokenized, seq_length=sequence_length)
+text_encoded = vocab.encode_batch(text_tokenized, seq_length=sequence_length)
 vocab.print_human(text_encoded[:5])
 
 # Prepare training batch

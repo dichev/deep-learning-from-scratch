@@ -50,16 +50,24 @@ class TextVocabulary:
         self.to_idx = {word: idx for idx, (word, counts) in enumerate(dictionary)}
         self.to_token = {idx: word for word, idx in self.to_idx.items()}
 
-    def encode(self, sequences, seq_length=10):
+    def encode(self, sequence):
+        return np.array([self.to_idx[token] if token in self.to_idx else 1 for token in sequence], dtype=int)
+
+    def encode_batch(self, sequences, seq_length=10):
         encoded = np.zeros((len(sequences), seq_length), dtype=int)
         for i, seq in enumerate(sequences):  # not vectorized for readability
-            encoded[i, :len(seq)] = [self.to_idx[token] if token in self.to_idx else 1 for token in seq[:seq_length]]
+            encoded[i, :len(seq)] = self.encode(seq[:seq_length])
         return encoded
 
-    def translate(self, tokens):
-        return ' '.join([self.to_token[idx] for idx in tokens if 0 < idx < self.size])
+    def decode(self, tokens, sep=' '):
+        return sep.join([self.to_token[idx] for idx in tokens if 0 < idx < self.size])
 
     def print_human(self, sequences):
         for seq in sequences:
             print(f'{seq} -> ', ' '.join([self.to_token[idx] for idx in seq if idx>0]))
 
+    def __repr__(self):
+        str = '\n Top 10 tokens:\n'
+        for i in range(10):
+            str += f' {i}: {self.to_token[i]} ({self.counts[i]})\n'
+        return f'TextVocabulary(size={self.size})' + str
