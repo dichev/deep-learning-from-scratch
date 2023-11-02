@@ -1,13 +1,16 @@
 import torch
 from functions.activations import log_softmax
 
-
-def cross_entropy(y_hat, y, logits=True):  # equal to the relative entropy (D_KL) for one-hot labels
+def cross_entropy(y_hat, y, logits=True):
     if logits:
         log_prob = log_softmax(y_hat)
     else:
         log_prob = torch.log(y_hat)
 
-    losses = -(y * log_prob).sum(dim=-1)
+    if y_hat.shape == y.shape:  # when y are one-hot or probabilities vectors
+        losses = -(y * log_prob).sum(dim=-1)
+    else:  # when y are indices, directly select the target class
+        losses = -torch.gather(log_prob, dim=-1, index=y.unsqueeze(-1)).squeeze(-1)
+
     return losses.mean()
 
