@@ -1,7 +1,7 @@
 import torch
 from tqdm import trange
 
-from networks.recurrent_networks import RNN
+from networks.recurrent_networks import UniRNN
 from preprocessing.text import TextVocabulary
 from functions.losses import cross_entropy
 from models.optimizers import SGD, Adam
@@ -16,7 +16,7 @@ DEVICE = 'cuda'
 
 # hyperparams
 TIME_STEPS = 15
-HIDDEN_SIZE = 200
+HIDDEN_SIZE = 100
 
 
 # Prepare text data
@@ -30,7 +30,7 @@ X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 
 # Model
-net = RNN(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE)
+net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net)
 plots.LaTeX('RNN', net.expression())
