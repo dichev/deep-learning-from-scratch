@@ -1,67 +1,12 @@
 import torch
-from models.layers import Module, Linear, Embedding
+from models.layers import Module, Linear, RNN
 from functions import init
-from functions.activations import tanh, softmax
-
-
-class RNN_cell(Module):
-
-    def __init__(self, input_size, hidden_size, device='cpu'):
-        self.embed = Embedding(input_size, hidden_size, device=device)  # no bias
-        self.hidden = Linear(hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.device = device
-
-    def forward(self, x, h=None):  # todo: support one-hot/dense input
-        assert len(x.shape) == 1, 'x must be a 1D tensor (batch_size,)'
-        N = x.shape
-
-        if h is None:
-            h = torch.zeros(self.hidden_size, device=self.device)
-
-        xh = self.embed.forward(x)  # directly select the column embedding
-        hh = self.hidden.forward(h)
-        h = tanh(xh + hh)
-
-        return h
-
-    def __repr__(self):
-        return f'RNN_cell(input_size={self.input_size}, hidden_size={self.hidden_size}): {self.n_params} params'
-
-
-class RNN_layer(Module):
-
-    def __init__(self, input_size, hidden_size, backward=False, device='cpu'):
-        self.rnn = RNN_cell(input_size, hidden_size, device=device)
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.device = device
-        self.backward = backward
-
-    def forward(self, x, h=None):  # todo: support one-hot/dense input
-        N, T = x.shape
-
-        direction = reversed(range(T)) if self.backward else range(T)
-        z = torch.zeros(N, T, self.hidden_size, device=self.device)
-        for t in direction:
-            h = self.rnn.forward(x[:, t], h)
-            z[:, t] = h
-
-        return z, h  # h == z[:, -1 or 0]  (i.e. the final hidden state for each batch element)
-
-    def expression(self):
-        direction = 't+1' if self.backward else 't-1'
-        latex = r'$h_t = \tanh(W_{xh} x + W_{hh} h_{' + direction + r'} + b_h)$' + '\n'
-        return latex
-
-    def __repr__(self):
-        return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}, backward={self.backward}): {self.n_params} params'
+from functions.activations import softmax
 
 
 class UniRNN(Module):
     def __init__(self, input_size, hidden_size, output_size, backward=False, device='cpu'):
-        self.rnn = RNN_layer(input_size, hidden_size, backward, device=device)
+        self.rnn = RNN(input_size, hidden_size, backward, device=device)
         self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal)
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -108,8 +53,8 @@ class UniRNN(Module):
 class BiRNN(UniRNN):
 
     def __init__(self, input_size, hidden_size, output_size, device='cpu'):
-        self.rnn_f = RNN_layer(input_size, hidden_size, backward=False, device=device)
-        self.rnn_b = RNN_layer(input_size, hidden_size, backward=True, device=device)
+        self.rnn_f = RNN(input_size, hidden_size, backward=False, device=device)
+        self.rnn_b = RNN(input_size, hidden_size, backward=True, device=device)
         self.out = Linear(hidden_size*2, output_size, device=device, weights_init=init.xavier_normal)
         self.hidden_size = hidden_size
         self.input_size = input_size

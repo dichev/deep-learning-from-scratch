@@ -31,13 +31,13 @@ cut = len(text_encoded) % TIME_STEPS  # clip data to match the batch_size
 X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 
-# Model
+# Model # todo: compare forward vs backward vs bidirectional RNN
 # net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE)
 net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, backward=True, device=DEVICE)
 # net = BiRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net)
-# plots.LaTeX('RNN', net.expression())
+# plots.LaTeX(RNN, net.expression())
 
 
 # Train

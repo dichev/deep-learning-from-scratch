@@ -1,7 +1,7 @@
 import torch
 from models.layers import Module, Linear, Embedding
 from functions import init
-from models.parameters import Param
+from models.base import Param
 
 
 class MatrixFactorization(Module):

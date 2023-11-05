@@ -1,56 +1,7 @@
-import json
 import torch
 from functions import init
-from models.parameters import Param
-
-class Module:
-
-
-    def parameters(self, named=True, prefix=''):
-        for key, val in vars(self).items():
-            if isinstance(val, Module):
-                yield from val.parameters(named, prefix=f'{prefix + key}.')
-            elif type(val) is Param:  # don't use isinstance, because Param is a subclass of Tensor
-                yield (prefix + key, val) if named else val
-
-    def modules(self, named=True, prefix=''):
-        for key, val in vars(self).items():
-            if isinstance(val, Module):
-                yield from val.modules(named, prefix=f'{key}.')
-                yield (prefix + key, val) if named else val
-
-    def summary(self):
-        print(self)
-        for name, module in self.modules():
-            print(f'\t{name}:', module)
-            for param_name, param in module.parameters():
-                print(f'\t\t{name}.{param_name}', list(param.size()))
-
-    def export(self, filename='./runs/model.json'):
-        print('Export model to:', filename)
-
-        network = {'layers': []}
-        for name, module in self.modules():
-            layer = {
-                'type': module.__class__.__name__,
-                'name': name,
-            }
-            for param_name, param in module.parameters():
-                layer[param_name] = param.tolist()
-            network['layers'].append(layer)
-
-        with open(filename, 'w') as f:
-            json.dump(network, f, indent=2)
-
-    @property
-    def n_params(self):
-        return sum(p.numel() for p in self.parameters(named=False))
-
-    def __repr__(self):
-        input = self.input_size if hasattr(self, 'input_size') else ''
-        output = self.output_size if hasattr(self, 'output_size') else ''
-        return f'{self.__class__.__name__}({input}, {output}): {self.n_params} parameters'
-
+from functions.activations import tanh
+from models.base import Param, Module
 
 class Linear(Module):
     def __init__(self, input_size, output_size=1, device='cpu', weights_init=init.kaiming_normal_relu):
@@ -127,3 +78,58 @@ class Dropout(Module):
 
         return x
 
+
+
+class RNN_cell(Module):
+
+    def __init__(self, input_size, hidden_size, device='cpu'):
+        self.embed = Embedding(input_size, hidden_size, device=device)  # no bias
+        self.hidden = Linear(hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.device = device
+
+    def forward(self, x, h=None):  # todo: support one-hot/dense input
+        assert len(x.shape) == 1, 'x must be a 1D tensor (batch_size,)'
+        N = x.shape
+
+        if h is None:
+            h = torch.zeros(self.hidden_size, device=self.device)
+
+        xh = self.embed.forward(x)  # directly select the column embedding
+        hh = self.hidden.forward(h)
+        h = tanh(xh + hh)
+
+        return h
+
+    def __repr__(self):
+        return f'RNN_cell(input_size={self.input_size}, hidden_size={self.hidden_size}): {self.n_params} params'
+
+
+class RNN(Module):
+
+    def __init__(self, input_size, hidden_size, backward=False, device='cpu'):
+        self.rnn = RNN_cell(input_size, hidden_size, device=device)
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.device = device
+        self.backward = backward
+
+    def forward(self, x, h=None):  # todo: support one-hot/dense input
+        N, T = x.shape
+
+        direction = reversed(range(T)) if self.backward else range(T)
+        z = torch.zeros(N, T, self.hidden_size, device=self.device)
+        for t in direction:
+            h = self.rnn.forward(x[:, t], h)
+            z[:, t] = h
+
+        return z, h  # h == z[:, -1 or 0]  (i.e. the final hidden state for each batch element)
+
+    def expression(self):
+        direction = 't+1' if self.backward else 't-1'
+        latex = r'$h_t = \tanh(W_{xh} x + W_{hh} h_{' + direction + r'} + b_h)$' + '\n'
+        return latex
+
+    def __repr__(self):
+        return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}, backward={self.backward}): {self.n_params} params'
