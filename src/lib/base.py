@@ -1,3 +1,4 @@
+import json
 import torch
 from torch._C import _disabled_torch_function_impl
 
@@ -22,9 +23,9 @@ class Param(torch.Tensor):
 
 class Module:
 
-    def parameters(self, named=True, prefix=''):
+    def parameters(self, named=True, prefix='', deep=True):
         for key, val in vars(self).items():
-            if isinstance(val, Module):
+            if isinstance(val, Module) and deep:
                 yield from val.parameters(named, prefix=f'{prefix + key}.')
             elif type(val) is Param:  # don't use isinstance, because Param is a subclass of Tensor
                 yield (prefix + key, val) if named else val
@@ -32,14 +33,14 @@ class Module:
     def modules(self, named=True, prefix=''):
         for key, val in vars(self).items():
             if isinstance(val, Module):
-                yield from val.modules(named, prefix=f'{key}.')
                 yield (prefix + key, val) if named else val
+                yield from val.modules(named, prefix=f'\t{prefix + key}.')
 
     def summary(self):
         print(self)
         for name, module in self.modules():
             print(f'\t{name}:', module)
-            for param_name, param in module.parameters():
+            for param_name, param in module.parameters(deep=False):
                 print(f'\t\t{name}.{param_name}', list(param.size()))
 
     def export(self, filename='./runs/model.json'):
