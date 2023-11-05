@@ -1,7 +1,7 @@
 import torch
 from tqdm import trange
 
-from models.recurrent_networks import UniRNN
+from models.recurrent_networks import UniRNN, BiRNN
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
@@ -31,8 +31,8 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Model # todo: compare forward vs backward vs bidirectional RNN
 # net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE)
-net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, backward=True, device=DEVICE)
-# net = BiRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, device=DEVICE)
+# net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, backward=True, device=DEVICE)
+net = BiRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net)
 # plots.LaTeX(RNN, net.expression())

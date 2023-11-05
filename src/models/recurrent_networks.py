@@ -50,7 +50,7 @@ class UniRNN(Module):
         return f'{self.__class__.__name__}(input_size={self.input_size}, hidden_size={self.hidden_size}, output_size={self.out.output_size}, backward={self.backward}): {self.n_params} params'
 
 
-class BiRNN(UniRNN):
+class BiRNN(Module):
 
     def __init__(self, input_size, hidden_size, output_size, device='cpu'):
         self.rnn_f = RNN(input_size, hidden_size, backward=False, device=device)
