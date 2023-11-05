@@ -33,7 +33,8 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Model
 # net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE)
-net = BiRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, device=DEVICE)
+net = UniRNN(vocab.size, HIDDEN_SIZE, vocab.size, backward=True, device=DEVICE)
+# net = BiRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net)
 # plots.LaTeX('RNN', net.expression())

@@ -32,16 +32,17 @@ class RNN_cell(Module):
 
 class RNN_layer(Module):
 
-    def __init__(self, input_size, hidden_size, device='cpu'):
+    def __init__(self, input_size, hidden_size, backward=False, device='cpu'):
         self.rnn = RNN_cell(input_size, hidden_size, device=device)
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
+        self.backward = backward
 
-    def forward(self, x, h=None, reverse=False):  # todo: support one-hot/dense input
+    def forward(self, x, h=None):  # todo: support one-hot/dense input
         N, T = x.shape
 
-        direction = reversed(range(T)) if reverse else range(T)
+        direction = reversed(range(T)) if self.backward else range(T)
         z = torch.zeros(N, T, self.hidden_size, device=self.device)
         for t in direction:
             h = self.rnn.forward(x[:, t], h)
@@ -50,19 +51,21 @@ class RNN_layer(Module):
         return z, h  # h == z[:, -1 or 0]  (i.e. the final hidden state for each batch element)
 
     def expression(self):
-        latex = r'$h_t = \tanh(W_{xh} x + W_{hh} h_{t-1} + b_h)$' + '\n'
+        direction = 't+1' if self.backward else 't-1'
+        latex = r'$h_t = \tanh(W_{xh} x + W_{hh} h_{' + direction + r'} + b_h)$' + '\n'
         return latex
 
     def __repr__(self):
-        return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}): {self.n_params} params'
+        return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}, backward={self.backward}): {self.n_params} params'
 
 
 class UniRNN(Module):
-    def __init__(self, input_size, hidden_size, output_size, device='cpu'):
-        self.rnn = RNN_layer(input_size, hidden_size, device=device)
+    def __init__(self, input_size, hidden_size, output_size, backward=False, device='cpu'):
+        self.rnn = RNN_layer(input_size, hidden_size, backward, device=device)
         self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal)
         self.hidden_size = hidden_size
         self.input_size = input_size
+        self.backward = backward
         self.device = device
 
     def forward(self, x, h=None, logits=False):
@@ -94,19 +97,19 @@ class UniRNN(Module):
         return seq
 
     def expression(self):
-        latex  = r'$h_t = \tanh(W_{xh} x + W_{hh} h_{t-1} + b_h)$' + '\n'
+        latex  = self.rnn.expression()
         latex += r'$y_t = softmax(W_{hy} h_t + b_y$)'
         return latex
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(input_size={self.input_size}, hidden_size={self.hidden_size}, output_size={self.out.output_size}): {self.n_params} params'
+        return f'{self.__class__.__name__}(input_size={self.input_size}, hidden_size={self.hidden_size}, output_size={self.out.output_size}, backward={self.backward}): {self.n_params} params'
 
 
 class BiRNN(UniRNN):
 
     def __init__(self, input_size, hidden_size, output_size, device='cpu'):
-        self.rnn_f = RNN_layer(input_size, hidden_size, device=device)
-        self.rnn_b = RNN_layer(input_size, hidden_size, device=device)
+        self.rnn_f = RNN_layer(input_size, hidden_size, backward=False, device=device)
+        self.rnn_b = RNN_layer(input_size, hidden_size, backward=True, device=device)
         self.out = Linear(hidden_size*2, output_size, device=device, weights_init=init.xavier_normal)
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -119,7 +122,7 @@ class BiRNN(UniRNN):
         assert len(h) == 2, 'For bi-directional RNN h must be a stack of two hidden states (one for each direction)'
 
         z_f, h_f = self.rnn_f.forward(x, h[0])
-        z_b, h_b = self.rnn_b.forward(x, h[1], reverse=True)
+        z_b, h_b = self.rnn_b.forward(x, h[1])
         z = torch.concat((z_f, z_b), dim=-1)
         h = torch.stack((h_f, h_b))
 
