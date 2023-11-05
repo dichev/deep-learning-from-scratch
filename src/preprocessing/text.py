@@ -39,11 +39,14 @@ class TextVocabulary:
 
     def __init__(self, sequences, max_vocab_size=None, padding='<PAD>', unknown='<UNK>'):
         words = [token for seq in sequences for token in seq]
-        dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()  # [(word, counts)]
 
-        if max_vocab_size:
+        if max_vocab_size is None:
+            dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()
+        else:
             assert max_vocab_size > 2, 'The vocabulary size cannot be less than 2, because it must include the <padding> and <unknown> tokens'
-            dictionary = dictionary[:max_vocab_size]
+            selected = Counter(words).most_common(max_vocab_size - 2)
+            count_unknown = len(words) - sum(counts for word, counts in selected)
+            dictionary = [(padding, 0), (unknown, count_unknown)] + selected
 
         self.size = len(dictionary)
         self.counts = np.array([counts for word, counts in dictionary])
@@ -67,7 +70,7 @@ class TextVocabulary:
             print(f'{seq} -> ', ' '.join([self.to_token[idx] for idx in seq if idx>0]))
 
     def __repr__(self):
-        str = '\n Top 10 tokens:\n'
+        tokens = '\n Top 10 tokens:\n'
         for i in range(10):
-            str += f' {i}: {self.to_token[i]} ({self.counts[i]})\n'
-        return f'TextVocabulary(size={self.size})' + str
+            tokens += f' {i}: {self.to_token[i]} ({self.counts[i]})\n'
+        return f'TextVocabulary(size={self.size})' + tokens
