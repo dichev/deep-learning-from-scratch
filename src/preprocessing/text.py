@@ -37,16 +37,19 @@ def skip_grams(sequence, half_window=2, n=2, padding_token=0):
 
 class TextVocabulary:
 
-    def __init__(self, sequences, max_vocab_size=None, padding='<PAD>', unknown='<UNK>'):
+    def __init__(self, sequences, max_vocab_size=None, padding_token="<PAD>", unknown_token='<UNK>', special_tokens=()):
         words = [token for seq in sequences for token in seq]
 
+        dictionary = [(padding_token, 0), (unknown_token, 0)] + [(token, 0) for token in special_tokens]
+
         if max_vocab_size is None:
-            dictionary = [(padding, 0), (unknown, 0)] + Counter(words).most_common()
+            dictionary += Counter(words).most_common()
         else:
             assert max_vocab_size > 2, 'The vocabulary size cannot be less than 2, because it must include the <padding> and <unknown> tokens'
             selected = Counter(words).most_common(max_vocab_size - 2)
             count_unknown = len(words) - sum(counts for word, counts in selected)
-            dictionary = [(padding, 0), (unknown, count_unknown)] + selected
+            dictionary[1] = (unknown_token, count_unknown)
+            dictionary += selected
 
         self.size = len(dictionary)
         self.counts = np.array([counts for word, counts in dictionary])
@@ -73,4 +76,5 @@ class TextVocabulary:
         tokens = '\n Top 10 tokens:\n'
         for i in range(10):
             tokens += f' {i}: {self.to_token[i]} ({self.counts[i]})\n'
+
         return f'TextVocabulary(size={self.size})' + tokens

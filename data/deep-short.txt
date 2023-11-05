@@ -1,0 +1,231 @@
+The individual values in a sequence can be either real-valued or symbolic. Real-valued
+sequences are also referred to as time-series. Recurrent neural networks can be used for
+either type of data. In practical applications, the use of symbolic values is more common.
+Therefore, this chapter will primarily focus on symbolic data in general, and on text data
+in particular. Throughout this chapter, the default assumption will be that the input to the
+recurrent network will be a text segment in which the corresponding symbols of the sequence
+are the word identifiers of the lexicon. However, we will also examine other settings, such
+as cases in which the individual elements are characters or in which they are real values.
+ONE-HOT ENCODED INPUTS
+(a) 5-word sentence (b) 4-word sentence
+“Analytics is hardly any fun. Analytics must be fun.”
+Figure 7.1: An attempt to use a conventional neural network for sentiment analysis faces
+the challenge of variable-length inputs. The network architecture also does not contain any
+helpful information about sequential dependencies among successive words.
+Many sequence-centric applications like text are often processed as bags of words. Such
+an approach ignores the ordering of words in the document, and works well for documents of
+reasonable size. However, in applications where the semantic interpretation of the sentence
+is important, or in which the size of the text segment is relatively small (e.g., a single
+sentence), such an approach is simply inadequate. In order to understand this point, consider
+the following pair of sentences:
+The cat chased the mouse.
+The mouse chased the cat.
+The two sentences are clearly very different (and the second one is unusual). However, the
+bag-of-words representation would deem them identical. Hence, this type of representation
+works well for simpler applications (such as classification), but a greater degree of linguistic intelligence is required for more sophisticated applications in difficult settings such as
+sentiment analysis, machine translation, or information extraction.
+One possible solution is to avoid the bag-of-words approach and create one input for
+each position in the sequence. Consider a situation in which one tried to use a conventional
+neural network in order to perform sentiment analysis on sentences with one input for each
+position in the sentence. The sentiment can be a binary label depending on whether it is
+positive or negative. The first problem that one would face is that the length of different
+sentences is different. Therefore, if we used a neural network with 5 sets of one-hot encoded
+word inputs (cf. Figure 7.1(a)), it would be impossible to enter a sentence with more than
+five words. Furthermore, any sentence with less than five words would have missing inputs
+(cf. Figure 7.1(b)). In some cases, such as Web log sequences, the length of the input
+sequence might run into the hundreds of thousands. More importantly, small changes in word
+ordering can lead to semantically different connotations, and it is important to somehow
+encode information about the word ordering more directly within the architecture of the
+7.1. INTRODUCTION 273
+network. The goal of such an approach would be to reduce the parameter requirements
+with increasing sequence length; recurrent neural networks provide an excellent example
+of (parameter-wise) frugal architectural design with the help of domain-specific insights.
+Therefore, the two main desiderata for the processing of sequences include (i) the ability
+to receive and process inputs in the same order as they are present in the sequence, and
+(ii) the treatment of inputs at each time-stamp in a similar manner in relation to previous
+history of inputs. A key challenge is that we somehow need to construct a neural network
+with a fixed number of parameters, but with the ability to process a variable number of
+inputs.
+These desiderata are naturally satisfied with the use of recurrent neural networks
+(RNNs). In a recurrent neural network, there is a one-to-one correspondence between the
+layers in the network and the specific positions in the sequence. The position in the sequence
+is also referred to as its time-stamp. Therefore, instead of a variable number of inputs in a
+single input layer, the network contains a variable number of layers, and each layer has a
+single input corresponding to that time-stamp. Therefore, the inputs are allowed to directly
+interact with down-stream hidden layers depending on their positions in the sequence. Each
+layer uses the same set of parameters to ensure similar modeling at each time stamp, and
+therefore the number of parameters is fixed as well. In other words, the same layer-wise
+architecture is repeated in time, and therefore the network is referred to as recurrent. Recurrent neural networks are also feed-forward networks with a specific structure based on the
+notion of time layering, so that they can take a sequence of inputs and produce a sequence
+of outputs. Each temporal layer can take in an input data point (either single attribute or
+multiple attributes), and optionally produce a multidimensional output. Such models are
+particularly useful for sequence-to-sequence learning applications like machine translation
+or for predicting the next element in a sequence. Some examples of applications include the
+following:
+1. The input might be a sequence of words, and the output might be the same sequence
+shifted by 1, so that we are predicting the next word at any given point. This is a
+classical language model in which we are trying the predict the next word based on
+the sequential history of words. Language models have a wide variety of applications
+in text mining and information retrieval [6].
+2. In a real-valued time-series, the problem of learning the next element is equivalent
+to autoregressive analysis. However, a recurrent neural network can learn far more
+complex models than those obtained with traditional time-series modeling.
+3. The input might be a sentence in one language, and the output might be a sentence in
+another language. In this case, one can hook up two recurrent neural networks to learn
+the translation models between the two languages. One can even hook up a recurrent
+network with a different type of network (e.g., convolutional neural network) to learn
+captions of images.
+4. The input might be a sequence (e.g., sentence), and the output might be a vector
+of class probabilities, which is triggered by the end of the sentence. This approach is
+useful for sentence-centric classification applications like sentiment analysis.
+From these four examples, it can be observed that a wide variety of basic architectures have
+been employed or studied within the broader framework of recurrent neural networks.
+There are significant challenges in learning the parameters of a recurrent neural network.
+One of the key problems in this context is that of the vanishing and the exploding gradient
+274 CHAPTER 7. RECURRENT NEURAL NETWORKS
+problem. This problem is particularly prevalent in the context of deep networks like recurrent
+neural networks. As a result, a number of variants of the recurrent neural network, such
+as long short-term memory (LSTM) and gated recurrent unit (GRU), have been proposed.
+Recurrent neural networks and their variants have been used in the context of a variety of
+applications like sequence-to-sequence learning, image captioning, machine translation, and
+sentiment analysis. This chapter will also study the use of recurrent neural networks in the
+context of these different applications.
+7.1.1 Expressiveness of Recurrent Networks
+Recurrent neural networks are known to be Turing complete [444]. Turing completeness
+means that a recurrent neural network can simulate any algorithm, given enough data and
+computational resources [444]. This property is, however, not very useful in practice because
+the amount of data and computational resources required to achieve this goal in arbitrary
+settings can be unrealistic. Furthermore, there are practical issues in training a recurrent
+neural network, such as the vanishing and exploding gradient problems. These problems
+increase with the length of the sequence, and more stable variations such as long shortterm memory can address this issue only in a limited way. The neural Turing machine is
+discussed in Chapter 10, which uses external memory to improve the stability of neural
+network learning. A neural Turing machine can be shown to be equivalent to a recurrent
+neural network, and it often uses a more traditional recurrent network, referred to as the
+controller, as an important action-deciding component. Refer to Section 10.3 of Chapter 10
+for a detailed discussion.
+Chapter Organization
+This chapter is organized as follows. The next section will introduce the basic architecture of
+the recurrent neural network along with the associated training algorithm. The challenges of
+training recurrent networks are discussed in Section 7.3. Because of these challenges, several
+variations of the recurrent neural network architecture have been proposed. This chapter will
+study several such variations. Echo-state networks are introduced in Section 7.4. Long shortterm memory networks are discussed in Section 7.5. The gated recurrent unit is discussed
+in Section 7.6. Applications of recurrent neural networks are discussed in Section 7.7. A
+summary is given in Section 7.8.
+7.2 The Architecture of Recurrent Neural Networks
+In the following, the basic architecture of a recurrent network will be described. Although
+the recurrent neural network can be used in almost any sequential domain, its use in the
+text domain is both widespread and natural. We will assume the use of the text domain
+throughout this section in order to enable intuitively simple explanations of various concepts.
+Therefore, the focus of this chapter will be mostly on discrete RNNs, since that is the most
+popular use case. Note that exactly the same neural network can be used both for building
+a word-level RNN and a character-level RNN. The only difference between the two is the set
+of base symbols used to define the sequence. For consistency, we will stick to the word-level
+RNN while introducing the notations and definitions. However, variations of this setting are
+also discussed in this chapter.
+The simplest recurrent neural network is shown in Figure 7.2(a). A key point here is the
+presence of the self-loop in Figure 7.2(a), which will cause the hidden state of the neural
+7.2. THE ARCHITECTURE OF RECURRENT NEURAL NETWORKS 275
+network to change after the input of each word in the sequence. In practice, one only works
+with sequences of finite length, and it makes sense to unfold the loop into a “time-layered”
+network that looks more like a feed-forward network. This network is shown in Figure 7.2(b).
+Note that in this case, we have a different node for the hidden state at each time-stamp
+and the self-loop has been unfurled into a feed-forward network. This representation is
+mathematically equivalent to Figure 7.2(a), but is much easier to comprehend because of
+its similarity to a traditional network. The weight matrices in different temporal layers are
+shared to ensure that the same function is used at each time-stamp. The annotations Wxh,
+Whh, and Why of the weight matrices in Figure 7.2(b) make the sharing evident.
+(a) RNN (b) Time-layered representation of (a)
+Figure 7.2: A recurrent neural network and its time-layered representation
+It is noteworthy that Figure 7.2 shows a case in which each time-stamp has an input,
+output, and hidden unit. In practice, it is possible for either the input or the output units
+to be missing at any particular time-stamp. Examples of cases with missing inputs and
+outputs are shown in Figure 7.3. The choice of missing inputs and outputs would depend
+on the specific application at hand. For example, in a time-series forecasting application,
+we might need outputs at each time-stamp in order to predict the next value in the timeseries. On the other hand, in a sequence-classification application, we might only need a
+single output label at the end of the sequence corresponding to its class. In general, it
+is possible for any subset of inputs or outputs to be missing in a particular application.
+The following discussion will assume that all inputs and outputs are present, although it is
+easy to generalize it to the case where some of them are missing by simply removing the
+corresponding terms or equations.
+The particular architecture shown in Figure 7.2 is suited to language modeling. A language model is a well-known concept in natural language processing that predicts the next
+word, given the previous history of words. Given a sequence of words, their one-hot encoding is fed one at a time to the neural network in Figure 7.2(a). This temporal process
+is equivalent to feeding the individual words to the inputs at the relevant time-stamps in
+Figure 7.2(b). A time-stamp corresponds to the position in the sequence, which starts at 0
+(or 1), and increases by 1 by moving forward in the sequence by one unit. In the setting
+of language modeling, the output is a vector of probabilities predicted for the next word in
+the sequence. For example, consider the sentence:
+The cat chased the mouse.
+When the word “The” is input, the output will be a vector of probabilities of the entire
+lexicon that includes the word “cat,” and when the word “cat” is input, we will again get a
+276 CHAPTER 7. RECURRENT NEURAL NETWORKS
+Figure 7.3: The different variations of recurrent networks with missing inputs and outputs
+vector of probabilities predicting the next word. This is, of course, the classical definition of
+a language model in which the probability of a word is estimated based on the immediate
+history of previous words. In general, the input vector at time t (e.g., one-hot encoded vector
+of the tth word) is xt, the hidden state at time t is ht, and the output vector at time t (e.g.,
+predicted probabilities of the (t + 1)th word) is yt. Both xt and yt are d-dimensional for a
+lexicon of size d. The hidden vector ht is p-dimensional, where p regulates the complexity
+of the embedding. For the purpose of discussion, we will assume that all these vectors are
+column vectors. In many applications like classification, the output is not produced at each
+time unit but is only triggered at the last time-stamp in the end of the sentence. Although
+output and input units may be present only at a subset of the time-stamps, we examine the
+simple case in which they are present in all time-stamps. Then, the hidden state at time t
+is given by a function of the input vector at time t and the hidden vector at time (t − 1):
+ht = f(ht−1, xt) (7.1)
+This function is defined with the use of weight matrices and activation functions (as used
+by all neural networks for learning), and the same weights are used at each time-stamp.
+Therefore, even though the hidden state evolves over time, the weights and the underlying
+function f(·, ·) remain fixed over all time-stamps (i.e., sequential elements) after the neural
+network has been trained. A separate function yt = g(ht) is used to learn the output
+probabilities from the hidden states.
+Next, we describe the functions f(·, ·) and g(·) more concretely. We define a p×d inputhidden matrix Wxh, a p × p hidden-hidden matrix Whh, and a d × p hidden-output matrix
+Why. Then, one can expand Equation 7.1 and also write the condition for the outputs as
+follows:
+ht = tanh(Wxhxt + Whhht−1)
+yt = Whyht
+7.2. THE ARCHITECTURE OF RECURRENT NEURAL NETWORKS 277
+Here, the “tanh” notation is used in a relaxed way, in the sense that the function is applied
+to the p-dimensional column vector in an element-wise fashion to create a p-dimensional
+vector with each element in [−1, 1]. Throughout this section, this relaxed notation will be
+used for several activation functions such as tanh and sigmoid. In the very first time-stamp,
+ht−1 is assumed to be some default constant vector (such as 0), because there is no input
+from the hidden layer at the beginning of a sentence. One can also learn this vector, if
+desired. Although the hidden states change at each time-stamp, the weight matrices stay
+fixed over the various time-stamps. Note that the output vector yt is a set of continuous
+values with the same dimensionality as the lexicon. A softmax layer is applied on top of
+yt so that the results can be interpreted as probabilities. The p-dimensional output ht of
+the hidden layer at the end of a text segment of t words yields its embedding, and the pdimensional columns of Wxh yield the embeddings of individual words. The latter provides
+an alternative to word2vec embeddings (cf. Chapter 2).
+Because of the recursive nature of Equation 7.1, the recurrent network has the ability to
+compute a function of variable-length inputs. In other words, one can expand the recurrence
+of Equation 7.1 to define the function for ht in terms of t inputs. For example, starting
+at h0, which is typically fixed to some constant vector (such as the zero vector), we have
+h1 = f(h0, x1) and h2 = f(f(h0, x1), x2). Note that h1 is a function of only x1, whereas h2
+is a function of both x1 and x2. In general, ht is a function of x1 ... xt. Since the output yt
+is a function of ht, these properties are inherited by yt as well. In general, we can write the
+following:
+yt = Ft(x1, x2,... xt) (7.2)
+Note that the function Ft(·) varies with the value of t although its relationship to its
+immediately previous state is always the same (based on Equation 7.1). Such an approach
+is particularly useful for variable-length inputs. This setting occurs often in many domains
+like text in which the sentences are of variable length. For example, in a language modeling
+application, the function Ft(·) indicates the probability of the next word, taking into account
+all the previous words in the sentence.
+7.2.1 Language Modeling Example of RNN
+In order to illustrate the workings of the RNN, we will use a toy example of a single sequence
+defined on a vocabulary of four words. Consider the sentence:
+The cat chased the mouse.
+In this case, we have a lexicon of four words, which are {“the,”“cat,”“chased,”“mouse”}. In
+Figure 7.4, we have shown the probabilistic prediction of the next word at each of timestamps from 1 to 4. Ideally, we would like the probability of the next word to be predicted
+correctly from the probabilities of the previous words. Each one-hot encoded input vector
+xt has length four, in which only one bit is 1 and the remaining bits are 0s. The main
+flexibility here is in the dimensionality p of the hidden representation, which we set to 2 in
+this case. As a result, the matrix Wxh will be a 2 × 4 matrix, so that it maps a one-hot
+encoded input vector into a hidden vector ht vector of size 2. As a practical matter, each
+column of Wxh corresponds to one of the four words, and one of these columns is copied by
+the expression Wxhxt. Note that this expression is added to Whhht and then transformed
+with the tanh function to produce the final expression. The final output yt is defined by
+Whyht. Note that the matrices Whh and Why are of sizes 2 × 2 and 4 × 2, respectively.
+In this case, the outputs are continuous values (not probabilities) in which larger values
+indicate greater likelihood of presence. These continuous values are eventually converted
+278 CHAPTER 7. RECURRENT NEURAL NETWORKS

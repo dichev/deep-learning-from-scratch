@@ -17,14 +17,14 @@ DEVICE = 'cuda'
 
 # hyperparams
 TIME_STEPS = 10
+MAX_VOCAB_SIZE = 1000  # input/output size
 HIDDEN_SIZE = 100
 
 # Prepare text data
 print('Data preprocessing..')
-text = open('./data/shakespeare.txt', 'r', encoding="utf-8").read()[:30_000]
+text = open('./data/deep-short.txt', 'r', encoding="utf-8").read()  # todo: cleanup the text
 text = text.split()
-
-vocab = TextVocabulary([text])
+vocab = TextVocabulary([text], MAX_VOCAB_SIZE, special_tokens=('<MASK>',))
 print(vocab)
 text_encoded = vocab.encode(text)
 cut = len(text_encoded) % TIME_STEPS  # clip data to match the batch_size
@@ -47,8 +47,7 @@ for epoch in pbar:
     loss = accuracy = 0
     for batch, batch_fraction in batches(X, batch_size=BATCH_SIZE, device=DEVICE):
         mask = torch.randint(1, TIME_STEPS-1, size=(len(batch), 1), device=DEVICE)
-        UNK_TOKEN = 1
-        x = batch.scatter(1, mask, UNK_TOKEN)
+        x = batch.scatter(1, mask, vocab.to_idx['<MASK>'])
         y = batch.gather(1, mask)
 
         y_hat, _ = net.forward(x, logits=True)
@@ -63,7 +62,7 @@ for epoch in pbar:
     pbar.set_postfix(cost=f"{loss:.4f}", accuracy=f"{100*accuracy/N:.2f}%")
 
     if epoch == 1 or epoch % 10 == 0:
-        print('\n# Test 5 masked sequences --------------------------------------------')
+        print('\n# Test 5 sequences --------------------------------------------')
         for i in range(5):
             input, output, expected = [vocab.decode(v.detach().cpu().numpy()) for v in (x[i], y_hat[i][0].argmax(keepdims=True), y[i])]
-            print(f"{'PASS' if expected==output else 'Fail'} | " + input.replace('<UNK>', f'[{output}]'))
+            print(f"{'PASS' if expected==output else 'FAIL'} | " + input.replace('<MASK>', f'[{output}]'))
