@@ -79,7 +79,6 @@ class Dropout(Module):
         return x
 
 
-
 class RNN_cell(Module):
 
     def __init__(self, input_size, hidden_size, device='cpu'):
