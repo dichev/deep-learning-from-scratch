@@ -1,13 +1,11 @@
 import torch
 from tqdm import trange
 
-from networks.recurrent_networks import UniRNN, BiRNN
+from models.recurrent_networks import UniRNN
 from preprocessing.text import TextVocabulary
-from functions.losses import cross_entropy
-from models.optimizers import Adam
-from models.training import batches
-from utils import plots
-
+from lib.functions.losses import cross_entropy
+from lib.optimizers import Adam
+from lib.training import batches
 
 # training settings
 EPOCHS = 100

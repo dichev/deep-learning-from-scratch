@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 
-from networks.energy_based_models import HopfieldNetwork
+from models.energy_based_models import HopfieldNetwork
 from data.letters_5x5 import get_patterns
 
 # Data

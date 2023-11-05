@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
-from models import optimizers
+from lib import optimizers
 
 
 # settings

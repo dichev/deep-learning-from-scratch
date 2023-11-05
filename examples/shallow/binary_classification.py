@@ -1,9 +1,9 @@
 import torch
 from matplotlib import pyplot as plt
 from sklearn import datasets
-from models import optimizers
+from lib import optimizers
 from utils import plots
-from networks.shallow_models import Perceptron, SVM, LeastSquareRegression, LogisticRegression
+from models.shallow_models import Perceptron, SVM, LeastSquareRegression, LogisticRegression
 
 
 # Hyperparams

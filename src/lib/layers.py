@@ -1,7 +1,7 @@
 import torch
-from functions import init
-from functions.activations import tanh
-from models.base import Param, Module
+from lib.functions import init
+from lib.functions.activations import tanh
+from lib.base import Param, Module
 
 class Linear(Module):
     def __init__(self, input_size, output_size=1, device='cpu', weights_init=init.kaiming_normal_relu):

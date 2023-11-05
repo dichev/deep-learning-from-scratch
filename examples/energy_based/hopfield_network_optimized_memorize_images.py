@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from PIL import Image
-from networks.energy_based_models import HopfieldNetwork, HopfieldNetworkOptimized
+from models.energy_based_models import HopfieldNetwork, HopfieldNetworkOptimized
 import os
 
 DEVICE = 'cuda'

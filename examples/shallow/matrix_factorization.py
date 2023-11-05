@@ -1,9 +1,9 @@
 import torch
 import pandas as pd
 from tqdm import trange
-from models import optimizers
+from lib import optimizers
 from matplotlib import pyplot as plt
-from models.autoencoders import MatrixFactorization
+from lib.autoencoders import MatrixFactorization
 from preprocessing.integer import index_encoder
 from scipy import sparse
 # todo one-hot + linear = indices +embedding

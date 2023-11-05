@@ -1,5 +1,5 @@
 import torch
-from functions.activations import sigmoid
+from lib.functions.activations import sigmoid
 
 class HopfieldNetwork:
 

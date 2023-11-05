@@ -1,7 +1,7 @@
 import torch
-from models.layers import Module, Linear, RNN
-from functions import init
-from functions.activations import softmax
+from lib.layers import Module, Linear, RNN
+from lib.functions import init
+from lib.functions.activations import softmax
 
 
 class UniRNN(Module):
@@ -55,7 +55,7 @@ class BiRNN(UniRNN):
     def __init__(self, input_size, hidden_size, output_size, device='cpu'):
         self.rnn_f = RNN(input_size, hidden_size, backward=False, device=device)
         self.rnn_b = RNN(input_size, hidden_size, backward=True, device=device)
-        self.out = Linear(hidden_size*2, output_size, device=device, weights_init=init.xavier_normal)
+        self.out = Linear(hidden_size * 2, output_size, device=device, weights_init=init.xavier_normal)
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.device = device

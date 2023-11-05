@@ -1,5 +1,5 @@
 import torch
-from functions.activations import log_softmax
+from lib.functions.activations import log_softmax
 
 def cross_entropy(y_hat, y, logits=True):
     if logits:

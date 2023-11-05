@@ -6,8 +6,8 @@ import os
 import torch
 from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
-from networks.energy_based_models import RestrictedBoltzmannMachine
-from models.training import batches
+from models.energy_based_models import RestrictedBoltzmannMachine
+from lib.training import batches
 
 
 DEVICE = 'cuda'

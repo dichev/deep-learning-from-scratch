@@ -5,13 +5,13 @@ from torchvision.utils import make_grid
 from tqdm import trange
 from datetime import datetime
 
-from functions import init
-from functions.activations import relu
-from functions.losses import cross_entropy
-from models.layers import Module, Linear, BatchNorm, Dropout
-from models import optimizers
-from models.regularizers import L2_regularizer, L1_regularizer, elastic_regularizer, grad_clip_, grad_clip_norm_, max_norm_constraint_
-from models.training import batches
+from lib.functions import init
+from lib.functions.activations import relu
+from lib.functions.losses import cross_entropy
+from lib.layers import Module, Linear, Dropout
+from lib import optimizers
+from lib.regularizers import grad_clip_norm_, max_norm_constraint_
+from lib.training import batches
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import one_hot
 from preprocessing.dataset import data_split

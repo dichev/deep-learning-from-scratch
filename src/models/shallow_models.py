@@ -1,7 +1,7 @@
 import torch
 from preprocessing.integer import one_hot
-from functions.activations import sigmoid, softmax
-from models.layers import Module, Linear
+from lib.functions.activations import sigmoid, softmax
+from lib.layers import Module, Linear
 
 
 class Perceptron(Module):

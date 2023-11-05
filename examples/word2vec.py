@@ -5,10 +5,10 @@ from tqdm import trange, tqdm as progress
 
 from preprocessing.text import word_tokenizer, TextVocabulary
 import preprocessing.text as text
-from utils.rng import pick_uniform, sample_from
-from functions.losses import cross_entropy
-from models.optimizers import SGD
-from models.autoencoders import Word2Vec
+from utils.rng import sample_from
+from lib.functions.losses import cross_entropy
+from lib.optimizers import SGD
+from lib.autoencoders import Word2Vec
 
 
 # data settings
