@@ -36,9 +36,9 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {
-    'RNN_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
-    'RNN_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', device=DEVICE),
-    'BiRNN_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', device=DEVICE),
+    'RNN_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
+    'RNN_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
+    'BiRNN_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
 }
 
 for model_name, net in models.items():
@@ -48,7 +48,7 @@ for model_name, net in models.items():
 
     # Tracker
     now = datetime.now().strftime('%b%d %H-%M-%S')
-    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} grad_clip params={net.n_params} - {now}', flush_secs=2)
+    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} LayerNorm params={net.n_params} - {now}', flush_secs=2)
 
     # Training loop
     N = len(X)
@@ -67,11 +67,11 @@ for model_name, net in models.items():
             y_hat = y_hat[torch.arange(len(batch)), mask.ravel(), :].unsqueeze(1)
             cost = cross_entropy(y_hat, y, logits=True)
             cost.backward()
-            grad_norm_batch = grad_clip_norm_(net.parameters(), 1.)
+            # grad_clip_norm_(net.parameters(), 1.)
             optimizer.step()
 
             # Metrics
-            grad_norm += grad_norm_batch * batch_fraction
+            grad_norm += net.grad_norm() * batch_fraction
             loss += cost.item() * batch_fraction
             accuracy += (y_hat.argmax(dim=-1) == y).sum().item()
 

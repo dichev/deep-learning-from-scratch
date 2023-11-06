@@ -63,6 +63,20 @@ class BatchNorm(Module):
         return x
 
 
+class LayerNorm(Module):
+
+    def __init__(self, size, device='cpu'):
+        self.shift = Param(1, size, init=init.zeros, device=device, requires_grad=True)
+        self.scale = Param(1, size, init=init.ones, device=device, requires_grad=True)
+
+    def forward(self, a):  # "a" are all pre-activations of the layer
+        mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
+        a = (a - mu) / (var + 1e-5).sqrt()
+        a = self.scale * a + self.shift
+        return a
+
+
+
 class Dropout(Module):
 
     def __init__(self, p=.5):  # as prob to be zeroed
@@ -81,11 +95,14 @@ class Dropout(Module):
 
 class RNN_cell(Module):
 
-    def __init__(self, input_size, hidden_size, device='cpu'):
+    def __init__(self, input_size, hidden_size, layer_norm=False, device='cpu'):
         self.embed = Embedding(input_size, hidden_size, device=device)  # no bias
         self.hidden = Linear(hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)
+        if layer_norm:
+            self.norm = LayerNorm(hidden_size, device=device)
         self.input_size = input_size
         self.hidden_size = hidden_size
+        self.layer_norm = layer_norm
         self.device = device
 
     def forward(self, x, h=None):  # todo: support one-hot/dense input
@@ -97,7 +114,10 @@ class RNN_cell(Module):
 
         xh = self.embed.forward(x)  # directly select the column embedding
         hh = self.hidden.forward(h)
-        h = tanh(xh + hh)
+        a = xh + hh
+        if self.layer_norm:
+            a = self.norm.forward(a)
+        h = tanh(a)
 
         return h
 
@@ -107,8 +127,8 @@ class RNN_cell(Module):
 
 class RNN(Module):
 
-    def __init__(self, input_size, hidden_size, backward=False, device='cpu'):
-        self.rnn = RNN_cell(input_size, hidden_size, device=device)
+    def __init__(self, input_size, hidden_size, backward=False, layer_norm=False, device='cpu'):
+        self.rnn = RNN_cell(input_size, hidden_size, layer_norm, device=device)
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
