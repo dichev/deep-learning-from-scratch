@@ -29,7 +29,7 @@ def grad_clip_(params, limit_value):
     for name, param in params:
         param.grad.clamp_(-limit_value, limit_value)
 
-def grad_clip_norm_(params, max_norm):
+def grad_clip_norm_(params, max_norm):  # global norm, not layer-wise
     grads = [param.grad for name, param in params]
     norm = torch.cat([grad.view(-1) for grad in grads]).norm().item()
     if norm > max_norm:

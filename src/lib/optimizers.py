@@ -22,7 +22,8 @@ class Optimizer:
 
     def zero_grad(self):
         for name, param in self._parameters:
-            param.grad.zero_()
+            if param.grad is not None:
+                param.grad.zero_()
 
 
 class SGD(Optimizer):
