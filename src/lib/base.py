@@ -27,8 +27,9 @@ class Module:
         for key, val in vars(self).items():
             if isinstance(val, Module) and deep:
                 yield from val.parameters(named, prefix=f'{prefix + key}.')
-            elif type(val) is Param:  # don't use isinstance, because Param is a subclass of Tensor
-                yield (prefix + key, val) if named else val
+            elif type(val) is Param:   # don't use isinstance, because Param is a subclass of Tensor
+                if val.requires_grad:  # only trainable parameters
+                    yield (prefix + key, val) if named else val
 
     def modules(self, named=True, prefix=''):
         for key, val in vars(self).items():

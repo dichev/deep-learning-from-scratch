@@ -3,7 +3,7 @@ from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
-from models.recurrent_networks import RNN_factory
+from models.recurrent_networks import RNN_factory, EchoStateNetwork
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
@@ -36,9 +36,10 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {
-    'RNN_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
-    'RNN_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
-    'BiRNN_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
+    'RNN_1L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
+    'RNN_3L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
+    'BiRNN_1L LayerNorm': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
+    'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE),
 }
 
 for model_name, net in models.items():
@@ -48,7 +49,7 @@ for model_name, net in models.items():
 
     # Tracker
     now = datetime.now().strftime('%b%d %H-%M-%S')
-    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} LayerNorm params={net.n_params} - {now}', flush_secs=2)
+    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
     # Training loop
     N = len(X)

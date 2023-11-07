@@ -64,3 +64,35 @@ class RNN_factory(Module):
             x = token
 
         return seq
+
+
+class EchoStateNetwork(Module):
+
+    def __init__(self, input_size, hidden_size, output_size, spectral_radius=2., sparsity=.90, device='cpu'):
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.device = device
+
+        self.rnn = RNN(input_size, hidden_size, device=device)
+        self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal)
+
+        # make all input-hidden and hidden-hidden parameters fixed, to be used as a reservoir
+        for param in self.rnn.parameters(named=False):
+            param.requires_grad = False
+
+        # tune the spectral radius of the hidden-hidden weights
+        Whh = self.rnn.cell.hidden.weight
+        Whh *= torch.rand_like(Whh) > sparsity          # set 90% sparse connections:
+        Whh /= torch.linalg.eigvals(Whh).abs().max()    # set the spectral radius of the hidden-hidden weights to 1
+        Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation
+
+    def forward(self, x, h=None, logits=False):
+        assert len(x.shape) == 2, 'x must be a 2D tensor (batch_size, time_steps)'
+
+        z, h = self.rnn.forward(x, h)
+        y = self.out.forward(z)
+        if not logits:
+            y = softmax(y)
+
+        return y, h
+

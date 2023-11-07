@@ -128,7 +128,7 @@ class RNN_cell(Module):
 class RNN(Module):
 
     def __init__(self, input_size, hidden_size, backward=False, layer_norm=False, device='cpu'):
-        self.rnn = RNN_cell(input_size, hidden_size, layer_norm, device=device)
+        self.cell = RNN_cell(input_size, hidden_size, layer_norm, device=device)
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
@@ -140,7 +140,7 @@ class RNN(Module):
         direction = reversed(range(T)) if self.backward else range(T)
         z = torch.zeros(N, T, self.hidden_size, device=self.device)
         for t in direction:
-            h = self.rnn.forward(x[:, t], h)
+            h = self.cell.forward(x[:, t], h)
             z[:, t] = h
 
         return z, h  # h == z[:, -1 or 0]  (i.e. the final hidden state for each batch element)
