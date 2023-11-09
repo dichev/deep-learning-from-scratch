@@ -80,7 +80,7 @@ for model_name, net in models.items():
         writer.add_scalar('t/Loss', loss, epoch)
         writer.add_scalar('t/Accuracy', accuracy/N, epoch)
         writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
-        writer.add_scalar('a/Weights Norm', torch.tensor([p.norm(dim=0).mean() for name, p in net.parameters() if 'bias' not in name]).mean().item(), epoch)
+        writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
         pbar.set_postfix(cost=f"{loss:.4f}", accuracy=f"{100*accuracy/N:.2f}%")
 
         if epoch == 1 or epoch % 10 == 0:

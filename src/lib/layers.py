@@ -19,7 +19,7 @@ class Linear(Module):
 
 class Embedding(Module):  # aka lookup table
     def __init__(self, vocab_size, output_size, padding_idx=None, device='cpu'):
-        self.weight = Param(vocab_size, output_size, init=init.normal, device=device, requires_grad=True)
+        self.weight = Param(vocab_size, output_size, init=init.xavier_normal, device=device, requires_grad=True)
         if padding_idx is not None:
             with torch.no_grad():
                 self.weight[padding_idx] = 0.

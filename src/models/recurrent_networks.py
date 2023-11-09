@@ -50,7 +50,7 @@ class RNN_factory(Module):
     @torch.no_grad()
     def sample(self, n_samples=1, temperature=1., seed_seq=None):
         if seed_seq is None:
-            x = torch.randint(0, self.input_size, size=(1,))
+            x = torch.randint(0, self.input_size, size=(1,), device=self.device)
         else:
             x = torch.tensor(seed_seq, device=self.device)
 

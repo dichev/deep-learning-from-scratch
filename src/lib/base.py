@@ -67,6 +67,12 @@ class Module:
     def grad_norm(self):
         return torch.cat([param.grad.view(-1) for param in self.parameters(named=False)]).norm().item()
 
+    def weight_norm(self):
+        return torch.cat([p.view(-1) for name, p in self.parameters() if 'bias' not in name]).norm().item()
+
+    def bias_norm(self):
+        return torch.cat([p.view(-1) for name, p in self.parameters() if 'bias' in name]).norm().item()
+
     def __repr__(self):
         input = self.input_size if hasattr(self, 'input_size') else ''
         output = self.output_size if hasattr(self, 'output_size') else ''
