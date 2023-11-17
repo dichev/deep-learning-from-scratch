@@ -6,7 +6,7 @@ from lib.functions.activations import softmax
 
 class RNN_factory(Module):
 
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False, device='cpu'):
+    def __init__(self, input_size, hidden_size, output_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False, device='cpu'):
         assert direction in ('forward', 'backward', 'bidirectional'), "direction must be one of ('forward', 'backward', 'bidirectional')"
         self.hidden_size = hidden_size if direction != 'bidirectional' else hidden_size * 2
         self.n_layers = n_layers
@@ -14,9 +14,9 @@ class RNN_factory(Module):
         self.direction = direction
         self.device = device
 
-        self.rnn_layers = [RNN(input_size, hidden_size, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)]
+        self.rnn_layers = [RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)]
         if direction == 'bidirectional':
-            self.rnn_layers_reverse = [RNN(input_size, hidden_size, backward=True, layer_norm=layer_norm, device=device) for _ in range(n_layers)]
+            self.rnn_layers_reverse = [RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm, device=device) for _ in range(n_layers)]
 
         # register the RNN layers (in the right order) as attributes to be detected by self.parameters()
         for i in range(n_layers):

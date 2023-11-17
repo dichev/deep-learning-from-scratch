@@ -1,3 +1,4 @@
+import math
 import torch
 from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
@@ -7,7 +8,7 @@ from models.recurrent_networks import RNN_factory
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
-from lib.regularizers import L2_regularizer
+from lib.regularizers import L2_regularizer, grad_clip_norm_
 from lib.training import batches
 from utils import rng
 from utils import plots
@@ -35,13 +36,14 @@ X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 
 # Model
-net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, layer_norm=True, device=DEVICE)
+# net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='rnn', layer_norm=True, device=DEVICE)
+net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net.summary())
 
 # Tracker
 now = datetime.now().strftime('%b%d %H-%M-%S')
-writer = SummaryWriter(f'runs/RNN LayerNorm T={TIME_STEPS} XavierNorm params={net.n_params} - {now}', flush_secs=2)
+writer = SummaryWriter(f'runs/LSTM T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
 # Train
 N = len(X)
@@ -56,6 +58,7 @@ for epoch in pbar:
         y_hat, _ = net.forward(x, logits=True)
         cost = cross_entropy(y_hat, y, logits=True)
         cost.backward()
+        # grad_clip_norm_(net.parameters(), 1.)
         optim.step()
 
         # Metrics
@@ -64,6 +67,7 @@ for epoch in pbar:
 
     # Metrics
     writer.add_scalar('t/Loss', loss, epoch)
+    writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
     writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
     writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
     pbar.set_postfix(cost=f"{loss:.4f}")
@@ -72,7 +76,7 @@ for epoch in pbar:
         print('\n# Sampling --------------------------------------------')
         print('-> [The simplest neural network] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('The simplest neural network')), sep=''))
         print('-> [W ⇐ W +] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('W ⇐ W +')), sep=''))
-        print('-> [random char] ' + vocab.decode(net.sample(30, temperature=.5), sep=''))
+        print('-> [random char] ' + vocab.decode(net.sample(150, temperature=.5), sep=''))
 
         for name, param in net.parameters():
             if 'bias' not in name:
