@@ -95,8 +95,7 @@ class Dropout(Module):
 class RNN_cell(Module):
 
     def __init__(self, input_size, hidden_size, layer_norm=False, device='cpu'):
-        self.embed = Embedding(input_size, hidden_size, device=device)  # no bias
-        self.hidden = Linear(hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)
+        self.linear = Linear(input_size + hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, H)
         if layer_norm:
             self.norm = LayerNorm(hidden_size, device=device)
         self.input_size = input_size
@@ -104,21 +103,20 @@ class RNN_cell(Module):
         self.layer_norm = layer_norm
         self.device = device
 
-    def forward(self, x, state=(None, None)):  # todo: support one-hot/dense input
-        assert len(x.shape) == 1, 'x must be a 1D tensor (batch_size,)'
-        N = x.shape[0]
+    def forward(self, x, state=(None, None)):
+        assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
 
         if state is None or state == (None, None):
+            N = x.shape[0]
             h = torch.zeros(N, self.hidden_size, device=self.device)
         else:
             h, _ = state
 
-        xh = self.embed.forward(x)   # (N, F) -> (N, H)   directly select the column embedding
-        hh = self.hidden.forward(h)  # (N, H) -> (N, H)
-        a = xh + hh                  # (N, H) # todo: concatenate
+        xh = torch.concat((x, h), dim=-1)  # (N, I+H)
+        a = self.linear.forward(xh)                # (N, I+H) -> (N, H)
         if self.layer_norm:
-            a = self.norm.forward(a)
-        h = tanh(a)
+            a = self.norm.forward(a)               # (N, H)
+        h = tanh(a)                                # (N, H)
 
         return h, None
 
@@ -128,8 +126,7 @@ class RNN_cell(Module):
 
 class LSTM_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
-        self.embed = Embedding(input_size, 4 * hidden_size, device=device)  # no bias
-        self.gates = Linear(hidden_size, 4 * hidden_size, device=device, weights_init=init.xavier_normal)
+        self.linear = Linear(input_size + hidden_size, 4 * hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, 4H)
 
         self._slice_i = slice(hidden_size * 0, hidden_size * 1)
         self._slice_f = slice(hidden_size * 1, hidden_size * 2)
@@ -137,25 +134,24 @@ class LSTM_cell(Module):
         self._slice_m = slice(hidden_size * 3, None)  # todo: I am not a gate
 
         with torch.no_grad():
-            self.gates.bias[:, self._slice_f] = 1.5  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
+            self.linear.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
 
-    def forward(self, x, state=(None, None)):  # todo: support one-hot/dense input
-        assert len(x.shape) == 1, 'x must be a 1D tensor (batch_size,)'
-        N = x.shape[0]
+    def forward(self, x, state=(None, None)):
+        assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
 
         if state is None or state == (None, None):
+            N = len(x)
             h = torch.zeros(N, self.hidden_size, device=self.device)    # fast state
             mem = torch.zeros(N, self.hidden_size, device=self.device)  # slow state
         else:
             h, mem = state
 
-        xh = self.embed.forward(x)  # (N, _) -> (N, 4H)
-        hh = self.gates.forward(h)  # (N, H) -> (N, 4H)
-        a = xh + hh                 # (N, 4H)
+        xh = torch.concat((x, h), dim=-1)  # (N, I), (N, H)  -> (N, I+H)
+        a = self.linear.forward(xh)                # (N, I+H) -> (N, 4H)
 
         input_gate  = sigmoid(a[:, self._slice_i])   # input gate       (N, H)
         forget_gate = sigmoid(a[:, self._slice_f])   # forget gate      (N, H)
@@ -166,6 +162,7 @@ class LSTM_cell(Module):
         h = output_gate * tanh(mem)                             # (N, H)
 
         return h, mem
+
 
 class RNN(Module):
 
@@ -182,8 +179,9 @@ class RNN(Module):
         self.device = device
         self.backward = backward
 
-    def forward(self, x, state=None):  # todo: support one-hot/dense input
-        N, T = x.shape
+    def forward(self, x, state=None):
+        assert len(x.shape) == 3, f'Expected 3D tensor (batch_size, time_steps, features) as input, but got {x.shape}'
+        N, T, F = x.shape
 
         direction = reversed(range(T)) if self.backward else range(T)
         z = torch.zeros(N, T, self.hidden_size, device=self.device)

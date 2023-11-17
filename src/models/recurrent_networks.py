@@ -2,7 +2,7 @@ import torch
 from lib.layers import Module, Linear, RNN, LayerNorm
 from lib.functions import init
 from lib.functions.activations import softmax
-
+from preprocessing.integer import one_hot
 
 class RNN_factory(Module):
 
@@ -27,7 +27,9 @@ class RNN_factory(Module):
         self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal)
 
     def forward(self, x, h=None, logits=False):
-        assert len(x.shape) == 2, 'x must be a 2D tensor (batch_size, time_steps)'
+        if len(x.shape) == 2:  # when x is indices
+            x = one_hot(x, self.input_size)
+
         if self.direction == 'bidirectional':
             h = h if h is not None else (None, None)
             assert len(h) == 2, 'For bi-directional RNN h must be a stack of two hidden states (one for each direction)'
@@ -81,7 +83,7 @@ class EchoStateNetwork(Module):
             param.requires_grad = False
 
         # tune the spectral radius of the hidden-hidden weights
-        Whh = self.rnn.cell.hidden.weight
+        Whh = self.rnn.cell.linear.weight[input_size : input_size + hidden_size]
         Whh *= torch.rand_like(Whh) > sparsity          # set 90% sparse connections:
         Whh /= torch.linalg.eigvals(Whh).abs().max()    # set the spectral radius of the hidden-hidden weights to 1
         Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation
