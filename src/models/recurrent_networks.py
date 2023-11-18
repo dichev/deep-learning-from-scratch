@@ -26,28 +26,34 @@ class RNN_factory(Module):
 
         self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal)
 
-    def forward(self, x, h=None, logits=False):
+    def forward(self, x, states=None, logits=False):
         if len(x.shape) == 2:  # when x is indices
             x = one_hot(x, self.input_size)
 
-        if self.direction == 'bidirectional':
-            h = h if h is not None else (None, None)
-            assert len(h) == 2, 'For bi-directional RNN h must be a stack of two hidden states (one for each direction)'
+        if states is None:
+            if self.direction != 'bidirectional':
+                h, C = None, [None for _ in range(self.n_layers)]
+            else:
+                h, C = [None, None], [[None, None] for _ in range(self.n_layers)]
+        else:
+            assert len(states) == 2 and len(states[1]) == self.n_layers, f'Expected states to be a tuple of (h, C)'
+            h, C = states
 
         for i in range(self.n_layers):
             if self.direction != 'bidirectional':
-                z, h = self.rnn_layers[i].forward(x, h)
+                z, (h, C[i]) = self.rnn_layers[i].forward(x, (h, C[i]))
             else:
-                z_f, h_f = self.rnn_layers[i].forward(x, h[0])
-                z_b, h_b = self.rnn_layers_reverse[i].forward(x, h[1])
+                h_f, h_b = h
+                z_f, (h_f, C[i][0]) = self.rnn_layers[i].forward(x, (h_f, C[i][0]))
+                z_b, (h_b, C[i][1]) = self.rnn_layers_reverse[i].forward(x, (h_b, C[i][1]))
                 z = torch.concat((z_f, z_b), dim=-1)
-                h = torch.stack((h_f, h_b))
+                h = [h_f, h_b]
 
         y = self.out.forward(z)
         if not logits:
             y = softmax(y)
 
-        return y, h
+        return y, (h, C)
 
     @torch.no_grad()
     def sample(self, n_samples=1, temperature=1., seed_seq=None):
@@ -56,10 +62,10 @@ class RNN_factory(Module):
         else:
             x = torch.tensor(seed_seq, device=self.device)
 
-        h = None
+        states = None
         seq = []
         for n in range(n_samples):
-            z, h = self.forward(x.view(1, len(x)), h, logits=True)
+            z, states = self.forward(x.view(1, len(x)), states, logits=True)
             p = softmax(z[0][-1] / temperature)
             token = torch.multinomial(p, num_samples=1)  # sample single token
             seq.append(token.item())
@@ -89,7 +95,8 @@ class EchoStateNetwork(Module):
         Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation
 
     def forward(self, x, h=None, logits=False):
-        assert len(x.shape) == 2, 'x must be a 2D tensor (batch_size, time_steps)'
+        if len(x.shape) == 2:  # when x is indices
+            x = one_hot(x, self.input_size)
 
         z, h = self.rnn.forward(x, h)
         y = self.out.forward(z)

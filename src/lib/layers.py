@@ -105,12 +105,11 @@ class RNN_cell(Module):
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
+        N, F = x.shape
 
-        if state is None or state == (None, None):
-            N = x.shape[0]
+        h, _ = state
+        if h is None:
             h = torch.zeros(N, self.hidden_size, device=self.device)
-        else:
-            h, _ = state
 
         xh = torch.concat((x, h), dim=-1)  # (N, I+H)
         a = self.linear.forward(xh)                # (N, I+H) -> (N, H)
@@ -142,13 +141,13 @@ class LSTM_cell(Module):
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
+        N, F = x.shape
 
-        if state is None or state == (None, None):
-            N = len(x)
+        h, mem = state
+        if h is None:
             h = torch.zeros(N, self.hidden_size, device=self.device)    # fast state
+        if mem is None:
             mem = torch.zeros(N, self.hidden_size, device=self.device)  # slow state
-        else:
-            h, mem = state
 
         xh = torch.concat((x, h), dim=-1)  # (N, I), (N, H)  -> (N, I+H)
         a = self.linear.forward(xh)                # (N, I+H) -> (N, 4H)

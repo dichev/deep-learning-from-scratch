@@ -36,13 +36,17 @@ cut = len(text_encoded) % TIME_STEPS  # clip data to match the batch_size
 X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 # Models
-models = { # todo: compare with similar size of parameters
+models = {  # todo: compare with similar size of parameters
     'RNN_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False, device=DEVICE),
     'RNN_1L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
     'RNN_3L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
     'BiRNN_1L LayerNorm': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
+
     'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE),
-    'LSTM_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=1, direction='forward', layer_norm=False, device=DEVICE),
+
+    'LSTM_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=1, direction='forward', device=DEVICE),
+    'LSTM_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=3, direction='forward', device=DEVICE),
+    'BiLSTM_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, cell='lstm', n_layers=1, direction='bidirectional', device=DEVICE),
 }
 
 for model_name, net in models.items():
