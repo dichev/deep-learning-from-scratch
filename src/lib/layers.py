@@ -95,9 +95,11 @@ class Dropout(Module):
 class RNN_cell(Module):
 
     def __init__(self, input_size, hidden_size, layer_norm=False, device='cpu'):
-        self.linear = Linear(input_size + hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, H)
+        self.weight = Param(input_size + hidden_size, hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, H)
+        self.bias = Param(1, hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, H)
         if layer_norm:
             self.norm = LayerNorm(hidden_size, device=device)
+
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.layer_norm = layer_norm
@@ -106,13 +108,13 @@ class RNN_cell(Module):
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
         N, F = x.shape
-
         h, _ = state
         if h is None:
             h = torch.zeros(N, self.hidden_size, device=self.device)
 
+        # Compute the hidden state
         xh = torch.concat((x, h), dim=-1)  # (N, I+H)
-        a = self.linear.forward(xh)                # (N, I+H) -> (N, H)
+        a = xh @ self.weight + self.bias           # (N, I+H) -> (N, H)
         if self.layer_norm:
             a = self.norm.forward(a)               # (N, H)
         h = tanh(a)                                # (N, H)
@@ -125,15 +127,16 @@ class RNN_cell(Module):
 
 class LSTM_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
-        self.linear = Linear(input_size + hidden_size, 4 * hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, 4H)
+        self.weight = Param(input_size + hidden_size, 4 * hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, 4H)
+        self.bias = Param(1, 4 * hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, 4H)
 
         self._slice_i = slice(hidden_size * 0, hidden_size * 1)
         self._slice_f = slice(hidden_size * 1, hidden_size * 2)
         self._slice_o = slice(hidden_size * 2, hidden_size * 3)
-        self._slice_m = slice(hidden_size * 3, None)  # todo: I am not a gate
+        self._slice_m = slice(hidden_size * 3, None)
 
         with torch.no_grad():
-            self.linear.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
+            self.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -142,21 +145,21 @@ class LSTM_cell(Module):
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
         N, F = x.shape
-
         h, mem = state
         if h is None:
             h = torch.zeros(N, self.hidden_size, device=self.device)    # fast state
         if mem is None:
             mem = torch.zeros(N, self.hidden_size, device=self.device)  # slow state
 
-        xh = torch.concat((x, h), dim=-1)  # (N, I), (N, H)  -> (N, I+H)
-        a = self.linear.forward(xh)                # (N, I+H) -> (N, 4H)
-
+        # Compute the gates
+        xh = torch.concat((x, h), dim=-1)    # (N, I), (N, H)  -> (N, I+H)
+        a = xh @ self.weight + self.bias             # (N, I+H) -> (N, 4H)
         input_gate  = sigmoid(a[:, self._slice_i])   # input gate       (N, H)
         forget_gate = sigmoid(a[:, self._slice_f])   # forget gate      (N, H)
         output_gate = sigmoid(a[:, self._slice_o])   # output gate      (N, H)
         mem_candidate =  tanh(a[:, self._slice_m])   # new cell state   (N, H)
 
+        # Update the hidden and memory state
         mem = forget_gate * mem + input_gate * mem_candidate    # (N, H)
         h = output_gate * tanh(mem)                             # (N, H)
 
@@ -165,14 +168,12 @@ class LSTM_cell(Module):
 
 class GRU_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
-        self.gates = Linear(input_size + hidden_size, 2 * hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, 2H)
-        self.candidate = Linear(input_size + hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, H)
+        self.weight = Param(input_size + hidden_size, 3 * hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, 3H)
+        self.bias = Param(1, 3 * hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, 3H)
 
         self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
         self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
-
-        # with torch.no_grad():
-        #     self.linear.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
+        self._slice_n = slice(hidden_size * 1, hidden_size * 2)  # new cell candidate params
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -185,15 +186,18 @@ class GRU_cell(Module):
         if h is None:
             h = torch.zeros(N, self.hidden_size, device=self.device)
 
+        # Just references
+        W_xr, W_xz, W_xn = (self.weight[:, _slice] for _slice in [self._slice_r, self._slice_z, self._slice_n])
+        b_xr, b_xz, b_xn = (self.bias[:, _slice] for _slice in [self._slice_r, self._slice_z, self._slice_n])
+
         # Compute the gates
-        xh = torch.concat((x, h), dim=-1)    # (N, I+H)
-        a = self.gates.forward(xh)                   # (N, 2H)
-        reset_gate  = sigmoid(a[:, self._slice_r])   # (N, H)
-        update_gate = sigmoid(a[:, self._slice_z])   # (N, H)
+        xh = torch.concat((x, h), dim=-1)  # (N, I+H)
+        reset_gate  = sigmoid(xh @ W_xr + b_xr)    # (N, H)
+        update_gate = sigmoid(xh @ W_xz + b_xz)    # (N, H) # note: reset and update gates computation can be combined, but is not for clarity
 
         # Compute the candidate state
         xh_ = torch.concat((x, reset_gate * h), dim=-1)  # (N, I+H)
-        mem_candidate = tanh(self.candidate.forward(xh_))        # (N, 2H)
+        mem_candidate = tanh(xh_ @ W_xn + b_xn)                  # (N, 2H)
 
         # Update the hidden state
         h = update_gate * h + (1-update_gate) * mem_candidate    # (N, H)

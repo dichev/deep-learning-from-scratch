@@ -13,6 +13,7 @@ class RNN_factory(Module):
         self.input_size = input_size
         self.direction = direction
         self.device = device
+        self.cell_type = cell
 
         self.rnn_layers = [RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)]
         if direction == 'bidirectional':
@@ -89,7 +90,7 @@ class EchoStateNetwork(Module):
             param.requires_grad = False
 
         # tune the spectral radius of the hidden-hidden weights
-        Whh = self.rnn.cell.linear.weight[input_size : input_size + hidden_size]
+        Whh = self.rnn.cell.weight[input_size : input_size + hidden_size]
         Whh *= torch.rand_like(Whh) > sparsity          # set 90% sparse connections:
         Whh /= torch.linalg.eigvals(Whh).abs().max()    # set the spectral radius of the hidden-hidden weights to 1
         Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation

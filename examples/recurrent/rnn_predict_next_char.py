@@ -44,7 +44,7 @@ print(net.summary())
 
 # Tracker
 now = datetime.now().strftime('%b%d %H-%M-%S')
-writer = SummaryWriter(f'runs/GRU T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
+writer = SummaryWriter(f'runs/{net.cell_type} T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
 # Train
 N = len(X)
