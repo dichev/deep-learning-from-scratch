@@ -36,52 +36,56 @@ X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 
 # Model
-# net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='rnn', layer_norm=True, device=DEVICE)
-# net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', device=DEVICE)
-net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', device=DEVICE)
-optim = Adam(net.parameters(), lr=LEARN_RATE)
-print(net.summary())
+models = {
+    'RNN_1L LayerNorm': RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='rnn',  n_layers=1, direction='forward', device=DEVICE, layer_norm=True),
+    'LSTM_1L':          RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=1, direction='forward', device=DEVICE),
+    'GRU_1L':           RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru',  n_layers=1, direction='forward', device=DEVICE),
+}
 
-# Tracker
-now = datetime.now().strftime('%b%d %H-%M-%S')
-writer = SummaryWriter(f'runs/{net.cell_type} T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
+for model_name, net in models.items():
+    print(net.summary())
+    optimizer = Adam(net.parameters(), lr=LEARN_RATE)
 
-# Train
-N = len(X)
-print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into the model: {net}')
-pbar = trange(1, EPOCHS+1, desc='EPOCH')
-for epoch in pbar:
-    loss = grad_norm = 0
-    for batch, batch_fraction in batches(X, batch_size=BATCH_SIZE, device=DEVICE):
-        x, y = batch[:, :-1], batch[:, 1:]  # note the first token is not predicted, while the last token is used only as target
+    # Tracker
+    now = datetime.now().strftime('%b%d %H-%M-%S')
+    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
-        optim.zero_grad()
-        y_hat, _ = net.forward(x, logits=True)
-        cost = cross_entropy(y_hat, y, logits=True)
-        cost.backward()
-        # grad_clip_norm_(net.parameters(), 1.)
-        optim.step()
+    # Train
+    N = len(X)
+    print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into the model: {net}')
+    pbar = trange(1, EPOCHS+1, desc='EPOCH')
+    for epoch in pbar:
+        loss = grad_norm = 0
+        for batch, batch_fraction in batches(X, batch_size=BATCH_SIZE, device=DEVICE):
+            x, y = batch[:, :-1], batch[:, 1:]  # note the first token is not predicted, while the last token is used only as target
+
+            optimizer.zero_grad()
+            y_hat, _ = net.forward(x, logits=True)
+            cost = cross_entropy(y_hat, y, logits=True)
+            cost.backward()
+            # grad_clip_norm_(net.parameters(), 1.)
+            optimizer.step()
+
+            # Metrics
+            grad_norm += net.grad_norm() * batch_fraction
+            loss += cost.item() * batch_fraction
 
         # Metrics
-        grad_norm += net.grad_norm() * batch_fraction
-        loss += cost.item() * batch_fraction
+        writer.add_scalar('t/Loss', loss, epoch)
+        writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
+        writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
+        writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
+        pbar.set_postfix(cost=f"{loss:.4f}")
 
-    # Metrics
-    writer.add_scalar('t/Loss', loss, epoch)
-    writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
-    writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
-    writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
-    pbar.set_postfix(cost=f"{loss:.4f}")
+        if epoch == 1 or epoch % 10 == 0:
+            print('\n# Sampling --------------------------------------------')
+            print('-> [The simplest neural network] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('The simplest neural network')), sep=''))
+            print('-> [W ⇐ W +] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('W ⇐ W +')), sep=''))
+            print('-> [random char] ' + vocab.decode(net.sample(150, temperature=.5), sep=''))
 
-    if epoch == 1 or epoch % 10 == 0:
-        print('\n# Sampling --------------------------------------------')
-        print('-> [The simplest neural network] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('The simplest neural network')), sep=''))
-        print('-> [W ⇐ W +] ' + vocab.decode(net.sample(30, temperature=.5, seed_seq=vocab.encode('W ⇐ W +')), sep=''))
-        print('-> [random char] ' + vocab.decode(net.sample(150, temperature=.5), sep=''))
-
-        for name, param in net.parameters():
-            if 'bias' not in name:
-                writer.add_histogram('params/' + name.replace('.', '/'), param, epoch)
-                writer.add_histogram('grad/' + name.replace('.', '/'), param.grad, epoch)  # note this is a sample from the last mini-batch
+            for name, param in net.parameters():
+                if 'bias' not in name:
+                    writer.add_histogram('params/' + name.replace('.', '/'), param, epoch)
+                    writer.add_histogram('grad/' + name.replace('.', '/'), param.grad, epoch)  # note this is a sample from the last mini-batch
 
 

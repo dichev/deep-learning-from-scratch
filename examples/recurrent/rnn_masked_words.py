@@ -49,6 +49,8 @@ models = {  # todo: compare with similar size of parameters
     'BiLSTM_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, cell='lstm', n_layers=1, direction='bidirectional', device=DEVICE),
 
     'GRU_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', n_layers=1, direction='forward', device=DEVICE),
+    'GRU_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', n_layers=3, direction='forward', device=DEVICE),
+    'BiGRU_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, cell='gru', n_layers=1, direction='bidirectional', device=DEVICE),
 }
 
 for model_name, net in models.items():
