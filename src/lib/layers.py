@@ -163,6 +163,44 @@ class LSTM_cell(Module):
         return h, mem
 
 
+class GRU_cell(Module):
+    def __init__(self, input_size, hidden_size, device='cpu'):
+        self.gates = Linear(input_size + hidden_size, 2 * hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, 2H)
+        self.candidate = Linear(input_size + hidden_size, hidden_size, device=device, weights_init=init.xavier_normal)  # (I+H, H)
+
+        self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
+        self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
+
+        # with torch.no_grad():
+        #     self.linear.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.device = device
+
+    def forward(self, x, state=(None, None)):
+        assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
+        N, F = x.shape
+        h, _ = state
+        if h is None:
+            h = torch.zeros(N, self.hidden_size, device=self.device)
+
+        # Compute the gates
+        xh = torch.concat((x, h), dim=-1)    # (N, I+H)
+        a = self.gates.forward(xh)                   # (N, 2H)
+        reset_gate  = sigmoid(a[:, self._slice_r])   # (N, H)
+        update_gate = sigmoid(a[:, self._slice_z])   # (N, H)
+
+        # Compute the candidate state
+        xh_ = torch.concat((x, reset_gate * h), dim=-1)  # (N, I+H)
+        mem_candidate = tanh(self.candidate.forward(xh_))        # (N, 2H)
+
+        # Update the hidden state
+        h = update_gate * h + (1-update_gate) * mem_candidate    # (N, H)
+
+        return h, None
+
+
 class RNN(Module):
 
     def __init__(self, input_size, hidden_size, cell='rnn', backward=False, layer_norm=False, device='cpu'):
@@ -171,6 +209,9 @@ class RNN(Module):
         elif cell == 'lstm':
             assert not layer_norm, 'LayerNorm is not supported for LSTM'
             self.cell = LSTM_cell(input_size, hidden_size, device=device)
+        elif cell == 'gru':
+            assert not layer_norm, 'LayerNorm is not supported for GRU'
+            self.cell = GRU_cell(input_size, hidden_size, device=device)
         else:
             raise ValueError(f'Unknown cell type {cell}')
         self.input_size = input_size

@@ -37,13 +37,14 @@ X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 # Model
 # net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='rnn', layer_norm=True, device=DEVICE)
-net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', device=DEVICE)
+# net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', device=DEVICE)
+net = RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', device=DEVICE)
 optim = Adam(net.parameters(), lr=LEARN_RATE)
 print(net.summary())
 
 # Tracker
 now = datetime.now().strftime('%b%d %H-%M-%S')
-writer = SummaryWriter(f'runs/LSTM T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
+writer = SummaryWriter(f'runs/GRU T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
 # Train
 N = len(X)
