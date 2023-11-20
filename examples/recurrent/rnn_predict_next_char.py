@@ -4,7 +4,7 @@ from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
-from models.recurrent_networks import RNN_factory
+from models.recurrent_networks import SimpleRNN, LSTM, GRU
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
@@ -37,9 +37,9 @@ X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
 
 # Model
 models = {
-    'RNN_1L LayerNorm': RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='rnn',  n_layers=1, direction='forward', device=DEVICE, layer_norm=True),
-    'LSTM_1L':          RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=1, direction='forward', device=DEVICE),
-    'GRU_1L':           RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru',  n_layers=1, direction='forward', device=DEVICE),
+    'RNN LayerNorm': SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE, layer_norm=True),
+    'LSTM':          LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
+    'GRU':           GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
 }
 
 for model_name, net in models.items():

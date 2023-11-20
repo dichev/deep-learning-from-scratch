@@ -4,7 +4,7 @@ from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
-from models.recurrent_networks import RNN_factory, EchoStateNetwork
+from models.recurrent_networks import SimpleRNN, LSTM, GRU, EchoStateNetwork
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
@@ -37,20 +37,20 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {  # todo: compare with similar size of parameters
-    'RNN_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False, device=DEVICE),
-    'RNN_1L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
-    'RNN_3L LayerNorm':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
-    'BiRNN_1L LayerNorm': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
+    'RNN_1L':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False, device=DEVICE),
+    'RNN_1L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
+    'RNN_3L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
+    'BiRNN_1L LayerNorm': SimpleRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
 
     'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE),
 
-    'LSTM_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=1, direction='forward', device=DEVICE),
-    'LSTM_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='lstm', n_layers=3, direction='forward', device=DEVICE),
-    'BiLSTM_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, cell='lstm', n_layers=1, direction='bidirectional', device=DEVICE),
+    'LSTM_1L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
+    'LSTM_3L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', device=DEVICE),
+    'BiLSTM_1L': LSTM(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', device=DEVICE),
 
-    'GRU_1L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', n_layers=1, direction='forward', device=DEVICE),
-    'GRU_3L':   RNN_factory(vocab.size, HIDDEN_SIZE, vocab.size, cell='gru', n_layers=3, direction='forward', device=DEVICE),
-    'BiGRU_1L': RNN_factory(vocab.size, HIDDEN_SIZE//2, vocab.size, cell='gru', n_layers=1, direction='bidirectional', device=DEVICE),
+    'GRU_1L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
+    'GRU_3L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', device=DEVICE),
+    'BiGRU_1L': GRU(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', device=DEVICE),
 }
 
 for model_name, net in models.items():
