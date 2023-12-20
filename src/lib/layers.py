@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from lib.functions import init
 from lib.functions.activations import tanh, sigmoid
 from lib.base import Param, Module
@@ -243,3 +244,61 @@ class RNN(Module):
 
     def __repr__(self):
         return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}, backward={self.backward}): {self.n_params} params'
+
+
+class Conv2d(Module):
+
+    def __init__(self, in_channels=1, out_channels=1, kernel_size=3, dilation=1, padding=0, stride=1, device='cpu'):
+        self.weight = Param(in_size=in_channels * kernel_size * kernel_size, out_size=out_channels, init=init.kaiming_normal_relu, device=None)  # (depth, k, k) x n_filters
+        self.weight = self.weight.T.reshape(out_channels, in_channels, kernel_size, kernel_size)                               # (C_out, C_in, K, K)
+        self.bias = Param(in_size=1, out_size=out_channels, init=init.kaiming_normal_relu, device=None).reshape(out_channels)  # (C)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.stride = stride
+        self.device = device
+        self.padding = padding
+
+        if padding == 'valid':
+            self.padding = 0
+        elif padding == 'same':
+            assert self.kernel_size % 2 == 1, f'For "same" padding the kernel_size is expected to be odd number, but got: {self.kernel_size}'
+            self.padding = (self.kernel_size - 1) // 2
+        elif padding == 'full':
+            self.padding = self.kernel_size - 1
+
+    def calc_out_size(self, X):
+        N, C, W, H, = X.shape
+        assert W == H, f'Expected square images as input, but got {W}x{H}'
+
+        size = (W + 2*self.padding - self.dilation * (self.kernel_size-1) - 1) / self.stride + 1
+        if size != int(size):
+            print(f'Caution: The expected output size ({size:.1f}x{size:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(size)}x{int(size)}')
+        return int(size)
+
+    def forward(self, X):
+        N, C, W, H, = X.shape
+        out_size = self.calc_out_size(X)
+
+        """
+        # cross-correlation between batch images and filters:
+        Y = torch.zeros((N, self.out_channels, out_size, out_size), device=self.device)  # (N, C_out, W_out, H_out)
+        for h in range(out_size):
+            for w in range(out_size):
+                for c in range(self.out_channels):
+                    patches = X[:, :, w:w+k, h:h+k].reshape(N, -1)
+                    kernel = self.weight[c].flatten()
+                    bias = self.bias[c]
+                    Y[:, c, w, h] = patches @ kernel + bias
+        """
+
+        # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
+        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)                            # (batch_size, kernel_size_flat, patches)
+        kernel = self.weight.reshape(self.out_channels, -1)                                                          # * (channels, kernel_size_flat)
+        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                                            # -> (batch_size, channels, patches)
+        Y = convolution.reshape(N, self.out_channels, out_size, out_size) + self.bias.reshape(1, -1, 1, 1)   # (batch_size, channels, out_width, out_height)
+
+        return Y  # (N, C_out, W_out, H_out)
+
