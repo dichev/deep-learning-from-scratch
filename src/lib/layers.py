@@ -3,6 +3,7 @@ import torch.nn.functional as F
 from lib.functions import init
 from lib.functions.activations import tanh, sigmoid
 from lib.base import Param, Module
+from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int
 
 class Linear(Module):
     def __init__(self, input_size, output_size=1, device='cpu', weights_init=init.kaiming_normal_relu):
@@ -248,7 +249,7 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels=1, out_channels=1, kernel_size=3, dilation=1, padding=0, stride=1, device='cpu'):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
         self.weight = Param(in_size=in_channels * kernel_size * kernel_size, out_size=out_channels, init=init.kaiming_normal_relu, device=None)  # (depth, k, k) x n_filters
         self.weight = self.weight.T.reshape(out_channels, in_channels, kernel_size, kernel_size)                               # (C_out, C_in, K, K)
         self.bias = Param(in_size=1, out_size=out_channels, init=init.kaiming_normal_relu, device=None).reshape(out_channels)  # (C)
@@ -260,27 +261,12 @@ class Conv2d(Module):
         self.stride = stride
         self.device = device
         self.padding = padding
-
-        if padding == 'valid':
-            self.padding = 0
-        elif padding == 'same':
-            assert self.kernel_size % 2 == 1, f'For "same" padding the kernel_size is expected to be odd number, but got: {self.kernel_size}'
-            self.padding = (self.kernel_size - 1) // 2
-        elif padding == 'full':
-            self.padding = self.kernel_size - 1
-
-    def calc_out_size(self, X):
-        N, C, W, H, = X.shape
-        assert W == H, f'Expected square images as input, but got {W}x{H}'
-
-        size = (W + 2*self.padding - self.dilation * (self.kernel_size-1) - 1) / self.stride + 1
-        if size != int(size):
-            print(f'Caution: The expected output size ({size:.1f}x{size:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(size)}x{int(size)}')
-        return int(size)
+        if isinstance(padding, str):  # e.g. valid, same, full
+            self.padding = conv2d_pad_string_to_int(padding, kernel_size)
 
     def forward(self, X):
         N, C, W, H, = X.shape
-        out_size = self.calc_out_size(X)
+        out_size = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         """
         # cross-correlation between batch images and filters:
@@ -295,10 +281,38 @@ class Conv2d(Module):
         """
 
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
-        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)                            # (batch_size, kernel_size_flat, patches)
+        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)                            # (N, kernel_size_flat, patches)
         kernel = self.weight.reshape(self.out_channels, -1)                                                          # * (channels, kernel_size_flat)
-        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                                            # -> (batch_size, channels, patches)
-        Y = convolution.reshape(N, self.out_channels, out_size, out_size) + self.bias.reshape(1, -1, 1, 1)   # (batch_size, channels, out_width, out_height)
+        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                                            # -> (N, channels, patches)
+        Y = convolution.reshape(N, self.out_channels, out_size, out_size) + self.bias.reshape(1, -1, 1, 1)   # (N, channels, out_width, out_height)
 
         return Y  # (N, C_out, W_out, H_out)
 
+
+class MaxPool2d(Module):
+
+    def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
+        assert padding <= kernel_size//2, f'Padding should be at most half of kernel size, but got padding={padding}, kernel_size={kernel_size}'
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.stride = stride
+        self.device = device
+        self.padding = padding
+        if isinstance(padding, str):  # e.g. valid, same, full
+            self.padding = conv2d_pad_string_to_int(padding, kernel_size)
+
+    def forward(self, X):
+        N, C, W, H, = X.shape
+        out_size = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
+
+        if self.padding:  # add padding but with inf negatives for correct max pooling of negative inputs
+            pad_left = pad_right = pad_top = pad_bottom = self.padding
+            X = F.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=-torch.inf)
+
+        # Vectorized batched max pooling: Y = max[I]
+        patches = F.unfold(X, self.kernel_size, self.dilation, padding=0, stride=self.stride)                        # (N, kernel_size_flat, patches)
+        patches = patches.reshape(N, C, self.kernel_size*self.kernel_size, -1)                               # (N, C, kernel_size_flat, patches)
+        max_pooled, _ = patches.max(dim=2)                                                                           # (N, C, patches)
+        Y = max_pooled.reshape(N, C, out_size, out_size)                                                             # (N, C, W_out, H_out)
+
+        return Y  # (N, C, W_out, H_out)
