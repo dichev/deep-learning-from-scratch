@@ -289,7 +289,8 @@ class Conv2d(Module):
         return Y  # (N, C_out, W_out, H_out)
 
 
-class MaxPool2d(Module):
+
+class Pool2d(Module):
 
     def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
         assert padding <= kernel_size//2, f'Padding should be at most half of kernel size, but got padding={padding}, kernel_size={kernel_size}'
@@ -300,19 +301,42 @@ class MaxPool2d(Module):
         self.padding = padding
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
+        self.padding_value = 0.
 
     def forward(self, X):
         N, C, W, H, = X.shape
         out_size = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
-        if self.padding:  # add padding but with inf negatives for correct max pooling of negative inputs
+        if self.padding:  # the padding value for max pooling must be inf negatives for correct max pooling of negative inputs
             pad_left = pad_right = pad_top = pad_bottom = self.padding
-            X = F.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=-torch.inf)
+            X = F.pad(X, (pad_left, pad_right, pad_top, pad_bottom), mode='constant', value=self.padding_value)
 
         # Vectorized batched max pooling: Y = max[I]
-        patches = F.unfold(X, self.kernel_size, self.dilation, padding=0, stride=self.stride)                        # (N, kernel_size_flat, patches)
-        patches = patches.reshape(N, C, self.kernel_size*self.kernel_size, -1)                               # (N, C, kernel_size_flat, patches)
-        max_pooled, _ = patches.max(dim=2)                                                                           # (N, C, patches)
-        Y = max_pooled.reshape(N, C, out_size, out_size)                                                             # (N, C, W_out, H_out)
+        patches = F.unfold(X, self.kernel_size, self.dilation, padding=0, stride=self.stride)             # (N, kernel_size_flat, patches)
+        patches = patches.reshape(N, C, self.kernel_size*self.kernel_size, -1)                    # (N, C, kernel_size_flat, patches)
+        pooled = self.pool(patches)                                                                       # (N, C, patches)
+        Y = pooled.reshape(N, C, out_size, out_size)                                                  # (N, C, W_out, H_out)
 
         return Y  # (N, C, W_out, H_out)
+
+    def pool(self, patches):
+        raise Exception('Not implemented')
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}()'
+
+
+class MaxPool2d(Pool2d):
+    def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
+        super().__init__(kernel_size, stride, padding, dilation, device)
+        self.padding_value = -torch.inf  # use padding with inf negatives for correct max pooling of negative inputs
+
+    def pool(self, patches):
+        max_pooled, _ = patches.max(dim=2)
+        return max_pooled
+
+
+class AvgPool2d(Pool2d):
+    def pool(self, patches):
+        return patches.mean(dim=2)
+

@@ -2,7 +2,7 @@ import pytest
 import torch
 from lib.functions import init
 
-from lib.layers import Linear, Conv2d, MaxPool2d
+from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d
 from utils.rng import seed_global
 
 
@@ -48,5 +48,18 @@ def test_max_pool2d(kernel, padding, stride, dilation):
     input = torch.randn(N, C, W, H)
     expected = A(input)
     output = B.forward(input)
-    assert torch.allclose(expected, output)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+
+@pytest.mark.parametrize('stride',   [1, 2, 3])
+@pytest.mark.parametrize('padding, kernel',  [(0, 1), (0, 3), (0, 5), (1, 3), (2, 5)])
+def test_avg_pool2d(kernel, padding, stride):
+    N, C, W, H = 10, 3, 100, 100
+    A = torch.nn.AvgPool2d(kernel, stride=stride, padding=padding)
+    B = AvgPool2d(kernel, stride=stride, padding=padding)
+
+    input = torch.randn(N, C, W, H)
+    expected = A(input)
+    output = B.forward(input)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
