@@ -93,6 +93,8 @@ class Dropout(Module):
 
         return x
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.p})'
 
 class RNN_cell(Module):
 
@@ -249,8 +251,8 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
-        self.weight = Param(in_size=in_channels * kernel_size * kernel_size, out_size=out_channels, init=init.kaiming_normal_relu, device=None)  # (depth, k, k) x n_filters
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu', weights_init=init.kaiming_normal_relu):
+        self.weight = Param(in_size=in_channels * kernel_size * kernel_size, out_size=out_channels, init=weights_init, device=None)  # (depth, k, k) x n_filters
         self.weight = self.weight.T.reshape(out_channels, in_channels, kernel_size, kernel_size)                               # (C_out, C_in, K, K)
         self.bias = Param(in_size=1, out_size=out_channels, init=init.kaiming_normal_relu, device=None).reshape(out_channels)  # (C)
 
@@ -288,6 +290,8 @@ class Conv2d(Module):
 
         return Y  # (N, C_out, W_out, H_out)
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.in_channels}, {self.out_channels}): {self.n_params} parameters'
 
 
 class Pool2d(Module):

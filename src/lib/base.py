@@ -18,7 +18,7 @@ class Param(torch.Tensor):
 
     # __torch_function__ implementation wraps subclasses such that methods called on subclasses return a subclass instance instead of a torch.Tensor instance.
     # However, this is not desired here, since we want to return a torch.Tensor instance when doing math operations on Param instances.
-    __torch_function__ = _disabled_torch_function_impl
+    # __torch_function__ = _disabled_torch_function_impl # todo: actually for now keep the Param subclass, for cases like type(param.view(-1)) == base.Param
 
 
 class Module:
@@ -62,7 +62,8 @@ class Module:
 
     @property
     def n_params(self):
-        return sum(p.numel() for p in self.parameters(named=False))
+        num = sum(p.numel() for p in self.parameters(named=False))
+        return "{:,}".format(num)
 
     def grad_norm(self):
         return torch.cat([param.grad.view(-1) for param in self.parameters(named=False)]).norm().item()
