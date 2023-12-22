@@ -16,7 +16,7 @@ class Linear(Module):
         return z
 
     def __repr__(self):
-        return f'Linear({self.input_size}, {self.output_size}, bias=true)'
+        return f'Linear({self.input_size}, {self.output_size}, bias=true): {self.n_params} params'
 
 
 class Embedding(Module):  # aka lookup table
@@ -34,7 +34,7 @@ class Embedding(Module):  # aka lookup table
         return z
 
     def __repr__(self):
-        return f'Embedding({self.input_size}, {self.output_size}, bias=false)'
+        return f'Embedding({self.input_size}, {self.output_size}, bias=false): {self.n_params} params'
 
 
 class BatchNorm(Module):
@@ -46,6 +46,7 @@ class BatchNorm(Module):
         self.running_mean = torch.zeros(1, size, device=device)
         self.running_var = torch.ones(1, size, device=device)
         self.decay = 0.9
+        self.size = size
 
     def forward(self, x):
         # mini-batch statistics
@@ -64,12 +65,16 @@ class BatchNorm(Module):
 
         return x
 
+    def __repr__(self):
+        return f'BatchNorm({self.size}): {self.n_params} params'
+
 
 class LayerNorm(Module):
 
     def __init__(self, size, device='cpu'):
         self.shift = Param(1, size, init=init.zeros, device=device, requires_grad=True)
         self.scale = Param(1, size, init=init.ones, device=device, requires_grad=True)
+        self.size = size
 
     def forward(self, a):  # "a" are all pre-activations of the layer
         mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
@@ -77,6 +82,8 @@ class LayerNorm(Module):
         a = self.scale * a + self.shift
         return a
 
+    def __repr__(self):
+        return f'LayerNorm({self.size}): {self.n_params} params'
 
 class Dropout(Module):
 
@@ -94,7 +101,7 @@ class Dropout(Module):
         return x
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.p})'
+        return f'Dropout({self.p})'
 
 class RNN_cell(Module):
 
@@ -126,7 +133,7 @@ class RNN_cell(Module):
         return h, None
 
     def __repr__(self):
-        return f'RNN_cell(input_size={self.input_size}, hidden_size={self.hidden_size}): {self.n_params} params'
+        return f'RNN_cell({self.input_size}, {self.hidden_size}, layer_norm={self.layer_norm}): {self.n_params} params'
 
 
 class LSTM_cell(Module):
@@ -169,6 +176,9 @@ class LSTM_cell(Module):
 
         return h, mem
 
+    def __repr__(self):
+        return f'LSTM_cell({self.input_size}, {self.hidden_size}): {self.n_params} params'
+
 
 class GRU_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
@@ -208,6 +218,8 @@ class GRU_cell(Module):
 
         return h, None
 
+    def __repr__(self):
+        return f'GRU_cell({self.input_size}, {self.hidden_size}): {self.n_params} params'
 
 class RNN(Module):
 
@@ -246,7 +258,7 @@ class RNN(Module):
         return latex
 
     def __repr__(self):
-        return f'RNN(input_size={self.input_size}, hidden_size={self.hidden_size}, backward={self.backward}): {self.n_params} params'
+        return f'RNN({self.input_size}, {self.hidden_size}, {self.cell}, backward={self.backward}, layer_norm={self.layer_norm}): {self.n_params} params'
 
 
 class Conv2d(Module):
@@ -291,7 +303,7 @@ class Conv2d(Module):
         return Y  # (N, C_out, W_out, H_out)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.in_channels}, {self.out_channels}): {self.n_params} parameters'
+        return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}): {self.n_params} parameters'
 
 
 class Pool2d(Module):
@@ -327,7 +339,7 @@ class Pool2d(Module):
         raise Exception('Not implemented')
 
     def __repr__(self):
-        return f'{self.__class__.__name__}()'
+        return f'{__class__.__name__}({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
 
 
 class MaxPool2d(Pool2d):

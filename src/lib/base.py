@@ -1,4 +1,5 @@
 import json
+import re
 import torch
 from torch._C import _disabled_torch_function_impl
 
@@ -37,12 +38,14 @@ class Module:
                 yield (prefix + key, val) if named else val
                 yield from val.modules(named, prefix=f'\t{prefix + key}.')
 
-    def summary(self):
+    def summary(self, params=False):
         print(self)
-        for name, module in self.modules():
-            print(f'\t{name}:', module)
-            for param_name, param in module.parameters(deep=False):
-                print(f'\t\t{name}.{param_name}', list(param.size()))
+        for i, (name, module) in enumerate(self.modules()):
+            prefix = re.match(r"\s*", name).group()
+            print(f'\t{prefix}{i+1:3}.', module)
+            if params:
+                for param_name, param in module.parameters(deep=False):
+                    print(f'\t\t{name}.{param_name}', list(param.size()))
 
     def export(self, filename='./runs/model.json'):
         print('Export model to:', filename)
@@ -75,7 +78,5 @@ class Module:
         return torch.cat([p.view(-1) for name, p in self.parameters() if 'bias' in name]).norm().item()
 
     def __repr__(self):
-        input = self.input_size if hasattr(self, 'input_size') else ''
-        output = self.output_size if hasattr(self, 'output_size') else ''
-        return f'{self.__class__.__name__}({input}, {output}): {self.n_params} parameters'
+        return f'{self.__class__.__name__}(): {self.n_params} parameters'
 
