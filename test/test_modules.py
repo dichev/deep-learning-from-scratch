@@ -2,7 +2,7 @@ import pytest
 import torch
 from lib.functions import init
 
-from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d
+from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d, LocalResponseNorm
 from utils.rng import seed_global
 
 
@@ -61,5 +61,16 @@ def test_avg_pool2d(kernel, padding, stride):
     input = torch.randn(N, C, W, H)
     expected = A(input)
     output = B.forward(input)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+
+@pytest.mark.parametrize('size, alpha, beta, k',  [(5, 5*1e-4, .75, 2.), (3, 1e-2, .75, .5), (7, 1e-1, .15, .1)])
+def test_avg_pool2d(size, alpha, beta, k):
+    x = torch.randn(11, 32, 10, 10)
+    from torch import nn
+    lrn1 = nn.LocalResponseNorm(size=size, alpha=alpha, beta=beta, k=k)
+    lrn2 = LocalResponseNorm(size=size, alpha=alpha, beta=beta, k=k)
+    expected = lrn1(x)
+    output = lrn2.forward(x)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 

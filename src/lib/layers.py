@@ -85,6 +85,30 @@ class LayerNorm(Module):
     def __repr__(self):
         return f'LayerNorm({self.size}): {self.n_params} params'
 
+
+class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/resize:fit:720/format:webp/1*MFl0tPjwvc49HirAJZPhEA.png
+
+    def __init__(self, size, alpha=1e-4, beta=.75, k=1.):
+        assert size % 2 == 1, f'size must be odd, but got {size}'
+        self.size = size    # neighborhood length
+        self.alpha = alpha  # scale factor - used as alpha/size factor, to make the hyperparameter α less sensitive to different sizes
+        self.beta = beta    # exponent
+        self.k = k          # bias, avoids division by zero
+
+    def forward(self, x):
+        B, C, W, H = x.shape
+        n = self.size
+
+        a_sq = (x**2).view(B, 1, C, W * H)  # square earlier and adapt the shape for unfolding
+        a_sq = F.unfold(a_sq, kernel_size=(n, 1), padding=(n//2, 0))    # (B, window, patches)
+        a_sq_sum = a_sq.view(B, n, C, W, H).sum(dim=1)          # (B, C  W, H)
+        x = x / (self.k + (self.alpha / n) * a_sq_sum) ** self.beta     # (B, C, W, H)
+        return x
+
+    def __repr__(self):
+        return f'LocalResponseNorm({self.size}, alpha={self.alpha}, beta={self.beta}, k={self.k})'
+
+
 class Dropout(Module):
 
     def __init__(self, p=.5):  # as prob to be zeroed

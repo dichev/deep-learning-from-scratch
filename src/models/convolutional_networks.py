@@ -1,5 +1,6 @@
 import torch
-from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout
+import torch.nn.functional as F
+from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout, LocalResponseNorm
 from lib.functions.activations import softmax, relu, tanh
 from utils.other import conv2d_calc_out_size
 
@@ -44,15 +45,17 @@ class AlexNet(Module):
     """
     Paper: "ImageNet Classification with Deep ConvolutionalNeural Networks"
     https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf
-    * Following the paper, but for a single GPU
+    * Following the paper, but modified for a single GPU
     """
 
     def __init__(self, n_classes=1000):
 
         self.features = Sequential(                                                               # in:  3, 227, 227
             Conv2d(in_channels=3, out_channels=96, kernel_size=11, stride=4, padding=0), relu,    # ->  96, 55, 55
+            LocalResponseNorm(size=5, alpha=5*1e-4, beta=.75, k=2.),
             MaxPool2d(kernel_size=3, stride=2),                                                   # ->  96, 27, 27 (max)
             Conv2d(in_channels=96, out_channels=256, kernel_size=5, padding=2), relu,             # -> 256, 27, 27
+            LocalResponseNorm(size=5, alpha=5*1e-4, beta=.75, k=2.),
             MaxPool2d(kernel_size=3, stride=2),                                                   # -> 256, 13, 13 (max)
             Conv2d(in_channels=256, out_channels=384, kernel_size=3, padding=1), relu,            # -> 384, 13, 13
             Conv2d(in_channels=384, out_channels=256, kernel_size=3, padding=1), relu,            # -> 256, 13, 13
@@ -68,11 +71,15 @@ class AlexNet(Module):
            Linear(input_size=4096, output_size=n_classes),                                        # -> n_classes (e.g. 1000)
         )
 
-        # todo: local response normalization
-
     def forward(self, x, verbose=False):
         x = self.features.forward(x, verbose)
         x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
         x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units to avoid calculating the normalization factor
         return x
+
+
+# input = torch.randn(3, 3, 227, 227)
+# model = AlexNet()
+# input_tensor = torch.randn(1, 8, 10, 10)
+# y = model.forward(input, verbose=True)
