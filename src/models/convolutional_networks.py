@@ -20,23 +20,26 @@ class LeNet5(Module):
         self.f6 = Linear(input_size=120, output_size=84)                          # ->  84
         self.f7 = Linear(input_size=84, output_size=10)                           # ->  10
 
-    def forward(self, X):
+    def forward(self, x):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (1, 32, 32), f'Expected input shape {(1, 32, 32)} but got {(C, W, H)}'
+
         A, S = 1.7159, 2/3
 
-        X = self.c1.forward(X)
-        X = A*tanh(S*X)
-        X = self.s2.forward(X)
-        X = self.c3.forward(X)
-        X = A*tanh(S*X)
-        X = self.s4.forward(X)
-        X = self.c5.forward(X)
-        X = A*tanh(S*X)
+        x = self.c1.forward(x)
+        x = A * tanh(S * x)
+        x = self.s2.forward(x)
+        x = self.c3.forward(x)
+        x = A * tanh(S * x)
+        x = self.s4.forward(x)
+        x = self.c5.forward(x)
+        x = A * tanh(S * x)
 
-        X = X.flatten(start_dim=1)
-        X = self.f6.forward(X)
-        X = A*tanh(S*X)
-        X = self.f7.forward(X)
-        p = softmax(X)  # @ the paper work used Euclidean RBF units with parameters fixed by hand
+        x = x.flatten(start_dim=1)
+        x = self.f6.forward(x)
+        x = A * tanh(S * x)
+        x = self.f7.forward(x)
+        p = softmax(x)  # @ the paper work used Euclidean RBF units with parameters fixed by hand
 
         return p
 
@@ -72,10 +75,13 @@ class AlexNet(Module):
         )
 
     def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
+
         x = self.features.forward(x, verbose)
         x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
-        x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units to avoid calculating the normalization factor
+        x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units" to avoid calculating the normalization factor
         return x
 
 
