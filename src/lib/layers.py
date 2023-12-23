@@ -338,9 +338,6 @@ class Pool2d(Module):
     def pool(self, patches):
         raise Exception('Not implemented')
 
-    def __repr__(self):
-        return f'{__class__.__name__}({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
-
 
 class MaxPool2d(Pool2d):
     def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
@@ -351,8 +348,40 @@ class MaxPool2d(Pool2d):
         max_pooled, _ = patches.max(dim=2)
         return max_pooled
 
+    def __repr__(self):
+        return f'MaxPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
+
 
 class AvgPool2d(Pool2d):
     def pool(self, patches):
         return patches.mean(dim=2)
 
+    def __repr__(self):
+        return f'AvgPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
+
+
+class Sequential(Module):
+    def __init__(self, *modules):
+        self._steps = []
+        for i, module in enumerate(modules):
+            self.add(f'm{i}', module)
+
+    def add(self, name, module):
+        setattr(self, name, module)
+        self._steps.append(module)
+
+    def forward(self, x, verbose=False):
+        if verbose:
+            print(list(x.shape), 'Input')
+        for module in self._steps:
+            if isinstance(module, Module):
+                x = module.forward(x)
+            elif callable(module):
+                x = module(x)
+            else:
+                raise Exception('Unexpected module: ' + type(module))
+            if verbose:
+                print(list(x.shape), module)
+        # for name, module in self.modules():
+        #     x = module.forward(x)
+        return x

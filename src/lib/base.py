@@ -24,6 +24,9 @@ class Param(torch.Tensor):
 
 class Module:
 
+    def forward(self, x):
+        raise NotImplementedError
+
     def parameters(self, named=True, prefix='', deep=True):
         for key, val in vars(self).items():
             if isinstance(val, Module) and deep:
