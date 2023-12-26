@@ -9,7 +9,7 @@ from utils.rng import seed_global
 def test_linear():
     seed_global(1)
     x = torch.tensor([[1., 2.], [3., 4.]])
-    y = Linear(2, 3, weights_init=init.normal).forward(x)
+    y = Linear(2, 3).forward(x)
     expected = torch.tensor([[1.9040, -0.6369, -0.2706], [4.4693, -1.0069, -0.4795]])
     assert torch.allclose(y, expected, rtol=1e-4, atol=1e-4)
 

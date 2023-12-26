@@ -6,10 +6,17 @@ from lib.base import Param, Module
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int
 
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, device='cpu', weights_init=init.kaiming_normal_relu):
-        self.weight = Param(input_size, output_size, init=weights_init, device=device, requires_grad=True)  # (D, C)
-        self.bias = Param(1, output_size, init=init.zeros, device=device, requires_grad=True)  # (D, C)
+    def __init__(self, input_size, output_size=1, weights_init=init.kaiming_normal_relu_, device='cpu'):
+        self.weight = Param((input_size, output_size), device=device)  # (D, C)
+        self.bias = Param((1, output_size), device=device)  # (D, C)
         self.input_size, self.output_size = input_size, output_size
+        self.weights_initializer = weights_init
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.weights_initializer(self.weight, self.input_size, self.output_size)  # kaiming_normal_relu_ by default
+        self.bias.fill_(0)
 
     def forward(self, X):
         z = X @ self.weight + self.bias    # (N, D)x(D, C) + (1, C)  --> (N, C)
@@ -21,12 +28,17 @@ class Linear(Module):
 
 class Embedding(Module):  # aka lookup table
     def __init__(self, vocab_size, output_size, padding_idx=None, device='cpu'):
-        self.weight = Param(vocab_size, output_size, init=init.xavier_normal, device=device, requires_grad=True)
+        self.weight = Param((vocab_size, output_size), device=device)
         if padding_idx is not None:
             with torch.no_grad():
                 self.weight[padding_idx] = 0.
 
         self.input_size, self.output_size = vocab_size, output_size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.kaiming_normal_relu_(self.weight, self.input_size)
 
     def forward(self, indices):
         assert torch.is_tensor(indices) and not torch.is_floating_point(indices), 'Use only tensor integer as indices, to avoid fancy indexing surprises'
@@ -40,13 +52,19 @@ class Embedding(Module):  # aka lookup table
 class BatchNorm(Module):
 
     def __init__(self, size, device='cpu'):
-        self.beta = Param(1, size, init=init.zeros, device=device, requires_grad=True)
-        self.gamma = Param(1, size, init=init.ones, device=device, requires_grad=True)
+        self.beta = Param((1, size), device=device)
+        self.gamma = Param((1, size), device=device)
 
         self.running_mean = torch.zeros(1, size, device=device)
         self.running_var = torch.ones(1, size, device=device)
         self.decay = 0.9
         self.size = size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.beta.fill_(0)
+        self.beta.fill_(1)
 
     def forward(self, x):
         # mini-batch statistics
@@ -72,9 +90,15 @@ class BatchNorm(Module):
 class LayerNorm(Module):
 
     def __init__(self, size, device='cpu'):
-        self.shift = Param(1, size, init=init.zeros, device=device, requires_grad=True)
-        self.scale = Param(1, size, init=init.ones, device=device, requires_grad=True)
+        self.shift = Param((1, size), device=device)
+        self.scale = Param((1, size), device=device)
         self.size = size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.shift.fill_(0)
+        self.scale.fill_(1)
 
     def forward(self, a):  # "a" are all pre-activations of the layer
         mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
@@ -130,8 +154,8 @@ class Dropout(Module):
 class RNN_cell(Module):
 
     def __init__(self, input_size, hidden_size, layer_norm=False, device='cpu'):
-        self.weight = Param(input_size + hidden_size, hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, H)
-        self.bias = Param(1, hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, H)
+        self.weight = Param((input_size + hidden_size, hidden_size), device=device)  # (I+H, H)
+        self.bias = Param((1, hidden_size), device=device)  # (1, H)
         if layer_norm:
             self.norm = LayerNorm(hidden_size, device=device)
 
@@ -139,6 +163,12 @@ class RNN_cell(Module):
         self.hidden_size = hidden_size
         self.layer_norm = layer_norm
         self.device = device
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
+        self.bias.fill_(1)
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
@@ -162,8 +192,8 @@ class RNN_cell(Module):
 
 class LSTM_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
-        self.weight = Param(input_size + hidden_size, 4 * hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, 4H)
-        self.bias = Param(1, 4 * hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, 4H)
+        self.weight = Param((input_size + hidden_size, 4 * hidden_size), device=device)  # (I+H, 4H)
+        self.bias = Param((1, 4 * hidden_size), device=device)  # (1, 4H)
 
         self._slice_i = slice(hidden_size * 0, hidden_size * 1)
         self._slice_f = slice(hidden_size * 1, hidden_size * 2)
@@ -176,6 +206,12 @@ class LSTM_cell(Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
+        self.bias.fill_(0)
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
@@ -206,8 +242,8 @@ class LSTM_cell(Module):
 
 class GRU_cell(Module):
     def __init__(self, input_size, hidden_size, device='cpu'):
-        self.weight = Param(input_size + hidden_size, 3 * hidden_size, init=init.xavier_normal, device=device, requires_grad=True)  # (I+H, 3H)
-        self.bias = Param(1, 3 * hidden_size, init=init.zeros, device=device, requires_grad=True)  # (1, 3H)
+        self.weight = Param((input_size + hidden_size, 3 * hidden_size), device=device)  # (I+H, 3H)
+        self.bias = Param((1, 3 * hidden_size), device=device)  # (1, 3H)
 
         self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
         self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
@@ -216,6 +252,12 @@ class GRU_cell(Module):
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.device = device
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
+        self.bias.fill_(0)
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
@@ -262,6 +304,12 @@ class RNN(Module):
         self.hidden_size = hidden_size
         self.device = device
         self.backward = backward
+        self.layer_norm = layer_norm
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.cell.reset_parameters()
 
     def forward(self, x, state=None):
         assert len(x.shape) == 3, f'Expected 3D tensor (batch_size, time_steps, features) as input, but got {x.shape}'
@@ -287,10 +335,9 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu', weights_init=init.kaiming_normal_relu):
-        self.weight = Param(in_size=in_channels * kernel_size * kernel_size, out_size=out_channels, init=weights_init, device=None)  # (depth, k, k) x n_filters
-        self.weight = self.weight.T.reshape(out_channels, in_channels, kernel_size, kernel_size)                               # (C_out, C_in, K, K)
-        self.bias = Param(in_size=1, out_size=out_channels, init=init.kaiming_normal_relu, device=None).reshape(out_channels)  # (C)
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
+        self.weight = Param((out_channels, in_channels, kernel_size, kernel_size), device=device)  # (C_out, C_in, K, K)
+        self.bias = Param((out_channels,), device=device)  # (C)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -301,6 +348,12 @@ class Conv2d(Module):
         self.padding = padding
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.kaiming_normal_relu_(self.weight, self.in_channels * self.kernel_size * self.kernel_size)
+        init.kaiming_normal_relu_(self.bias, 1)
 
     def forward(self, X):
         N, C, W, H, = X.shape
@@ -308,6 +361,7 @@ class Conv2d(Module):
 
         """
         # cross-correlation between batch images and filters:
+        k = self.kernel_size
         Y = torch.zeros((N, self.out_channels, out_size, out_size), device=self.device)  # (N, C_out, W_out, H_out)
         for h in range(out_size):
             for w in range(out_size):

@@ -1,34 +1,18 @@
 import torch
 from math import sqrt
 
-
-def zeros(in_size, out_size, device=None):
-    return torch.zeros(in_size, out_size, device=device)
-
-def ones(in_size, out_size, device=None):
-    return torch.ones(in_size, out_size, device=device)
-
-def uniform(in_size, out_size, a=-1, b=1, device=None):
-    return torch.rand(in_size, out_size, device=device)*(b-a) + a
-
-def normal(in_size, out_size, mu=0, std=1., device=None):
-    tensor = torch.randn(in_size, out_size, device=device)
-    tensor *= std
-    tensor += mu
+def xavier_normal_(tensor, in_size, out_size):
+    std = sqrt(2. / (in_size + out_size))
+    tensor.normal_(0, std)
     return tensor
 
-def xavier_normal(in_size, out_size, device=None):
-    tensor = torch.randn(in_size, out_size, device=device)
-    tensor *= sqrt(2. / (in_size + out_size))
-    return tensor
-
-def xavier_uniform(in_size, out_size, device=None):
+def xavier_uniform_(tensor, in_size, out_size):
     a = -sqrt(6. / (in_size + out_size))
     b =  sqrt(6. / (in_size + out_size))
-    tensor = torch.rand(in_size, out_size, device=device)*(b-a) + a
+    tensor.uniform_(a, b)
     return tensor
 
-def kaiming_normal_relu(in_size, out_size, device=None):
-    tensor = torch.randn(in_size, out_size, device=device)
-    tensor *= sqrt(2. / in_size)  # 2 is the ReLU's mean
+def kaiming_normal_relu_(tensor, in_size, out_size=None):
+    std = sqrt(2. / in_size)  # 2 is the ReLU's mean
+    tensor.normal_(0, std)
     return tensor

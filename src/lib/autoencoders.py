@@ -6,8 +6,14 @@ from lib.base import Param
 
 class MatrixFactorization(Module):
     def __init__(self, n_users, n_animes, rank, device='cpu'):
-        self.U = Param(n_users, rank, init=init.normal, device=device, requires_grad=True)   # (user, k)
-        self.V = Param(n_animes, rank, init=init.normal, device=device, requires_grad=True)  # (anime, k)
+        self.U = Param((n_users, rank), device=device)   # (user, k)
+        self.V = Param((n_animes, rank), device=device)  # (anime, k)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.U.normal_()
+        self.V.normal_()
 
     def forward(self, user, anime):
         # dot only along the known ratings in the data, not over all like U @ V.T

@@ -25,7 +25,7 @@ class RNN_factory(Module):
             if direction == 'bidirectional':
                 setattr(self, f'rnn_{i}_rev', self.rnn_layers_reverse[i])
 
-        self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal)
+        self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal_)
 
     def forward(self, x, states=None, logits=False):
         if len(x.shape) == 2:  # when x is indices
@@ -95,7 +95,7 @@ class EchoStateNetwork(Module):
         self.device = device
 
         self.rnn = RNN(input_size, hidden_size, device=device)
-        self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal)
+        self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal_)
 
         # make all input-hidden and hidden-hidden parameters fixed, to be used as a reservoir
         for param in self.rnn.parameters(named=False):

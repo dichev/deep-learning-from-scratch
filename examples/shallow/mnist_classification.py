@@ -62,13 +62,13 @@ y_test  = y_test.to(DEVICE)
 class Net(Module):
     def __init__(self, input_size, output_size):  # over-parameterized model for testing purposes
         self.drop0 = Dropout(0.2)
-        self.l1 = Linear(input_size, 300, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.l1 = Linear(input_size, 300, device=DEVICE)
         self.drop1 = Dropout(0.5)
         # self.bn1 = BatchNorm(300, device=DEVICE)
-        self.l2 = Linear(300, 200, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.l2 = Linear(300, 200, device=DEVICE)
         self.drop2 = Dropout(0.5)
         # self.bn2 = BatchNorm(200, device=DEVICE)
-        self.l3 = Linear(200, output_size, weights_init=init.kaiming_normal_relu, device=DEVICE)
+        self.l3 = Linear(200, output_size, device=DEVICE)
         self.input_size, self.output_size = input_size, output_size
 
     def forward(self, x):
@@ -94,7 +94,7 @@ class Net(Module):
 
 net = Net(n_features, n_classes)
 net.summary()
-net.export('../deeper/data/model.json')
+# net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters(), lr=LEARN_RATE)
 # optimizer = optimizers.SGD_Momentum(net.parameters(), lr=LEARN_RATE, momentum=0.9)
 # optimizer = optimizers.AdaGrad(net.parameters(), lr=LEARN_RATE)
@@ -153,4 +153,4 @@ with torch.no_grad():
     print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
     print(f'[Report only]: Failed on {int((1-test_accuracy)*len(y_test))} samples out of {len(y_test)}')
 
-net.export('../deeper/data/model-trained.json')
+# net.export('../deeper/data/model-trained.json')
