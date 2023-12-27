@@ -7,7 +7,7 @@ from datetime import datetime
 
 from lib.functions import init
 from lib.functions.activations import relu
-from lib.functions.losses import cross_entropy
+from lib.functions.losses import cross_entropy, evaluate_accuracy
 from lib.layers import Module, Linear, Dropout
 from lib import optimizers
 from lib.regularizers import grad_clip_norm_, max_norm_constraint_
@@ -85,12 +85,6 @@ class Net(Module):
         # x = softmax(x)
         return x
 
-    @torch.no_grad()
-    def evaluate(self, y_hat, y):
-        predicted, actual = y_hat.argmax(1), y.argmax(1)
-        correct = (predicted == actual)
-        return correct.float().mean().item()
-
 
 net = Net(n_features, n_classes)
 net.summary()
@@ -111,16 +105,17 @@ for epoch in pbar:
     accuracy, loss, grad_norm = 0, 0, 0
 
     for X, y, batch_fraction in batches(X_train, y_train, BATCH_SIZE, shuffle=True, device=DEVICE):
-        y_hat_logit = net.forward(X)
+        optimizer.zero_grad()
 
-        cost = cross_entropy(y_hat_logit, y, logits=True) # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8)
+        y_hat_logit = net.forward(X)
+        cost = cross_entropy(y_hat_logit, y, logits=True)  # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8)
         cost.backward()
         grad_norm_batch = grad_clip_norm_(net.parameters(), 0.9)
-        optimizer.step().zero_grad()
+        optimizer.step()
         max_norm_constraint_(net.parameters(), 3.)
 
         loss += cost.item() * batch_fraction
-        accuracy += net.evaluate(y_hat_logit, y) * batch_fraction
+        accuracy += evaluate_accuracy(y_hat_logit, y) * batch_fraction
         grad_norm += grad_norm_batch * batch_fraction
 
     # Metrics
@@ -137,7 +132,7 @@ for epoch in pbar:
         with torch.no_grad():
             y_hat_logit = net.forward(X_val)
             val_loss = cross_entropy(y_hat_logit, y_val, logits=True).item() # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
-            val_accuracy = net.evaluate(y_hat_logit, y_val)
+            val_accuracy = evaluate_accuracy(y_hat_logit, y_val)
             val_writer.add_scalar('t/Loss', val_loss, epoch)
             val_writer.add_scalar('t/Accuracy', val_accuracy, epoch)
 
@@ -149,7 +144,7 @@ for epoch in pbar:
 with torch.no_grad():
     y_hat_logit = net.forward(X_test)
     test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
-    test_accuracy = net.evaluate(y_hat_logit, y_test)
+    test_accuracy = evaluate_accuracy(y_hat_logit, y_test)
     print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
     print(f'[Report only]: Failed on {int((1-test_accuracy)*len(y_test))} samples out of {len(y_test)}')
 
