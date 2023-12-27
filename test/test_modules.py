@@ -1,11 +1,9 @@
 import pytest
 import torch
-from lib.functions import init
-
 from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d, LocalResponseNorm
 from utils.rng import seed_global
 
-
+@torch.no_grad()
 def test_linear():
     seed_global(1)
     x = torch.tensor([[1., 2.], [3., 4.]])
@@ -13,7 +11,7 @@ def test_linear():
     expected = torch.tensor([[1.9040, -0.6369, -0.2706], [4.4693, -1.0069, -0.4795]])
     assert torch.allclose(y, expected, rtol=1e-4, atol=1e-4)
 
-
+@torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding',  [0, 1, 2, 3])
@@ -36,7 +34,7 @@ def test_conv2d(kernel, padding, stride, dilation):
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
-
+@torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding, kernel',  [(0, 1), (0, 3), (0, 5), (1, 3), (2, 5)])
@@ -50,7 +48,7 @@ def test_max_pool2d(kernel, padding, stride, dilation):
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
-
+@torch.no_grad()
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding, kernel',  [(0, 1), (0, 3), (0, 5), (1, 3), (2, 5)])
 def test_avg_pool2d(kernel, padding, stride):
@@ -63,7 +61,7 @@ def test_avg_pool2d(kernel, padding, stride):
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
-
+@torch.no_grad()
 @pytest.mark.parametrize('size, alpha, beta, k',  [(5, 5*1e-4, .75, 2.), (3, 1e-2, .75, .5), (7, 1e-1, .15, .1)])
 def test_avg_pool2d(size, alpha, beta, k):
     x = torch.randn(11, 32, 10, 10)
