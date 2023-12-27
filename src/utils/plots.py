@@ -42,8 +42,8 @@ def LaTeX(title, expression):
 def img_topk(images, probs, labels, k=5, title=''):
     N = len(images)
     plt.rcParams.update({'font.size': 8})
-    plt.suptitle(title)
     fig, axs = plt.subplots(N, 2, figsize=(3,N*1.3))
+    plt.suptitle(title)
     for i in range(N):
         top5 = probs[i].topk(k).indices
 
