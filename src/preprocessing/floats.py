@@ -15,3 +15,10 @@ def normalizeMinMax(x, x_min=None, x_max=None):
     return x
 
 
+def image_normalize(x, permute_channel=True):
+    B, H, W, C = x.shape
+    if permute_channel:
+        x = x.permute(0, 3, 1, 2)
+    x = normalizeMinMax(x.float(), 0, 255) # range [0,1]
+    x = (x - .5) / .5  # shift and scale in the typical range (-1, 1)
+    return x

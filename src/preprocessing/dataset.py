@@ -11,6 +11,12 @@ def data_split(X, y, sizes: list | tuple, shuffle=True, seed=None):
         sizes[0] += n - sum(sizes)
     assert sum(sizes) == n, f'Expected {n} samples, but got {sum(sizes)}'
 
+    # convert to tensors:
+    if not isinstance(X, torch.Tensor):
+        X = torch.tensor(X)
+    if not isinstance(y, torch.Tensor):
+        y = torch.tensor(y)
+
     # shuffle data
     if shuffle:
         generator = torch.Generator().manual_seed(seed) if seed else None

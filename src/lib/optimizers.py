@@ -16,6 +16,8 @@ class Optimizer:
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
+            if param.grad is None:
+                raise RuntimeError(f"Parameter {name} has no gradient")
             param += -self.lr * param.grad
 
         return self
