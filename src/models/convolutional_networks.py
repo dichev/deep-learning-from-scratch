@@ -111,3 +111,57 @@ class AlexNet(Module):
         return x
 
 
+
+class VGG16(Module):
+    """
+    Paper: Very Deep Convolutional Networks fpr Large-Scale Image Recognition
+    https://arxiv.org/pdf/1409.1556.pdf
+    """
+
+    def __init__(self, n_classes=1000, device='cpu'):
+        self.features = Sequential(                                                                                         # in:  3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding='same', device=device), relu,  # ->  64, 224, 224
+            Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='same', device=device), relu,           # ->  64, 224, 224
+            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # ->  64, 112, 112 (max)
+            Conv2d(in_channels=64,  out_channels=128, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 128, 112, 112
+            Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 128, 112, 112
+            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 128,  56,  56 (max)
+            Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
+            Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
+            Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
+            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 256,  28,  28 (max)
+            Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
+            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
+            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
+            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 512,  14,  14 (max)
+            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
+            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
+            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
+            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 512,   7,   7 (max)
+        )
+        self.classifier = Sequential(                                                                                        # -> 9216 (flatten)
+           Linear(input_size=512*7*7, output_size=4096, device=device),  relu,                                           # -> 4096
+           Dropout(0.5),
+           Linear(input_size=4096, output_size=4096, device=device), relu,                                               # -> 4096
+           Dropout(0.5),
+           Linear(input_size=4096, output_size=n_classes, device=device),                                                # -> n_classes (e.g. 1000)
+        )
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+
+        x = self.features.forward(x, verbose)
+        x = x.flatten(start_dim=1)
+        x = self.classifier.forward(x, verbose)
+        x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, x=torch.randn(10, 3, 224, 224)):
+        return self.forward(x.to(self.device), verbose=True)
+
+net = VGG16(device='cuda')
+net.summary()
+net.test().shape
