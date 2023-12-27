@@ -1,8 +1,6 @@
 import torch
-import torch.nn.functional as F
 from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout, LocalResponseNorm
 from lib.functions.activations import softmax, relu, tanh
-from utils.other import conv2d_calc_out_size
 
 
 class SimpleCNN(Module):
@@ -137,32 +135,27 @@ class VGG16(Module):
     """
 
     def __init__(self, n_classes=1000, device='cpu'):
-        self.features = Sequential(                                                                                          # in:  3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding='same', device=device), relu,            # ->  64, 224, 224
-            Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding='same', device=device), relu,           # ->  64, 224, 224
-            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # ->  64, 112, 112 (max)
-            Conv2d(in_channels=64,  out_channels=128, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 128, 112, 112
-            Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 128, 112, 112
-            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 128,  56,  56 (max)
-            Conv2d(in_channels=128, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
-            Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
-            Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 256,  56,  56
-            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 256,  28,  28 (max)
-            Conv2d(in_channels=256, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
-            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
-            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  28,  28
-            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 512,  14,  14 (max)
-            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
-            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
-            Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding='same', device=device), relu,         # -> 512,  14,  14
-            MaxPool2d(kernel_size=2, stride=2, device=device),                                                               # -> 512,   7,   7 (max)
+        def ConvBlock(n_convs, in_channels, out_channels):
+            block = Sequential()
+            for i in range(n_convs):
+                block.add(Conv2d(in_channels if i == 0 else out_channels, out_channels, kernel_size=3, stride=1, padding='same', device=device))
+                block.add(relu)
+            block.add(MaxPool2d(kernel_size=2, stride=2, device=device))
+            return block
+
+        self.features = Sequential(                                            # in:   3, 224, 224
+            ConvBlock(n_convs=2, in_channels=3,   out_channels=64),            # ->   64, 112, 112
+            ConvBlock(n_convs=2, in_channels=64,  out_channels=128),           # ->  128,  56,  56
+            ConvBlock(n_convs=3, in_channels=128, out_channels=256),           # ->  256,  28,  28
+            ConvBlock(n_convs=3, in_channels=256, out_channels=512),           # ->  512,  14,  14
+            ConvBlock(n_convs=3, in_channels=512, out_channels=512),           # ->  512,   7,   7
         )
-        self.classifier = Sequential(                                                                                        # -> 9216 (flatten)
-           Linear(input_size=512*7*7, output_size=4096, device=device),  relu,                                           # -> 4096
+        self.classifier = Sequential(                                          # -> 9216 (flatten)
+           Linear(input_size=512*7*7, output_size=4096, device=device), relu,  # -> 4096
            Dropout(0.5),
-           Linear(input_size=4096, output_size=4096, device=device), relu,                                               # -> 4096
+           Linear(input_size=4096, output_size=4096, device=device), relu,     # -> 4096
            Dropout(0.5),
-           Linear(input_size=4096, output_size=n_classes, device=device),                                                # -> n_classes (e.g. 1000)
+           Linear(input_size=4096, output_size=n_classes, device=device),      # -> n_classes (e.g. 1000)
         )
         self.device = device
 
@@ -180,4 +173,3 @@ class VGG16(Module):
     def test(self, n_samples=10):
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
-

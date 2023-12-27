@@ -442,9 +442,10 @@ class Sequential(Module):
     def __init__(self, *modules):
         self._steps = []
         for i, module in enumerate(modules):
-            self.add(f'm{i}', module)
+            self.add(module)
 
-    def add(self, name, module):
+    def add(self, module):
+        name = f'm{len(self._steps)}'
         setattr(self, name, module)
         self._steps.append(module)
 
@@ -452,7 +453,9 @@ class Sequential(Module):
         if verbose:
             print(list(x.shape), 'Input')
         for module in self._steps:
-            if isinstance(module, Module):
+            if isinstance(module, Sequential):
+                x = module.forward(x, verbose=verbose)
+            elif isinstance(module, Module):
                 x = module.forward(x)
             elif callable(module):
                 x = module(x)
