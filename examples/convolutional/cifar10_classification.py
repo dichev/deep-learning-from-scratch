@@ -5,12 +5,13 @@ from tqdm import trange
 
 from preprocessing.dataset import data_split
 from preprocessing.integer import one_hot
-from preprocessing.floats import image_normalize
+from preprocessing.floats import img_normalize, img_unnormalize
 from lib.functions.losses import cross_entropy, evaluate_accuracy, evaluate_accuracy_per_class
 from lib.training import batches
 from lib import optimizers
-from models.convolutional_networks import SimpleCNN
-
+from lib.functions.activations import softmax
+from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet
+from utils import plots
 
 # hyperparams & settings
 img_shape = (32, 32, 3)  # train.data.shape
@@ -26,23 +27,17 @@ SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to a
 train = datasets.CIFAR10('./data/', download=True, train=True)
 test  = datasets.CIFAR10('./data/', download=True, train=False)
 classes = train.classes
-
 # Split data
-X_train, y_train, X_val, y_val = data_split(train.data, train.targets, (0.90, 0.10), seed=SEED_DATA)
+X_train, y_train, X_val, y_val = data_split(train.data, train.targets, (len(train.data)-2000, 2000), seed=SEED_DATA)
 X_test, y_test = torch.tensor(test.data), torch.tensor(test.targets)
-
 # Normalize and encode data
-X_train = image_normalize(X_train)     # (N, C, W, H)
-X_val   = image_normalize(X_val)       # (N, C, W, H)
-X_test  = image_normalize(X_test)      # (N, C, W, H)
-y_train = one_hot(y_train, n_classes)
-y_val   = one_hot(y_val, n_classes)
-y_test  = one_hot(y_test, n_classes)
+X_train, X_val, X_test = [img_normalize(X) for X in (X_train, X_val, X_test)]  # (N, C, W, H)
+y_train, y_val, y_test = [one_hot(y, n_classes) for y in (y_train, y_val, y_test)]   # (N, C)
+
 
 net = SimpleCNN(device=DEVICE)
 optimizer = optimizers.SGD_Momentum(net.parameters(), lr=LEARN_RATE, momentum=0.9)
 print(net.summary())
-
 
 # Training loop
 N = len(y_train)
@@ -87,4 +82,13 @@ with torch.no_grad():
         print(f'  {test_accuracy_per_class[label] * 100:.1f}% {label:10s}')
     torch.cuda.empty_cache()
     print(f'{test_accuracy * 100:.1f}% Overall test accuracy')
+
+
+# Plot some predictions
+N = 6
+images = img_unnormalize(X_test[:N])
+with torch.no_grad():
+    out = net.forward(X_test[:N].to(DEVICE)).detach().cpu()
+probs = softmax(out)
+plots.img_topk(images, probs, classes, k=5, title=net.__class__.__name__)
 

@@ -38,3 +38,26 @@ def LaTeX(title, expression):
     plt.text(0.1, 0.2, expression, size=20)
     plt.axis('off')
     plt.show()
+
+def img_topk(images, probs, labels, k=5, title=''):
+    N = len(images)
+    plt.rcParams.update({'font.size': 8})
+    plt.suptitle(title)
+    fig, axs = plt.subplots(N, 2, figsize=(3,N*1.3))
+    for i in range(N):
+        top5 = probs[i].topk(k).indices
+
+        # Plot image
+        axs[i, 0].imshow(images[i], cmap='gray')
+        axs[i, 0].axis('off')
+
+        # Plot top5 probs
+        y_pos = range(k)
+        axs[i, 1].barh(y_pos, probs[i][top5], align='center', color='green')
+        axs[i, 1].set_yticks(y_pos)
+        axs[i, 1].set_yticklabels([labels[idx] for idx in top5])
+        axs[i, 1].invert_yaxis()
+        axs[i, 1].set_xlim(0, 1)
+
+    plt.tight_layout()
+    plt.show()
