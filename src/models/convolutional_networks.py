@@ -128,6 +128,55 @@ class AlexNet(Module):
         return self.forward(x, verbose=True)
 
 
+class NetworkInNetwork(Module):
+    """
+    Paper: Network In Network
+    https://arxiv.org/pdf/1312.4400.pdf
+    """
+
+    def __init__(self, n_classes=1000, device='cpu'):
+        def MLPConv(in_channels, out_channels, kernel_size, stride=1, padding=0):
+            return Sequential(
+                Conv2d(in_channels, out_channels, kernel_size, stride, padding, device=device), relu,
+                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
+                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
+            )
+
+        # the convolution parameters are based on AlexNet
+        self.classifier = Sequential(                                                     # in:  3, 227, 227
+            MLPConv(in_channels=3,   out_channels=96 , kernel_size=11,  stride=4),        # ->  96, 55, 55
+            Dropout(0.5),
+            MaxPool2d(kernel_size=3, stride=2, device=device),                            # ->  96, 27, 27 (max)
+
+            MLPConv(in_channels=96,  out_channels=256, kernel_size=5,  padding=2),        # -> 256, 27, 27
+            Dropout(0.5),
+            MaxPool2d(kernel_size=3, stride=2, device=device),                            # -> 256, 13, 13 (max)
+
+            MLPConv(in_channels=256, out_channels=384, kernel_size=3,  padding=1),        # -> 384, 13, 13
+            Dropout(0.5),
+            MaxPool2d(kernel_size=3, stride=2, device=device),                            # -> 384,  6,  6 (max)
+
+            MLPConv(in_channels=384, out_channels=n_classes, kernel_size=3,  padding=1),  # -> n_classes,  6,  6  # @ in the paper it seems they used just 3 MPLConv blocks
+            AvgPool2d(kernel_size=6, device=device),                                      # -> n_classes,  1,  1
+        )
+
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
+
+        x = self.classifier.forward(x, verbose)
+        x = x.flatten(start_dim=1)
+        # x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=11):
+        x = torch.randn(n_samples, 3, 227, 227).to(self.device)
+        return self.forward(x, verbose=True)
+
+
 class VGG16(Module):
     """
     Paper: Very Deep Convolutional Networks fpr Large-Scale Image Recognition
