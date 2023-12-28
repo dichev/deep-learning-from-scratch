@@ -4,14 +4,14 @@ from lib.functions.activations import softmax, relu, tanh
 
 
 class SimpleCNN(Module):
-    def __init__(self, device='cpu'):                                                          # in:  3, 32,  32
+    def __init__(self, n_classes=10, device='cpu'):                                             # in:  3, 32,  32
         self.conv1 = Conv2d(in_channels=3, out_channels=6,  kernel_size=5, device=device)       # ->   6, 28,  28
         self.pool1 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->   6, 14,  14
         self.conv2 = Conv2d(in_channels=6, out_channels=16, kernel_size=5, device=device)       # ->  16, 10,  10
         self.pool2 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->   6,  5,   5
         self.fc1 = Linear(input_size=16 * 5 * 5, output_size=120, device=device)                # ->   1,  1, 120 (flat)
         self.fc2 = Linear(input_size=120, output_size=84, device=device)                        # ->  84
-        self.fc3 = Linear(input_size=84, output_size=10, device=device)                         # ->  10
+        self.fc3 = Linear(input_size=84, output_size=n_classes, device=device)                  # ->  n_classes(10)
 
         self.device = device
 
@@ -31,7 +31,7 @@ class SimpleCNN(Module):
         return x
 
     @torch.no_grad()
-    def test(self, n_samples=10):
+    def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 32, 32).to(self.device)
         return self.forward(x)
 
@@ -41,14 +41,14 @@ class LeNet5(Module):
     https://hal.science/hal-03926082/document
     """
 
-    def __init__(self, device='cpu'):                                                      # in:  1, 32,  32
+    def __init__(self, n_classes=10, device='cpu'):                                        # in:  1, 32,  32
         self.c1 = Conv2d(in_channels=1, out_channels=6, kernel_size=5, device=device)      # ->   6, 28,  28
         self.s2 = AvgPool2d(kernel_size=2, stride=2, device=device)                        # ->   6, 14,  14
         self.c3 = Conv2d(in_channels=6, out_channels=16, kernel_size=5, device=device)     # ->  16, 10,  10
         self.s4 = AvgPool2d(kernel_size=2, stride=2, device=device)                        # ->  16,  5,   5
         self.c5 = Conv2d(in_channels=16, out_channels=120, kernel_size=5, device=device)   # ->   1,  1, 120 (flat)
         self.f6 = Linear(input_size=120, output_size=84, device=device)                    # ->  84
-        self.f7 = Linear(input_size=84, output_size=10, device=device)                     # ->  10
+        self.f7 = Linear(input_size=84, output_size=n_classes, device=device)              # ->  # ->  n_classes(10)
 
         self.device = device
 
@@ -76,10 +76,9 @@ class LeNet5(Module):
         return x
 
     @torch.no_grad()
-    def test(self, n_samples=10):
+    def test(self, n_samples=1):
         x = torch.randn(n_samples, 1, 32, 32).to(self.device)
         return self.forward(x)
-
 
 
 class AlexNet(Module):
@@ -108,7 +107,7 @@ class AlexNet(Module):
            Linear(input_size=256*6*6, output_size=4096, device=device),  relu,                                           # -> 4096
            Dropout(0.5),
            Linear(input_size=4096, output_size=4096, device=device), relu,                                               # -> 4096
-           Linear(input_size=4096, output_size=n_classes, device=device),                                                # -> n_classes (e.g. 1000)
+           Linear(input_size=4096, output_size=n_classes, device=device),                                                # -> n_classes(1000)
         )
         self.device = device
 
@@ -119,11 +118,11 @@ class AlexNet(Module):
         x = self.features.forward(x, verbose)
         x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
-        x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units" to avoid calculating the normalization factor
+        # x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units" to avoid calculating the normalization factor
         return x
 
     @torch.no_grad()
-    def test(self, n_samples=10):
+    def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 227, 227).to(self.device)
         return self.forward(x, verbose=True)
 
@@ -135,11 +134,12 @@ class NetworkInNetwork(Module):
     """
 
     def __init__(self, n_classes=1000, device='cpu'):
+
         def MLPConv(in_channels, out_channels, kernel_size, stride=1, padding=0):
             return Sequential(
                 Conv2d(in_channels, out_channels, kernel_size, stride, padding, device=device), relu,
                 Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
-                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
+                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution
             )
 
         # the convolution parameters are based on AlexNet
@@ -156,8 +156,8 @@ class NetworkInNetwork(Module):
             Dropout(0.5),
             MaxPool2d(kernel_size=3, stride=2, device=device),                            # -> 384,  6,  6 (max)
 
-            MLPConv(in_channels=384, out_channels=n_classes, kernel_size=3,  padding=1),  # -> n_classes,  6,  6  # @ in the paper it seems they used just 3 MPLConv blocks
-            AvgPool2d(kernel_size=6, device=device),                                      # -> n_classes,  1,  1
+            MLPConv(in_channels=384, out_channels=n_classes, kernel_size=3,  padding=1),  # -> n_classes(1000), 6, 6  # @ in the paper it seems they used just 3 MPLConv blocks
+            AvgPool2d(kernel_size=6, device=device),                                      # -> n_classes(1000), 1, 1 -> flat
         )
 
         self.device = device
@@ -172,7 +172,7 @@ class NetworkInNetwork(Module):
         return x
 
     @torch.no_grad()
-    def test(self, n_samples=11):
+    def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 227, 227).to(self.device)
         return self.forward(x, verbose=True)
 
@@ -184,6 +184,7 @@ class VGG16(Module):
     """
 
     def __init__(self, n_classes=1000, device='cpu'):
+
         def ConvBlock(n_convs, in_channels, out_channels):
             block = Sequential()
             for i in range(n_convs):
@@ -204,7 +205,7 @@ class VGG16(Module):
            Dropout(0.5),
            Linear(input_size=4096, output_size=4096, device=device), relu,     # -> 4096
            Dropout(0.5),
-           Linear(input_size=4096, output_size=n_classes, device=device),      # -> n_classes (e.g. 1000)
+           Linear(input_size=4096, output_size=n_classes, device=device),      # -> n_classes(1000)
         )
         self.device = device
 
@@ -215,10 +216,11 @@ class VGG16(Module):
         x = self.features.forward(x, verbose)
         x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
-        x = softmax(x)
+        # x = softmax(x)
         return x
 
     @torch.no_grad()
-    def test(self, n_samples=10):
+    def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
+

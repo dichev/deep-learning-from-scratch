@@ -10,15 +10,15 @@ from lib.functions.losses import cross_entropy, evaluate_accuracy, evaluate_accu
 from lib.training import batches
 from lib import optimizers
 from lib.functions.activations import softmax
-from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, VGG16
+from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16
 from utils import plots
 
 # hyperparams & settings
 img_shape = (32, 32, 3)  # train.data.shape
 n_classes  = 10          # len(train.classes)
 EPOCHS = 5
-BATCH_SIZE = 64
-LEARN_RATE = 0.1
+BATCH_SIZE = 16
+LEARN_RATE = 0.001
 DEVICE = 'cuda'
 SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to avoid validation data leakage into the training set
 
@@ -36,10 +36,11 @@ y_train, y_val, y_test = [one_hot(y, n_classes) for y in (y_train, y_val, y_test
 
 
 models = {
-    'SimpleCNN': (SimpleCNN(device=DEVICE), lambda x: x),
-    'LeNet-5':   (LeNet5(device=DEVICE), transforms.Grayscale(num_output_channels=1)),
-    # 'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True))  # well, yeah..
-    # 'VGG-16':   (VGG16(n_classes=10, device=DEVICE), transforms.Resize((224, 224)))
+    'SimpleCNN': (SimpleCNN(n_classes=10, device=DEVICE), lambda x: x),
+    'LeNet-5':   (LeNet5(n_classes=10, device=DEVICE), transforms.Grayscale(num_output_channels=1)),
+    'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),  # well, yeah..
+    'NetworkInNetwork':   (NetworkInNetwork(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),
+    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), transforms.Resize((224, 224)))
 }
 
 for model_name, (net, adapt) in models.items():
@@ -65,7 +66,7 @@ for model_name, (net, adapt) in models.items():
             loss += cost.item()
             accuracy += evaluate_accuracy(y_hat_logit, y)
             pbar.update(1)
-            if i % 100 == 99:
+            if i % 10 == 9:
                 pbar.set_postfix(cost=f"{loss/(i+1):.4f}", accuracy=f"{accuracy/(i+1):.4f}", lr=optimizer.lr)
 
         with torch.no_grad():
