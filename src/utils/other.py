@@ -1,3 +1,6 @@
+
+import warnings
+
 def nested(t):
     for i in t:
         if isinstance(i, tuple):
@@ -16,7 +19,7 @@ def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
 
     size = (W + 2 * padding - dilation * (kernel_size - 1) - 1) / stride + 1
     if size != int(size):
-        print(f'Caution: Input{list(X.shape)} - The expected output size ({size:.1f}x{size:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(size)}x{int(size)}')
+        warnings.warn(f'Caution: Input{list(X.shape)} - The expected output size ({size:.1f}x{size:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(size)}x{int(size)}')
     return int(size)
 
 def conv2d_pad_string_to_int(padding, kernel_size):

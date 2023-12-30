@@ -224,3 +224,91 @@ class VGG16(Module):
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
 
+
+class Inception(Module):
+    """
+    Paper: Going deeper with convolutions
+    https://arxiv.org/pdf/1409.4842.pdf?
+    """
+
+    def __init__(self, in_channels, out_channels, spec=(0, (0, 0), (0, 0), 0), device='cpu'):
+        c1, (c2_reduce, c2), (c3_reduce, c3), c4 = spec
+        assert out_channels == c1 + c2 + c3 + c4, f'Wrong channel spec: expected {out_channels} total output channels, but got {c1}+{c2}+{c3}+{c4}={c1 + c2 + c3 + c4}'
+
+        self.branch1 = Sequential(
+            Conv2d(in_channels, c1, kernel_size=1, device=device))
+        self.branch2 = Sequential(
+            Conv2d(in_channels, c2_reduce, kernel_size=1, device=device), relu,
+            Conv2d(c2_reduce, c2, kernel_size=3, padding='same', device=device))
+        self.branch3 = Sequential(
+            Conv2d(in_channels, c3_reduce, kernel_size=1, device=device), relu,
+            Conv2d(c3_reduce, c3, kernel_size=5, padding='same', device=device))
+        self.branch4 = Sequential(
+            MaxPool2d(kernel_size=3, padding='same'),
+            Conv2d(in_channels, c4, kernel_size=1, device=device))
+
+    def forward(self, x):
+        features = [
+            self.branch1.forward(x),
+            self.branch2.forward(x),
+            self.branch3.forward(x),
+            self.branch4.forward(x),
+        ]
+        x = torch.cat(features, dim=1)  # 4 x (N, C, W, H) ->  (N, 4*C, W, H)
+        x = torch.relu(x)  # it might be attached outside the module
+        return x
+
+
+class GoogLeNet(Module):  # Inception modules
+    """
+    Paper: Going deeper with convolutions
+    https://arxiv.org/pdf/1409.4842.pdf?
+    """
+
+    def __init__(self, n_classes=1000, device='cpu'):
+        self.stem = Sequential(                                                                                      # in:  3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device), relu,    # ->  64, 112, 112
+            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  64,  56,  56
+            LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
+            Conv2d(in_channels=64, out_channels=64,  kernel_size=1, device=device), relu,                            # ->  64,  56,  56
+            Conv2d(in_channels=64, out_channels=192, kernel_size=3, stride=1, padding='same', device=device), relu,  # -> 192,  56,  56
+            LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
+            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # -> 192,  28,  28
+        )
+        self.body = Sequential(  # @paper: without the auxiliary classifiers in the intermediate layers
+            Inception(in_channels=192, out_channels=256,  spec=( 64,  (96, 128), (16,  32),  32), device=device),    # ->  256, 28, 28   159K 128M  inception (3a)
+            Inception(in_channels=256, out_channels=480,  spec=(128, (128, 192), (32,  96),  64), device=device),    # ->  480, 28, 28   380K 304M  inception (3b)
+            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  480, 14, 14  (max)
+            Inception(in_channels=480, out_channels=512,  spec=(192,  (96, 208), (16,  48),  64), device=device),    # ->  512, 14, 14   364K 73M   inception (4a)
+            Inception(in_channels=512, out_channels=512,  spec=(160, (112, 224), (24,  64),  64), device=device),    # ->  512, 14, 14   437K 88M   inception (4b)
+            Inception(in_channels=512, out_channels=512,  spec=(128, (128, 256), (24,  64),  64), device=device),    # ->  512, 14, 14   463K 100M  inception (4c)
+            Inception(in_channels=512, out_channels=528,  spec=(112, (144, 288), (32,  64),  64), device=device),    # ->  528, 14, 14   580K 119M  inception (4d)
+            Inception(in_channels=528, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832, 14, 14   840K 170M  inception (4e)
+            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  832,  7,  7  (max)
+            Inception(in_channels=832, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832,  7,  7  1072K 54M   inception (5a)
+            Inception(in_channels=832, out_channels=1024, spec=(384, (192, 384), (48, 128), 128), device=device),    # -> 1024,  7,  7  1388K 71M   inception (5b)
+        )
+        self.head = Sequential(
+           AvgPool2d(kernel_size=7),                                                                                 # -> 1024, 1, 1
+           lambda x: x.flatten(start_dim=1),                                                                         # -> 1024
+           Dropout(0.4),                                                                                             #
+           Linear(input_size=1024, output_size=n_classes, device=device)                                             # -> n_classes(1000)
+        )
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+
+        x = self.stem.forward(x, verbose)
+        x = self.body.forward(x, verbose)
+        x = self.head.forward(x, verbose)
+        # x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        x = torch.randn(n_samples, 3, 224, 224).to(self.device)
+        return self.forward(x, verbose=True)
+
+

@@ -387,7 +387,6 @@ class Conv2d(Module):
 class Pool2d(Module):
 
     def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
-        assert padding <= kernel_size//2, f'Padding should be at most half of kernel size, but got padding={padding}, kernel_size={kernel_size}'
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.stride = stride
@@ -396,6 +395,7 @@ class Pool2d(Module):
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
         self.padding_value = 0.
+        assert self.padding <= kernel_size//2, f'Padding should be at most half of kernel size, but got padding={padding}, kernel_size={kernel_size}'
 
     def forward(self, X):
         N, C, W, H, = X.shape

@@ -1,6 +1,6 @@
 import pytest
 import torch
-from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16
+from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, Inception, GoogLeNet
 from utils.rng import seed_global
 
 @torch.no_grad()
@@ -33,4 +33,20 @@ def test_VGG16():
     net = VGG16(n_classes=1000, device='cuda')
     out = net.test(n_samples=9)
     assert out.shape == (9, 1000)
+
+
+@torch.no_grad()
+def test_Inception():
+    N, W, H = 2, 50, 50
+    inception = Inception(in_channels=3, out_channels=512, spec=(192, (96, 208), (16, 48), 64))
+    data = torch.randn(N, 3, W, H)
+    out = inception.forward(data)
+    assert out.shape == (N, 512, W, H)
+
+@torch.no_grad()
+def test_GoogLeNet():
+    net = GoogLeNet(n_classes=1000, device='cuda')
+    out = net.test(n_samples=9)
+    assert out.shape == (9, 1000)
+
 

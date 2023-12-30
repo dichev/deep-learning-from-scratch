@@ -10,7 +10,7 @@ from lib.functions.losses import cross_entropy, evaluate_accuracy, evaluate_accu
 from lib.training import batches
 from lib import optimizers
 from lib.functions.activations import softmax
-from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16
+from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
 from utils import plots
 
 # hyperparams & settings
@@ -40,7 +40,8 @@ models = {
     'LeNet-5':   (LeNet5(n_classes=10, device=DEVICE), transforms.Grayscale(num_output_channels=1)),
     'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),  # well, yeah..
     'NetworkInNetwork':   (NetworkInNetwork(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),
-    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), transforms.Resize((224, 224)))
+    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), transforms.Resize((224, 224))),
+    'GoogLeNet': (GoogLeNet(n_classes=10, device=DEVICE), transforms.Resize((224, 224))),
 }
 
 for model_name, (net, adapt) in models.items():
