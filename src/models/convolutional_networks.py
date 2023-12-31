@@ -268,23 +268,23 @@ class GoogLeNet(Module):  # Inception modules
     def __init__(self, n_classes=1000, device='cpu'):
         self.stem = Sequential(                                                                                      # in:  3, 224, 224
             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device), relu,    # ->  64, 112, 112
-            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  64,  56,  56
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),  # padding=(left, right, top, bottom)          # ->  64,  56,  56
             LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
             Conv2d(in_channels=64, out_channels=64,  kernel_size=1, device=device), relu,                            # ->  64,  56,  56
             Conv2d(in_channels=64, out_channels=192, kernel_size=3, stride=1, padding='same', device=device), relu,  # -> 192,  56,  56
             LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
-            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # -> 192,  28,  28
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # -> 192,  28,  28
         )
         self.body = Sequential(  # @paper: without the auxiliary classifiers in the intermediate layers
             Inception(in_channels=192, out_channels=256,  spec=( 64,  (96, 128), (16,  32),  32), device=device),    # ->  256, 28, 28   159K 128M  inception (3a)
             Inception(in_channels=256, out_channels=480,  spec=(128, (128, 192), (32,  96),  64), device=device),    # ->  480, 28, 28   380K 304M  inception (3b)
-            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  480, 14, 14  (max)
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # ->  480, 14, 14  (max)
             Inception(in_channels=480, out_channels=512,  spec=(192,  (96, 208), (16,  48),  64), device=device),    # ->  512, 14, 14   364K 73M   inception (4a)
             Inception(in_channels=512, out_channels=512,  spec=(160, (112, 224), (24,  64),  64), device=device),    # ->  512, 14, 14   437K 88M   inception (4b)
             Inception(in_channels=512, out_channels=512,  spec=(128, (128, 256), (24,  64),  64), device=device),    # ->  512, 14, 14   463K 100M  inception (4c)
             Inception(in_channels=512, out_channels=528,  spec=(112, (144, 288), (32,  64),  64), device=device),    # ->  528, 14, 14   580K 119M  inception (4d)
             Inception(in_channels=528, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832, 14, 14   840K 170M  inception (4e)
-            MaxPool2d(kernel_size=3, stride=2, padding='same'),                                                      # ->  832,  7,  7  (max)
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # ->  832,  7,  7  (max)
             Inception(in_channels=832, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832,  7,  7  1072K 54M   inception (5a)
             Inception(in_channels=832, out_channels=1024, spec=(384, (192, 384), (48, 128), 128), device=device),    # -> 1024,  7,  7  1388K 71M   inception (5b)
         )
@@ -310,5 +310,4 @@ class GoogLeNet(Module):  # Inception modules
     def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
-
 
