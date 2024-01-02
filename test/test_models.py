@@ -1,11 +1,17 @@
 import pytest
 import torch
-from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, Inception, GoogLeNet
+from models.convolutional_networks import SimpleCNN, SimpleFullyCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, Inception, GoogLeNet
 from utils.rng import seed_global
 
 @torch.no_grad()
 def test_SimpleCNN():
     net = SimpleCNN(device='cuda')
+    out = net.test(n_samples=9)
+    assert out.shape == (9, 10)
+
+@torch.no_grad()
+def test_SimpleFullyCNN():
+    net = test_SimpleFullyCNN(device='cuda')
     out = net.test(n_samples=9)
     assert out.shape == (9, 10)
 

@@ -8,8 +8,8 @@ class SimpleCNN(Module):
         self.conv1 = Conv2d(in_channels=3, out_channels=6,  kernel_size=5, device=device)       # ->   6, 28,  28
         self.pool1 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->   6, 14,  14
         self.conv2 = Conv2d(in_channels=6, out_channels=16, kernel_size=5, device=device)       # ->  16, 10,  10
-        self.pool2 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->   6,  5,   5
-        self.fc1 = Linear(input_size=16 * 5 * 5, output_size=120, device=device)                # ->   1,  1, 120 (flat)
+        self.pool2 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->  16,  5,   5
+        self.fc1 = Linear(input_size=16 * 5 * 5, output_size=120, device=device)                # ->  120 (flat)
         self.fc2 = Linear(input_size=120, output_size=84, device=device)                        # ->  84
         self.fc3 = Linear(input_size=84, output_size=n_classes, device=device)                  # ->  n_classes(10)
 
@@ -28,6 +28,41 @@ class SimpleCNN(Module):
         x = self.fc2.forward(x)
         x = relu(x)
         x = self.fc3.forward(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        x = torch.randn(n_samples, 3, 32, 32).to(self.device)
+        return self.forward(x)
+
+class SimpleFullyCNN(Module):  # can be used to "convole" the classifier across a larger image, and then average out the class
+    def __init__(self, n_classes=10, device='cpu'):                                             # in:  3, 32,  32
+        self.conv1 = Conv2d(in_channels=3, out_channels=6,  kernel_size=5, device=device)       # ->   6, 28,  28
+        self.pool1 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->   6, 14,  14
+        self.conv2 = Conv2d(in_channels=6, out_channels=16, kernel_size=5, device=device)       # ->  16, 10,  10
+        self.pool2 = MaxPool2d(kernel_size=2, stride=2, device=device)                          # ->  16,  5,   5
+        # classifier: convert fully-connected layers to convolutional:
+        self.conv3 = Conv2d(in_channels=16, out_channels=120, kernel_size=5, device=device)     # ->   1,  1, 120
+        self.conv4 = Conv2d(in_channels=120, out_channels=84, kernel_size=1, device=device)     # ->   1,  1, 84
+        self.conv5 = Conv2d(in_channels=84, out_channels=10, kernel_size=1, device=device)      # ->   1,  1, n_classes(10)
+
+        self.device = device
+        self.n_classes = n_classes
+
+    def forward(self, x):
+        N, C, W, H = x.shape
+        x = self.conv1.forward(x)
+        x = relu(x)
+        x = self.pool1.forward(x)
+        x = self.conv2.forward(x)
+        x = relu(x)
+        x = self.pool2.forward(x)
+        x = self.conv3.forward(x)
+        x = relu(x)
+        x = self.conv4.forward(x)
+        x = relu(x)
+        x = self.conv5.forward(x)
+        x = x.view(N, self.n_classes)
         return x
 
     @torch.no_grad()
