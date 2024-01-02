@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout, LocalResponseNorm
+from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout, LocalResponseNorm, ReLU, Flatten
 from lib.functions.activations import softmax, relu, tanh
 
 
@@ -126,23 +126,24 @@ class AlexNet(Module):
     def __init__(self, n_classes=1000, device='cpu'):
 
         self.features = Sequential(                                                                                      # in:  3, 227, 227
-            Conv2d(in_channels=3, out_channels=96, kernel_size=11, stride=4, padding=0, device=device), relu,            # ->  96, 55, 55
+            Conv2d(in_channels=3, out_channels=96, kernel_size=11, stride=4, padding=0, device=device), ReLU(),          # ->  96, 55, 55
             LocalResponseNorm(size=5, alpha=5*1e-4, beta=.75, k=2.),
             MaxPool2d(kernel_size=3, stride=2, device=device),                                                           # ->  96, 27, 27 (max)
-            Conv2d(in_channels=96, out_channels=256, kernel_size=5, padding=2, device=device), relu,                     # -> 256, 27, 27
+            Conv2d(in_channels=96, out_channels=256, kernel_size=5, padding=2, device=device), ReLU(),                   # -> 256, 27, 27
             LocalResponseNorm(size=5, alpha=5*1e-4, beta=.75, k=2.),
             MaxPool2d(kernel_size=3, stride=2, device=device),                                                           # -> 256, 13, 13 (max)
-            Conv2d(in_channels=256, out_channels=384, kernel_size=3, padding=1, device=device), relu,                    # -> 384, 13, 13
-            Conv2d(in_channels=384, out_channels=256, kernel_size=3, padding=1, device=device), relu,                    # -> 256, 13, 13
-            Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, device=device), relu,                    # -> 256, 13, 13
+            Conv2d(in_channels=256, out_channels=384, kernel_size=3, padding=1, device=device), ReLU(),                  # -> 384, 13, 13
+            Conv2d(in_channels=384, out_channels=256, kernel_size=3, padding=1, device=device), ReLU(),                  # -> 256, 13, 13
+            Conv2d(in_channels=256, out_channels=256, kernel_size=3, padding=1, device=device), ReLU(),                  # -> 256, 13, 13
             MaxPool2d(kernel_size=3, stride=2, device=device),                                                           # -> 256,  6,  6 (max)
         )
-        self.classifier = Sequential(                                                                                    # -> 9216 (flatten)
-           Dropout(0.5),
-           Linear(input_size=256*6*6, output_size=4096, device=device),  relu,                                           # -> 4096
-           Dropout(0.5),
-           Linear(input_size=4096, output_size=4096, device=device), relu,                                               # -> 4096
-           Linear(input_size=4096, output_size=n_classes, device=device),                                                # -> n_classes(1000)
+        self.classifier = Sequential(
+            Flatten(),                                                                                                   # -> 9216 (flatten)
+            Dropout(0.5),
+            Linear(input_size=256*6*6, output_size=4096, device=device), ReLU(),                                         # -> 4096
+            Dropout(0.5),
+            Linear(input_size=4096, output_size=4096, device=device), ReLU(),                                            # -> 4096
+            Linear(input_size=4096, output_size=n_classes, device=device),                                               # -> n_classes(1000)
         )
         self.device = device
 
@@ -151,7 +152,6 @@ class AlexNet(Module):
         assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
 
         x = self.features.forward(x, verbose)
-        x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
         # x = softmax(x)  # @ in the paper were actually used "1000 independent logistic units" to avoid calculating the normalization factor
         return x
@@ -172,9 +172,9 @@ class NetworkInNetwork(Module):
 
         def MLPConv(in_channels, out_channels, kernel_size, stride=1, padding=0):
             return Sequential(
-                Conv2d(in_channels, out_channels, kernel_size, stride, padding, device=device), relu,
-                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
-                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), relu,  # 1x1 convolution
+                Conv2d(in_channels, out_channels, kernel_size, stride, padding, device=device), ReLU(),
+                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), ReLU(),  # 1x1 convolution == fully connected layer, which acts independently on each pixel location
+                Conv2d(out_channels, out_channels, kernel_size=1, stride=1, padding='same', device=device), ReLU(),  # 1x1 convolution
             )
 
         # the convolution parameters are based on AlexNet
@@ -192,7 +192,8 @@ class NetworkInNetwork(Module):
             MaxPool2d(kernel_size=3, stride=2, device=device),                            # -> 384,  6,  6 (max)
 
             MLPConv(in_channels=384, out_channels=n_classes, kernel_size=3,  padding=1),  # -> n_classes(1000), 6, 6  # @ in the paper it seems they used just 3 MPLConv blocks
-            AvgPool2d(kernel_size=6, device=device),                                      # -> n_classes(1000), 1, 1 -> flat
+            AvgPool2d(kernel_size=6, device=device),                                      # -> n_classes(1000), 1, 1
+            Flatten()                                                                     # -> n_classes(1000)
         )
 
         self.device = device
@@ -202,7 +203,6 @@ class NetworkInNetwork(Module):
         assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
 
         x = self.classifier.forward(x, verbose)
-        x = x.flatten(start_dim=1)
         # x = softmax(x)
         return x
 
@@ -224,23 +224,24 @@ class VGG16(Module):
             block = Sequential()
             for i in range(n_convs):
                 block.add(Conv2d(in_channels if i == 0 else out_channels, out_channels, kernel_size=3, stride=1, padding='same', device=device))
-                block.add(relu)
+                block.add(ReLU())
             block.add(MaxPool2d(kernel_size=2, stride=2, device=device))
             return block
 
-        self.features = Sequential(                                            # in:   3, 224, 224
-            ConvBlock(n_convs=2, in_channels=3,   out_channels=64),            # ->   64, 112, 112
-            ConvBlock(n_convs=2, in_channels=64,  out_channels=128),           # ->  128,  56,  56
-            ConvBlock(n_convs=3, in_channels=128, out_channels=256),           # ->  256,  28,  28
-            ConvBlock(n_convs=3, in_channels=256, out_channels=512),           # ->  512,  14,  14
-            ConvBlock(n_convs=3, in_channels=512, out_channels=512),           # ->  512,   7,   7
+        self.features = Sequential(                                              # in:   3, 224, 224
+            ConvBlock(n_convs=2, in_channels=3,   out_channels=64),              # ->   64, 112, 112
+            ConvBlock(n_convs=2, in_channels=64,  out_channels=128),             # ->  128,  56,  56
+            ConvBlock(n_convs=3, in_channels=128, out_channels=256),             # ->  256,  28,  28
+            ConvBlock(n_convs=3, in_channels=256, out_channels=512),             # ->  512,  14,  14
+            ConvBlock(n_convs=3, in_channels=512, out_channels=512),             # ->  512,   7,   7
         )
-        self.classifier = Sequential(                                          # -> 9216 (flatten)
-           Linear(input_size=512*7*7, output_size=4096, device=device), relu,  # -> 4096
+        self.classifier = Sequential(
+           Flatten(),                                                            # -> 9216 (flatten)
+           Linear(input_size=512*7*7, output_size=4096, device=device), ReLU(),  # -> 4096
            Dropout(0.5),
-           Linear(input_size=4096, output_size=4096, device=device), relu,     # -> 4096
+           Linear(input_size=4096, output_size=4096, device=device), ReLU(),     # -> 4096
            Dropout(0.5),
-           Linear(input_size=4096, output_size=n_classes, device=device),      # -> n_classes(1000)
+           Linear(input_size=4096, output_size=n_classes, device=device),        # -> n_classes(1000)
         )
         self.device = device
 
@@ -249,7 +250,6 @@ class VGG16(Module):
         assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
 
         x = self.features.forward(x, verbose)
-        x = x.flatten(start_dim=1)
         x = self.classifier.forward(x, verbose)
         # x = softmax(x)
         return x
@@ -273,10 +273,10 @@ class Inception(Module):
         self.branch1 = Sequential(
             Conv2d(in_channels, c1, kernel_size=1, device=device))
         self.branch2 = Sequential(
-            Conv2d(in_channels, c2_reduce, kernel_size=1, device=device), relu,
+            Conv2d(in_channels, c2_reduce, kernel_size=1, device=device), ReLU(),
             Conv2d(c2_reduce, c2, kernel_size=3, padding='same', device=device))
         self.branch3 = Sequential(
-            Conv2d(in_channels, c3_reduce, kernel_size=1, device=device), relu,
+            Conv2d(in_channels, c3_reduce, kernel_size=1, device=device), ReLU(),
             Conv2d(c3_reduce, c3, kernel_size=5, padding='same', device=device))
         self.branch4 = Sequential(
             MaxPool2d(kernel_size=3, padding='same'),
@@ -301,33 +301,33 @@ class GoogLeNet(Module):  # Inception modules
     """
 
     def __init__(self, n_classes=1000, device='cpu'):
-        self.stem = Sequential(                                                                                      # in:  3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device), relu,    # ->  64, 112, 112
-            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),  # padding=(left, right, top, bottom)          # ->  64,  56,  56
+        self.stem = Sequential(                                                                                        # in:  3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device), ReLU(),    # ->  64, 112, 112
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),    # padding=(left, right, top, bottom)            # ->  64,  56,  56
             LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
-            Conv2d(in_channels=64, out_channels=64,  kernel_size=1, device=device), relu,                            # ->  64,  56,  56
-            Conv2d(in_channels=64, out_channels=192, kernel_size=3, stride=1, padding='same', device=device), relu,  # -> 192,  56,  56
+            Conv2d(in_channels=64, out_channels=64,  kernel_size=1, device=device), ReLU(),                            # ->  64,  56,  56
+            Conv2d(in_channels=64, out_channels=192, kernel_size=3, stride=1, padding='same', device=device), ReLU(),  # -> 192,  56,  56
             LocalResponseNorm(size=5, alpha=5 * 1e-4, beta=.75, k=2.),
-            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # -> 192,  28,  28
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                  # -> 192,  28,  28
         )
         self.body = Sequential(  # @paper: without the auxiliary classifiers in the intermediate layers
-            Inception(in_channels=192, out_channels=256,  spec=( 64,  (96, 128), (16,  32),  32), device=device),    # ->  256, 28, 28   159K 128M  inception (3a)
-            Inception(in_channels=256, out_channels=480,  spec=(128, (128, 192), (32,  96),  64), device=device),    # ->  480, 28, 28   380K 304M  inception (3b)
-            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # ->  480, 14, 14  (max)
-            Inception(in_channels=480, out_channels=512,  spec=(192,  (96, 208), (16,  48),  64), device=device),    # ->  512, 14, 14   364K 73M   inception (4a)
-            Inception(in_channels=512, out_channels=512,  spec=(160, (112, 224), (24,  64),  64), device=device),    # ->  512, 14, 14   437K 88M   inception (4b)
-            Inception(in_channels=512, out_channels=512,  spec=(128, (128, 256), (24,  64),  64), device=device),    # ->  512, 14, 14   463K 100M  inception (4c)
-            Inception(in_channels=512, out_channels=528,  spec=(112, (144, 288), (32,  64),  64), device=device),    # ->  528, 14, 14   580K 119M  inception (4d)
-            Inception(in_channels=528, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832, 14, 14   840K 170M  inception (4e)
-            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                # ->  832,  7,  7  (max)
-            Inception(in_channels=832, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),    # ->  832,  7,  7  1072K 54M   inception (5a)
-            Inception(in_channels=832, out_channels=1024, spec=(384, (192, 384), (48, 128), 128), device=device),    # -> 1024,  7,  7  1388K 71M   inception (5b)
+            Inception(in_channels=192, out_channels=256,  spec=( 64,  (96, 128), (16,  32),  32), device=device),      # ->  256, 28, 28   159K 128M  inception (3a)
+            Inception(in_channels=256, out_channels=480,  spec=(128, (128, 192), (32,  96),  64), device=device),      # ->  480, 28, 28   380K 304M  inception (3b)
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                  # ->  480, 14, 14  (max)
+            Inception(in_channels=480, out_channels=512,  spec=(192,  (96, 208), (16,  48),  64), device=device),      # ->  512, 14, 14   364K 73M   inception (4a)
+            Inception(in_channels=512, out_channels=512,  spec=(160, (112, 224), (24,  64),  64), device=device),      # ->  512, 14, 14   437K 88M   inception (4b)
+            Inception(in_channels=512, out_channels=512,  spec=(128, (128, 256), (24,  64),  64), device=device),      # ->  512, 14, 14   463K 100M  inception (4c)
+            Inception(in_channels=512, out_channels=528,  spec=(112, (144, 288), (32,  64),  64), device=device),      # ->  528, 14, 14   580K 119M  inception (4d)
+            Inception(in_channels=528, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),      # ->  832, 14, 14   840K 170M  inception (4e)
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                  # ->  832,  7,  7  (max)
+            Inception(in_channels=832, out_channels=832,  spec=(256, (160, 320), (32, 128), 128), device=device),      # ->  832,  7,  7  1072K 54M   inception (5a)
+            Inception(in_channels=832, out_channels=1024, spec=(384, (192, 384), (48, 128), 128), device=device),      # -> 1024,  7,  7  1388K 71M   inception (5b)
         )
         self.head = Sequential(
-           AvgPool2d(kernel_size=7),                                                                                 # -> 1024, 1, 1
-           lambda x: x.flatten(start_dim=1),                                                                         # -> 1024
-           Dropout(0.4),                                                                                             #
-           Linear(input_size=1024, output_size=n_classes, device=device)                                             # -> n_classes(1000)
+           AvgPool2d(kernel_size=7),                                                                                   # -> 1024, 1, 1
+           Flatten(),                                                                                                  # -> 1024
+           Dropout(0.4),                                                                                               #
+           Linear(input_size=1024, output_size=n_classes, device=device)                                               # -> n_classes(1000)
         )
         self.device = device
 

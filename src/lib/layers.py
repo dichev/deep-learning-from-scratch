@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from lib.functions import init
-from lib.functions.activations import tanh, sigmoid
+from lib.functions.activations import relu, tanh, sigmoid
 from lib.base import Param, Module
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int
 from collections import namedtuple
@@ -474,3 +474,15 @@ class Sequential(Module):
         # for name, module in self.modules():
         #     x = module.forward(x)
         return x
+
+class ReLU(Module):
+    def forward(self, x):
+        return relu(x)
+
+class Flatten(Module):
+    def __init__(self, start_dim=1):
+        self.start_dim = start_dim
+
+    def forward(self, x):
+        return x.flatten(self.start_dim)
+

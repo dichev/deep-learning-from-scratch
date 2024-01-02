@@ -11,7 +11,7 @@ def test_SimpleCNN():
 
 @torch.no_grad()
 def test_SimpleFullyCNN():
-    net = test_SimpleFullyCNN(device='cuda')
+    net = SimpleFullyCNN(device='cuda')
     out = net.test(n_samples=9)
     assert out.shape == (9, 10)
 

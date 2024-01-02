@@ -81,5 +81,5 @@ class Module:
         return torch.cat([p.view(-1) for name, p in self.parameters() if 'bias' in name]).norm().item()
 
     def __repr__(self):
-        return f'{self.__class__.__name__}(): {self.n_params} parameters'
+        return f'{self.__class__.__name__}(): {self.n_params} parameters'.replace(': 0 parameters', '')
 
