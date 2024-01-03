@@ -459,7 +459,7 @@ class Sequential(Module):
 
     def forward(self, x, verbose=False):
         if verbose:
-            print(list(x.shape), 'Input')
+            print(list(x.shape), '<-', 'Input')
         for module in self._steps:
             if isinstance(module, Sequential):
                 x = module.forward(x, verbose=verbose)
@@ -470,7 +470,7 @@ class Sequential(Module):
             else:
                 raise Exception('Unexpected module: ' + type(module))
             if verbose:
-                print(list(x.shape), module)
+                print(list(x.shape), '<-', module)
         # for name, module in self.modules():
         #     x = module.forward(x)
         return x

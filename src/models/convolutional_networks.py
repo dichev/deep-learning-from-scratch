@@ -346,3 +346,133 @@ class GoogLeNet(Module):  # Inception modules
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
 
+
+class DeepPlainCNN(Module):  # used for comparison to ResNet-18
+
+    def __init__(self, n_classes=1000, device='cpu'):
+
+        def ConvBlock(n_convs, in_channels, out_channels, downsample=False):
+            block = Sequential()
+            for i in range(n_convs):  # skips first
+                if downsample and i == 0:
+                    block.add(Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding='same', device=device))
+                else:
+                    block.add(Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding='same', device=device))
+                # block.add(BatchNorm2d()) # todo
+                block.add(ReLU())
+            return block
+
+        self.stem = Sequential(                                                                                   # in:   3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),       # ->   64, 112, 112
+            ReLU(),
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1), device=device),                              # ->   64,  56,  56 (max)
+        )
+
+        self.body = Sequential(
+            ConvBlock(n_convs=6,   in_channels=64, out_channels=64),                                              # ->   64,  56,  56
+            ConvBlock(n_convs=8,   in_channels=64, out_channels=128, downsample=True),                            # ->  128,  28,  28
+            ConvBlock(n_convs=12, in_channels=128, out_channels=256, downsample=True),                            # ->  256,  14,  14
+            ConvBlock(n_convs=6,  in_channels=256, out_channels=512, downsample=True),                            # ->  512,   7,   7
+        )
+        self.head = Sequential(
+           AvgPool2d(kernel_size=7),                                                                              # -> 512, 1, 1
+           Flatten(),                                                                                             # -> 512
+           Linear(input_size=512, output_size=n_classes, device=device)                                           # -> n_classes(1000)
+        )
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+
+        x = self.stem.forward(x, verbose)
+        x = self.body.forward(x, verbose)
+        x = self.head.forward(x, verbose)
+        # x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        x = torch.randn(n_samples, 3, 224, 224).to(self.device)
+        return self.forward(x, verbose=True)
+
+
+class Residual(Module):
+
+    def __init__(self, in_channels, out_channels, stride=1, device='cpu'):
+        self.downsampled = stride != 1 or in_channels != out_channels
+        if self.downsampled:
+            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
+
+        self.c1 = Conv2d(in_channels, out_channels, kernel_size=3, padding='same', stride=stride, device=device)
+        self.c2 = Conv2d(out_channels, out_channels, kernel_size=3, padding='same', device=device)
+        # todo: BatchNorm2d
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.stride = stride
+
+    def forward(self, x):
+        x_skip = self.project.forward(x) if self.downsampled else x.clone()
+        x = relu(self.c1.forward(x))
+        x = relu(self.c2.forward(x) + x_skip)
+        return x
+
+    def __repr__(self):
+        return f'Residual(in_channels={self.in_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
+
+class ResNet34(Module):
+    """
+    Paper: Deep Residual Learning for Image Recognition
+    https://arxiv.org/pdf/1512.03385.pdf
+    """
+
+    def __init__(self, n_classes=1000, device='cpu'):  # zero_padding vs linear_project setting  <- Identity vs. Projection Shortcuts.  or three options: (A) zero-padding shortcuts are used / for increasing dimensions, and all shortcuts are parameterfree (the same as Table 2 and Fig. 4 right); (B) projection shortcuts are used for increasing dimensions, and other shortcuts are identity; and (C) all shortcuts are projections
+
+        self.stem = Sequential(                                                                                   # in:   3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),       # ->   64, 112, 112
+            ReLU(),
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1), device=device),                              # ->   64,  56,  56 (max)
+        )
+
+        self.body = Sequential(
+            Residual(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56
+            Residual(in_channels=64, out_channels=64, device=device),
+            Residual(in_channels=64, out_channels=64, device=device),
+
+            Residual(in_channels=64,  out_channels=128, device=device, stride=2),        # ->  128,  28,  28
+            Residual(in_channels=128, out_channels=128, device=device),
+            Residual(in_channels=128, out_channels=128, device=device),
+            Residual(in_channels=128, out_channels=128, device=device),
+
+            Residual(in_channels=128, out_channels=256, device=device, stride=2),        # ->  256,  14,  14
+            Residual(in_channels=256, out_channels=256, device=device),
+            Residual(in_channels=256, out_channels=256, device=device),
+            Residual(in_channels=256, out_channels=256, device=device),
+            Residual(in_channels=256, out_channels=256, device=device),
+            Residual(in_channels=256, out_channels=256, device=device),
+
+            Residual(in_channels=256, out_channels=512, device=device, stride=2),         # ->  512,   7,   7
+            Residual(in_channels=512, out_channels=512, device=device),
+            Residual(in_channels=512, out_channels=512, device=device),
+        )
+        self.head = Sequential(
+           AvgPool2d(kernel_size=7),                                                      # -> 512, 1, 1
+           Flatten(),                                                                     # -> 512
+           Linear(input_size=512, output_size=n_classes, device=device)                   # -> n_classes(1000)
+        )
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+
+        x = self.stem.forward(x, verbose)
+        x = self.body.forward(x, verbose)
+        x = self.head.forward(x, verbose)
+        # x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        x = torch.randn(n_samples, 3, 224, 224).to(self.device)
+        return self.forward(x, verbose=True)
