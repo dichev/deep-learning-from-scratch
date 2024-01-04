@@ -418,12 +418,13 @@ class Residual(Module):
         self.stride = stride
 
     def forward(self, x):
-        x_skip = self.project.forward(x) if self.downsampled else x.clone()
-        x = self.bn1.forward(self.c1.forward(x))
-        x = relu(x)
-        x = self.bn2.forward(self.c2.forward(x)) + x_skip
-        x = relu(x)
-        return x
+        y = self.bn1.forward(self.c1.forward(x))
+        y = relu(y)
+        if self.downsampled:
+            x = self.project.forward(x)
+        y = self.bn2.forward(self.c2.forward(y)) + x  # the skip connection
+        y = relu(y)
+        return y
 
     def __repr__(self):
         return f'Residual(in_channels={self.in_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
@@ -434,7 +435,7 @@ class ResNet34(Module):
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, n_classes=1000, device='cpu'):  # zero_padding vs linear_project setting  <- Identity vs. Projection Shortcuts.  or three options: (A) zero-padding shortcuts are used / for increasing dimensions, and all shortcuts are parameterfree (the same as Table 2 and Fig. 4 right); (B) projection shortcuts are used for increasing dimensions, and other shortcuts are identity; and (C) all shortcuts are projections
+    def __init__(self, n_classes=1000, device='cpu'):
 
         self.stem = Sequential(                                                                                   # in:   3, 224, 224
             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),       # ->   64, 112, 112
