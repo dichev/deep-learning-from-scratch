@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, Dropout, LocalResponseNorm, ReLU, Flatten
+from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, BatchNorm2d, Dropout, LocalResponseNorm, ReLU, Flatten
 from lib.functions.activations import softmax, relu, tanh
 
 
@@ -358,13 +358,13 @@ class DeepPlainCNN(Module):  # used for comparison to ResNet-18
                     block.add(Conv2d(in_channels, out_channels, kernel_size=3, stride=2, padding='same', device=device))
                 else:
                     block.add(Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding='same', device=device))
-                # block.add(BatchNorm2d()) # todo
+                block.add(BatchNorm2d(out_channels, device=device))
                 block.add(ReLU())
             return block
 
         self.stem = Sequential(                                                                                   # in:   3, 224, 224
             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),       # ->   64, 112, 112
-            ReLU(),
+            BatchNorm2d(64, device=device), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1), device=device),                              # ->   64,  56,  56 (max)
         )
 
@@ -398,6 +398,10 @@ class DeepPlainCNN(Module):  # used for comparison to ResNet-18
 
 
 class Residual(Module):
+    """
+    Paper: Deep Residual Learning for Image Recognition
+    https://arxiv.org/pdf/1512.03385.pdf
+    """
 
     def __init__(self, in_channels, out_channels, stride=1, device='cpu'):
         self.downsampled = stride != 1 or in_channels != out_channels
@@ -405,16 +409,20 @@ class Residual(Module):
             self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
 
         self.c1 = Conv2d(in_channels, out_channels, kernel_size=3, padding='same', stride=stride, device=device)
+        self.bn1 = BatchNorm2d(out_channels, device=device)
         self.c2 = Conv2d(out_channels, out_channels, kernel_size=3, padding='same', device=device)
-        # todo: BatchNorm2d
+        self.bn2 = BatchNorm2d(out_channels, device=device)
+
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.stride = stride
 
     def forward(self, x):
         x_skip = self.project.forward(x) if self.downsampled else x.clone()
-        x = relu(self.c1.forward(x))
-        x = relu(self.c2.forward(x) + x_skip)
+        x = self.bn1.forward(self.c1.forward(x))
+        x = relu(x)
+        x = self.bn2.forward(self.c2.forward(x)) + x_skip
+        x = relu(x)
         return x
 
     def __repr__(self):
@@ -430,7 +438,7 @@ class ResNet34(Module):
 
         self.stem = Sequential(                                                                                   # in:   3, 224, 224
             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),       # ->   64, 112, 112
-            ReLU(),
+            BatchNorm2d(64, device=device), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1), device=device),                              # ->   64,  56,  56 (max)
         )
 

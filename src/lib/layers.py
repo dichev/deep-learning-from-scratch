@@ -52,7 +52,7 @@ class Embedding(Module):  # aka lookup table
         return f'Embedding({self.input_size}, {self.output_size}, bias=false): {self.n_params} params'
 
 
-class BatchNorm(Module):
+class BatchNorm1d(Module):
 
     def __init__(self, size, device='cpu'):
         self.beta = Param((1, size), device=device)
@@ -67,14 +67,16 @@ class BatchNorm(Module):
     @torch.no_grad()
     def reset_parameters(self):
         self.beta.fill_(0)
-        self.beta.fill_(1)
+        self.gamma.fill_(1)
+        self.running_mean.fill_(0)
+        self.running_var.fill_(1)
 
     def forward(self, x):
         # mini-batch statistics
         if torch.is_grad_enabled():
             assert len(x) > 1, 'BatchNorm layer requires at least 2 samples in batch'
 
-            mu, var = x.mean(dim=0), x.var(dim=0)
+            mu, var = x.mean(dim=0), x.var(dim=0, correction=0)
             self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
             self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var
         else:
@@ -87,7 +89,50 @@ class BatchNorm(Module):
         return x
 
     def __repr__(self):
-        return f'BatchNorm({self.size}): {self.n_params} params'
+        return f'BatchNorm1d({self.size}): {self.n_params} params'
+
+class BatchNorm2d(Module):
+
+    def __init__(self, size, device='cpu'):
+        self.beta = Param((1, size, 1, 1), device=device)
+        self.gamma = Param((1, size, 1, 1), device=device)
+
+        self.running_mean = torch.zeros(1, size, 1, 1, device=device)
+        self.running_var = torch.ones(1, size, 1, 1, device=device)
+        self.decay = 0.9
+        self.size = size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.beta.fill_(0)
+        self.gamma.fill_(1)
+        self.running_mean.fill_(0)
+        self.running_var.fill_(1)
+
+    def forward(self, x):
+        assert len(x.shape) == 4, f'BatchNorm2d layer requires 4D input, but got: {x.shape}'
+        N, C, W, H = x.shape
+        assert C == self.size, f'Expected self.size channels from the input, but got {C}'
+
+        # mini-batch statistics
+        if torch.is_grad_enabled():
+            assert max(N, W, H) > 1, 'BatchNorm layer requires at least 2 samples'
+
+            mu, var = x.mean(dim=(0, 2, 3), keepdims=True), x.var(dim=(0, 2, 3), keepdims=True, correction=0)
+            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
+            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var
+        else:
+            mu, var = self.running_mean, self.running_var
+
+        # normalize x along the mini-batch
+        x = (x - mu) / (var + 1e-5).sqrt()
+        x = self.gamma * x + self.beta
+
+        return x
+
+    def __repr__(self):
+        return f'BatchNorm2d({self.size}): {self.n_params} params'
 
 
 class LayerNorm(Module):

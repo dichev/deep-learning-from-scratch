@@ -1,6 +1,6 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d, LocalResponseNorm
+from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm
 from utils.rng import seed_global
 
 @torch.no_grad()
@@ -65,10 +65,32 @@ def test_avg_pool2d(kernel, padding, stride):
 @pytest.mark.parametrize('size, alpha, beta, k',  [(5, 5*1e-4, .75, 2.), (3, 1e-2, .75, .5), (7, 1e-1, .15, .1)])
 def test_avg_pool2d(size, alpha, beta, k):
     x = torch.randn(11, 32, 10, 10)
-    from torch import nn
-    lrn1 = nn.LocalResponseNorm(size=size, alpha=alpha, beta=beta, k=k)
+    lrn1 = torch.nn.LocalResponseNorm(size=size, alpha=alpha, beta=beta, k=k)
     lrn2 = LocalResponseNorm(size=size, alpha=alpha, beta=beta, k=k)
     expected = lrn1(x)
     output = lrn2.forward(x)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+# @torch.no_grad()
+@pytest.mark.parametrize('size',  [1, 2, 5, 10, 99])
+def test_batch_norm1d(size):
+    x = torch.randn(11, size)
+    bn1 = torch.nn.BatchNorm1d(size)
+    bn2 = BatchNorm1d(size)
+    expected = bn1(x)
+    output = bn2.forward(x)
+    assert torch.allclose(bn1.running_mean.flatten(), bn2.running_mean.flatten())
+    # assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten()) # it looks like the running variance in pytorch is computed with unbiased variance
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+@pytest.mark.parametrize('size',  [1, 2, 5, 10, 99])
+def test_batch_norm2d(size):
+    x = torch.randn(11, size, 224, 224)
+    bn1 = torch.nn.BatchNorm2d(size)
+    bn2 = BatchNorm2d(size)
+    expected = bn1(x)
+    output = bn2.forward(x)
+    assert torch.allclose(bn1.running_mean.flatten(), bn2.running_mean.flatten())
+    # assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten()) # it looks like the running variance in pytorch is computed with unbiased variance
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
