@@ -432,6 +432,41 @@ class Conv2d(Module):
         return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}): {self.n_params} parameters'
 
 
+class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, device='cpu'):
+        assert in_channels % groups == 0 and out_channels % groups == 0, f'the channels must be divisible by the groups, but got: {in_channels=}, {out_channels=} for {groups=}'
+        # self.convs = [Conv2d(in_channels//groups, out_channels, kernel_size) for _ in range(groups)]
+        for g in range(groups):
+            conv = Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, device)
+            setattr(self, f'conv_{g}', conv)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.stride = stride
+        self.device = device
+        self.padding = padding
+        self.groups = groups
+
+    def forward(self, X):
+        N, C, H, W = X.shape
+        W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
+
+        Y = torch.zeros(N, self.out_channels, W_out, H_out)
+        for g in range(self.groups):
+            conv = getattr(self, f'conv_{g}')
+            Y[:, self.slice_out(g)] = conv.forward(X[:, self.slice_in(g)])
+        return Y
+
+    def slice_in(self, group):
+        step = self.in_channels // self.groups
+        return slice(group * step, (group + 1) * step)
+
+    def slice_out(self, group):
+        step = self.out_channels // self.groups
+        return slice(group * step, (group + 1) * step)
+
 class Pool2d(Module):
 
     def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu', padding_fill_value=0.):

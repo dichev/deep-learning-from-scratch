@@ -1,6 +1,6 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm
+from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm
 from utils.rng import seed_global
 
 @torch.no_grad()
@@ -33,6 +33,35 @@ def test_conv2d(kernel, padding, stride, dilation):
     expected = A(input)
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+
+@torch.no_grad()
+@pytest.mark.parametrize('in_channels',  [4, 8])
+@pytest.mark.parametrize('out_channels', [8, 4])
+@pytest.mark.parametrize('groups',   [1, 2, 4])
+def test_conv2d_groups(in_channels, out_channels, groups):
+    N, C_out, C_in, W, H = 10, in_channels, out_channels, 100, 100
+    kernel, padding, stride, dilation = 3, 1, 1, 1
+    A = torch.nn.Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+    B = Conv2dGroups(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
+
+    # use the same parameters
+    step = C_out//groups
+    for g in range(groups):
+        conv = getattr(B, f'conv_{g}')
+        group = slice(g*step, (g+1)*step)
+        assert conv.weight.shape == A.weight[group].shape, f'Expected the same weight shape: {conv.weight.shape}, {A.weight[group].shape}'
+        assert A.bias[group].shape == conv.bias.shape, f'Expected the same bias shape: {A.bias[group].shape}, {conv.bias.shape}'
+        with torch.no_grad():
+            conv.weight[:] = A.weight[group].detach().clone()
+            conv.bias[:] = A.bias[group].detach().clone()
+
+    # compare the convolutions
+    input = torch.randn(N, C_in, W, H)
+    expected = A(input)
+    output = B.forward(input)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
 
 @torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
