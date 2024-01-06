@@ -435,11 +435,10 @@ class Conv2d(Module):
 class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, device='cpu'):
         assert in_channels % groups == 0 and out_channels % groups == 0, f'the channels must be divisible by the groups, but got: {in_channels=}, {out_channels=} for {groups=}'
-        # self.convs = [Conv2d(in_channels//groups, out_channels, kernel_size) for _ in range(groups)]
-        for g in range(groups):
-            conv = Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, device)
-            setattr(self, f'conv_{g}', conv)
-
+        self.convs = ModuleList(
+            Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, device)
+            for g in range(groups)
+        )
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
@@ -455,8 +454,7 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
 
         Y = torch.zeros(N, self.out_channels, W_out, H_out)
         for g in range(self.groups):
-            conv = getattr(self, f'conv_{g}')
-            Y[:, self.slice_out(g)] = conv.forward(X[:, self.slice_in(g)])
+            Y[:, self.slice_out(g)] = self.convs[g].forward(X[:, self.slice_in(g)])
         return Y
 
     def slice_in(self, group):
@@ -526,21 +524,30 @@ class AvgPool2d(Pool2d):
         return f'AvgPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
 
 
-class Sequential(Module):
-    def __init__(self, *modules):
-        self._steps = []
-        for i, module in enumerate(modules):
+class ModuleList(list, Module):
+    def __init__(self, modules):
+        super().__init__()
+        for module in modules:
             self.add(module)
 
     def add(self, module):
-        name = f'm{len(self._steps)}'
-        setattr(self, name, module)
-        self._steps.append(module)
+        assert isinstance(module, Module) or callable(module), f'Expected only Module instances or functions, but got: {module}'
+        self.append(module)
+        setattr(self, f'm{len(self)}', module)  # this is to make the modules discoverable (refer to self.modules())
+
+    def __repr__(self):
+        return f'ModuleList({len(self)}): {self.n_params} parameters'
+
+
+class Sequential(ModuleList):
+
+    def __init__(self, *modules):
+        super().__init__(modules)
 
     def forward(self, x, verbose=False):
         if verbose:
             print(list(x.shape), '<-', 'Input')
-        for module in self._steps:
+        for module in self:
             if isinstance(module, Sequential):
                 x = module.forward(x, verbose=verbose)
             elif isinstance(module, Module):
@@ -565,4 +572,3 @@ class Flatten(Module):
 
     def forward(self, x):
         return x.flatten(self.start_dim)
-

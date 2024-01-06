@@ -48,13 +48,12 @@ def test_conv2d_groups(in_channels, out_channels, groups):
     # use the same parameters
     step = C_out//groups
     for g in range(groups):
-        conv = getattr(B, f'conv_{g}')
         group = slice(g*step, (g+1)*step)
-        assert conv.weight.shape == A.weight[group].shape, f'Expected the same weight shape: {conv.weight.shape}, {A.weight[group].shape}'
-        assert A.bias[group].shape == conv.bias.shape, f'Expected the same bias shape: {A.bias[group].shape}, {conv.bias.shape}'
+        assert B.convs[g].weight.shape == A.weight[group].shape, f'Expected the same weight shape: {B.convs[g].weight.shape}, {A.weight[group].shape}'
+        assert A.bias[group].shape == B.convs[g].bias.shape, f'Expected the same bias shape: {A.bias[group].shape}, {B.convs[g].bias.shape}'
         with torch.no_grad():
-            conv.weight[:] = A.weight[group].detach().clone()
-            conv.bias[:] = A.bias[group].detach().clone()
+            B.convs[g].weight[:] = A.weight[group].detach().clone()
+            B.convs[g].bias[:] = A.bias[group].detach().clone()
 
     # compare the convolutions
     input = torch.randn(N, C_in, W, H)
