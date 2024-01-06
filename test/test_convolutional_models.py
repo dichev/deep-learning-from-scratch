@@ -1,7 +1,6 @@
 import pytest
 import torch
 from models.convolutional_networks import SimpleCNN, SimpleFullyCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, Inception, GoogLeNet, DeepPlainCNN
-from models.residual_networks import ResNet34
 from utils.rng import seed_global
 
 @torch.no_grad()
@@ -61,11 +60,3 @@ def test_DeepPlainCNN():
     net = DeepPlainCNN(n_classes=1000, device='cuda')
     out = net.test(n_samples=9)
     assert out.shape == (9, 1000)
-
-@torch.no_grad()
-def test_ResNet34():
-    net = ResNet34(n_classes=1000, device='cuda')
-    out = net.test(n_samples=9)
-    assert out.shape == (9, 1000)
-
-

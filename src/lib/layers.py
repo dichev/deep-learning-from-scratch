@@ -446,6 +446,8 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
         self.stride = stride
         self.device = device
         self.padding = padding
+        if isinstance(padding, str):  # e.g. valid, same, full
+            self.padding = conv2d_pad_string_to_int(padding, kernel_size)
         self.groups = groups
 
     def forward(self, X):
@@ -464,6 +466,9 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
     def slice_out(self, group):
         step = self.out_channels // self.groups
         return slice(group * step, (group + 1) * step)
+
+    def __repr__(self):
+        return f'Conv2dGroup({self.in_channels}, {self.out_channels}, {self.kernel_size}, groups={self.groups} stride={self.stride}, padding={self.padding}, dilation={self.dilation}): {self.n_params} parameters'
 
 class Pool2d(Module):
 
@@ -536,7 +541,7 @@ class ModuleList(list, Module):
         setattr(self, f'm{len(self)}', module)  # this is to make the modules discoverable (refer to self.modules())
 
     def __repr__(self):
-        return f'ModuleList({len(self)}): {self.n_params} parameters'
+        return f'{self.__class__.__name__}({len(self)}): {self.n_params} parameters'
 
 
 class Sequential(ModuleList):
@@ -547,7 +552,7 @@ class Sequential(ModuleList):
     def forward(self, x, verbose=False):
         if verbose:
             print(list(x.shape), '<-', 'Input')
-        for module in self:
+        for i, module in enumerate(self):
             if isinstance(module, Sequential):
                 x = module.forward(x, verbose=verbose)
             elif isinstance(module, Module):
@@ -557,7 +562,7 @@ class Sequential(ModuleList):
             else:
                 raise Exception('Unexpected module: ' + type(module))
             if verbose:
-                print(list(x.shape), '<-', module)
+                print(list(x.shape), f'<- {i}.', module)
         # for name, module in self.modules():
         #     x = module.forward(x)
         return x
