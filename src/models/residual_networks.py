@@ -3,7 +3,7 @@ from lib.layers import Module, Sequential, Linear, Conv2d, Conv2dGroups, AvgPool
 from lib.functions.activations import relu
 
 
-class Residual(Module):
+class ResBlock(Module):
     """
     Paper: Deep Residual Learning for Image Recognition
     https://arxiv.org/pdf/1512.03385.pdf
@@ -33,10 +33,10 @@ class Residual(Module):
         return y
 
     def __repr__(self):
-        return f'Residual(in_channels={self.in_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
+        return f'ResBlock(in_channels={self.in_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
 
 
-class ResidualBottleneck(Module):
+class ResBottleneckBlock(Module):
     """
     Paper: Deep Residual Learning for Image Recognition
     https://arxiv.org/pdf/1512.03385.pdf
@@ -70,7 +70,7 @@ class ResidualBottleneck(Module):
         return y
 
     def __repr__(self):
-        return f'ResidualBottleneck(in_channels={self.in_channels}, mid_channels={self.mid_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
+        return f'ResBottleneckBlock(in_channels={self.in_channels}, mid_channels={self.mid_channels}, out_channels={self.out_channels}, stride={self.stride}): {self.n_params} params'
 
 
 class ResNeXtBlock(Module):
@@ -126,25 +126,25 @@ class ResNet34(Module):
         )
 
         self.body = Sequential(
-            Residual(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56 (stride /2)
-            Residual(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56
-            Residual(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56
+            ResBlock(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56 (stride /2)
+            ResBlock(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56
+            ResBlock(in_channels=64, out_channels=64, device=device),                    # ->   64,  56,  56
 
-            Residual(in_channels=64,  out_channels=128, device=device, stride=2),        # ->  128,  28,  28 (stride /2)
-            Residual(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
-            Residual(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
-            Residual(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
+            ResBlock(in_channels=64, out_channels=128, device=device, stride=2),        # ->  128,  28,  28 (stride /2)
+            ResBlock(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
+            ResBlock(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
+            ResBlock(in_channels=128, out_channels=128, device=device),                  # ->  128,  28,  28
 
-            Residual(in_channels=128, out_channels=256, device=device, stride=2),        # ->  256,  14,  14 (stride /2)
-            Residual(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
-            Residual(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
-            Residual(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
-            Residual(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
-            Residual(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
+            ResBlock(in_channels=128, out_channels=256, device=device, stride=2),        # ->  256,  14,  14 (stride /2)
+            ResBlock(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
+            ResBlock(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
+            ResBlock(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
+            ResBlock(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
+            ResBlock(in_channels=256, out_channels=256, device=device),                  # ->  256,  14,  14
 
-            Residual(in_channels=256, out_channels=512, device=device, stride=2),        # ->  512,   7,   7 (stride /2)
-            Residual(in_channels=512, out_channels=512, device=device),                  # ->  512,   7,   7
-            Residual(in_channels=512, out_channels=512, device=device),                  # ->  512,   7,   7
+            ResBlock(in_channels=256, out_channels=512, device=device, stride=2),        # ->  512,   7,   7 (stride /2)
+            ResBlock(in_channels=512, out_channels=512, device=device),                  # ->  512,   7,   7
+            ResBlock(in_channels=512, out_channels=512, device=device),                  # ->  512,   7,   7
         )
         self.head = Sequential(
            AvgPool2d(kernel_size=7),                                                     # -> 512, 1, 1
@@ -184,25 +184,25 @@ class ResNet50(Module):
         )
 
         self.body = Sequential(
-            ResidualBottleneck(in_channels=64,  mid_channels=64, out_channels=256, device=device),                 # 64 ->  [64] -> 256,  56,  56 (stride /2)
-            ResidualBottleneck(in_channels=256, mid_channels=64, out_channels=256, device=device),                # 256 ->  [64] -> 256,  56,  56
-            ResidualBottleneck(in_channels=256, mid_channels=64, out_channels=256, device=device),                # 256 ->  [64] -> 256,  56,  56
+            ResBottleneckBlock(in_channels=64, mid_channels=64, out_channels=256, device=device),                 # 64 ->  [64] -> 256,  56,  56 (stride /2)
+            ResBottleneckBlock(in_channels=256, mid_channels=64, out_channels=256, device=device),                # 256 ->  [64] -> 256,  56,  56
+            ResBottleneckBlock(in_channels=256, mid_channels=64, out_channels=256, device=device),                # 256 ->  [64] -> 256,  56,  56
 
-            ResidualBottleneck(in_channels=256, mid_channels=128, out_channels=512, device=device, stride=2),     # 256 -> [128] -> 512,  28,  28 (stride /2)
-            ResidualBottleneck(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
-            ResidualBottleneck(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
-            ResidualBottleneck(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
+            ResBottleneckBlock(in_channels=256, mid_channels=128, out_channels=512, device=device, stride=2),     # 256 -> [128] -> 512,  28,  28 (stride /2)
+            ResBottleneckBlock(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
+            ResBottleneckBlock(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
+            ResBottleneckBlock(in_channels=512, mid_channels=128, out_channels=512, device=device),               # 512 -> [128] -> 512,  28,  28
 
-            ResidualBottleneck(in_channels=512,  mid_channels=256, out_channels=1024, device=device, stride=2),   # 512 -> [256] -> 1024, 28,  28 (stride /2)
-            ResidualBottleneck(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
-            ResidualBottleneck(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
-            ResidualBottleneck(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
-            ResidualBottleneck(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
-            ResidualBottleneck(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
+            ResBottleneckBlock(in_channels=512, mid_channels=256, out_channels=1024, device=device, stride=2),   # 512 -> [256] -> 1024, 28,  28 (stride /2)
+            ResBottleneckBlock(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
+            ResBottleneckBlock(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
+            ResBottleneckBlock(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
+            ResBottleneckBlock(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
+            ResBottleneckBlock(in_channels=1024, mid_channels=256, out_channels=1024, device=device),            # 1024 -> [256] -> 1024, 28,  28
 
-            ResidualBottleneck(in_channels=1024, mid_channels=512, out_channels=2048, device=device, stride=2),  # 1024 -> [512] -> 2048,  7,   7 (stride /2)
-            ResidualBottleneck(in_channels=2048, mid_channels=512, out_channels=2048, device=device),            # 2048 -> [512] -> 2048,  7,   7
-            ResidualBottleneck(in_channels=2048, mid_channels=512, out_channels=2048, device=device),            # 2048 -> [512] -> 2048,  7,   7
+            ResBottleneckBlock(in_channels=1024, mid_channels=512, out_channels=2048, device=device, stride=2),  # 1024 -> [512] -> 2048,  7,   7 (stride /2)
+            ResBottleneckBlock(in_channels=2048, mid_channels=512, out_channels=2048, device=device),            # 2048 -> [512] -> 2048,  7,   7
+            ResBottleneckBlock(in_channels=2048, mid_channels=512, out_channels=2048, device=device),            # 2048 -> [512] -> 2048,  7,   7
         )
         self.head = Sequential(
            AvgPool2d(kernel_size=7),                                                                             # -> 2048, 1, 1
