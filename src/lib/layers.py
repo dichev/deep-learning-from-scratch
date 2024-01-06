@@ -454,7 +454,7 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
         N, C, H, W = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
-        Y = torch.zeros(N, self.out_channels, W_out, H_out)
+        Y = torch.zeros(N, self.out_channels, W_out, H_out, device=self.device)
         for g in range(self.groups):
             Y[:, self.slice_out(g)] = self.convs[g].forward(X[:, self.slice_in(g)])
         return Y
