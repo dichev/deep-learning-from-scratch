@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Sequential, Conv2d, Conv2dGroups, MaxPool2d, BatchNorm2d, ReLU
+from lib.layers import Module, Sequential, Conv2d, Conv2dGroups, MaxPool2d, BatchNorm2d, ReLU, SEGate
 from lib.functions.activations import relu
 
 
@@ -37,22 +37,24 @@ class Inception(Module):
         return x
 
 
-
 class ResBlock(Module):
     """
     Paper: Deep Residual Learning for Image Recognition
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, in_channels, out_channels, stride=1, device='cpu'):
+    def __init__(self, in_channels, out_channels, stride=1, attention=False, device='cpu'):
         self.downsampled = stride != 1 or in_channels != out_channels
+        self.attention = attention
 
-        self.convs = Sequential(
+        self.residual = Sequential(
             Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', device=device, stride=stride),
             BatchNorm2d(out_channels, device=device), ReLU(),
             Conv2d(out_channels, out_channels, kernel_size=3, padding='same', device=device),
             BatchNorm2d(out_channels, device=device),  # no ReLU
         )
+        if self.attention:
+            self.se_gate = SEGate(out_channels, reduction=16, device=device)
         if self.downsampled:
             self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
 
@@ -61,7 +63,9 @@ class ResBlock(Module):
         self.stride = stride
 
     def forward(self, x):
-        y = self.convs.forward(x)
+        y = self.residual.forward(x)
+        if self.attention:
+            y = self.se_gate.forward(y)
         if self.downsampled:
             x = self.project.forward(x)
         y = relu(y + x)  # add the skip connection
@@ -77,11 +81,12 @@ class ResBottleneckBlock(Module):
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, in_channels, mid_channels, out_channels, stride=1, device='cpu'):
+    def __init__(self, in_channels, mid_channels, out_channels, stride=1, attention=False, device='cpu'):
         assert mid_channels == out_channels // 4  # just following the models in the paper
         self.downsampled = stride != 1 or in_channels != out_channels
+        self.attention = attention
 
-        self.convs = Sequential(
+        self.residual = Sequential(
             Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', device=device, stride=stride),   # 1x1 conv (reduce channels)
             BatchNorm2d(mid_channels, device=device), ReLU(),
             Conv2d(mid_channels, mid_channels, kernel_size=3, padding='same', device=device),                  # 3x3 conv
@@ -89,6 +94,9 @@ class ResBottleneckBlock(Module):
             Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', device=device),                  # 1x1 conv (expand channels)
             BatchNorm2d(out_channels, device=device),  # no ReLU
         )
+        if self.attention:
+            self.se_gate = SEGate(out_channels, reduction=16, device=device)
+
         if self.downsampled:
             self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
 
@@ -98,7 +106,9 @@ class ResBottleneckBlock(Module):
         self.stride = stride
 
     def forward(self, x):
-        y = self.convs.forward(x)
+        y = self.residual.forward(x)
+        if self.attention:
+            y = self.se_gate.forward(y)
         if self.downsampled:
             x = self.project.forward(x)
         y = relu(y + x)  # add the skip connection
@@ -114,11 +124,12 @@ class ResNeXtBlock(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, mid_channels, out_channels, groups, stride=1, device='cpu'):
+    def __init__(self, in_channels, mid_channels, out_channels, groups, stride=1, attention=False, device='cpu'):
         assert mid_channels == out_channels // 2  # just following the models in the paper
         self.downsampled = stride != 1 or in_channels != out_channels
+        self.attention = attention
 
-        self.convs = Sequential(
+        self.residual = Sequential(
             Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', device=device, stride=stride),        # 1x1 conv (reduce channels)
             BatchNorm2d(mid_channels, device=device), ReLU(),
             Conv2dGroups(mid_channels, mid_channels, kernel_size=3, padding='same', device=device, groups=groups),  # groups x 3x3 conv with channels/groups
@@ -126,6 +137,8 @@ class ResNeXtBlock(Module):
             Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', device=device),                       # 1x1 conv (expand channels)
             BatchNorm2d(out_channels, device=device),  # no ReLU
         )
+        if self.attention:
+            self.se_gate = SEGate(out_channels, reduction=16, device=device)
         if self.downsampled:
             self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
 
@@ -136,7 +149,9 @@ class ResNeXtBlock(Module):
         self.stride = stride
 
     def forward(self, x):
-        y = self.convs.forward(x)
+        y = self.residual.forward(x)
+        if self.attention:
+            y = self.se_gate.forward(y)
         if self.downsampled:
             x = self.project.forward(x)
         y = relu(y + x)  # add the skip connection
@@ -144,4 +159,6 @@ class ResNeXtBlock(Module):
 
     def __repr__(self):
         return f'ResNeXtBlock(in_channels={self.in_channels}, mid_channels={self.in_channels}, out_channels={self.out_channels}, groups={self.groups}, stride={self.stride}): {self.n_params} params'
+
+
 

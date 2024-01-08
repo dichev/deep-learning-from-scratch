@@ -514,7 +514,7 @@ class MaxPool2d(Pool2d):
         super().__init__(kernel_size, stride, padding, dilation, device, padding_fill_value=-torch.inf)  # use padding with inf negatives for correct max pooling of negative inputs
 
     def pool(self, patches):
-        max_pooled, _ = patches.max(dim=2)
+        max_pooled, _ = patches.max(dim=2)  # (N, C, patches)
         return max_pooled
 
     def __repr__(self):
@@ -523,10 +523,46 @@ class MaxPool2d(Pool2d):
 
 class AvgPool2d(Pool2d):
     def pool(self, patches):
-        return patches.mean(dim=2)
+        return patches.mean(dim=2)  # (N, C, patches)
 
     def __repr__(self):
         return f'AvgPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
+
+
+class SEGate(Module):
+    """
+    Paper: Squeeze-and-Excitation Gate layer
+    https://arxiv.org/pdf/1709.01507.pdf
+    """
+
+    def __init__(self, channels, reduction=16, device='cpu'):
+        self.weight  = Param((2, channels, channels//reduction), device=device)  # concatenated weights of the two linear layers
+        self.channels = channels
+        self.reduction = reduction
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.kaiming_normal_relu_(self.weight, self.channels)
+
+    def forward(self, x):
+        assert len(x.shape) == 4, f'Expected 4D input (N, C, W, H), but got {x.shape}'
+        N, C, W, H = x.shape
+
+        # Squeeze (channel-wise) - provides global (spatially unrestricted) information
+        z = x.mean(dim=(2, 3))                   # (N, C, W, H) -> (N, C)
+
+        # Excitation gate (adaptive recalibration)
+        z = relu(z @ self.weight[0])                   # (N, C) -> (N, R)
+        z = z @ self.weight[1].T                       # (N, R) -> (N, C)
+        p = sigmoid(z)  # sigmoid ensures the probs aren't mutually-exclusive
+
+        # Scale input features (self-attention)
+        x = x * p.view(N, C, 1, 1)                     # (N, C, W, H)
+        return x
+
+    def __repr__(self):
+        return f'SEGate({self.channels}, {self.reduction}): {self.n_params} params'
 
 
 class ModuleList(list, Module):
