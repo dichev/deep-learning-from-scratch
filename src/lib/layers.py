@@ -492,6 +492,10 @@ class Pool2d(Module):
 
     def forward(self, X):
         N, C, W, H, = X.shape
+        if self.kernel_size == W == H and self.stride == 1 and self.dilation == 1 and self.padding == (0, 0, 0, 0):
+            # shortcut computations if the pooling is global (but still channel-wise)
+            return self.pool(X.view(N, C, -1)).view(N, C, 1, 1)       # (N, C, W, H) -> # (N, C, 1, 1)
+
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         if max(self.padding) > 0:  # the padding value for max pooling must be inf negatives for correct max pooling of negative inputs
@@ -514,7 +518,7 @@ class MaxPool2d(Pool2d):
         super().__init__(kernel_size, stride, padding, dilation, device, padding_fill_value=-torch.inf)  # use padding with inf negatives for correct max pooling of negative inputs
 
     def pool(self, patches):
-        max_pooled, _ = patches.max(dim=2)  # (N, C, patches)
+        max_pooled, _ = patches.max(dim=2)  # (N, C, k*k, patches) -> (N, C, patches)
         return max_pooled
 
     def __repr__(self):
@@ -523,7 +527,7 @@ class MaxPool2d(Pool2d):
 
 class AvgPool2d(Pool2d):
     def pool(self, patches):
-        return patches.mean(dim=2)  # (N, C, patches)
+        return patches.mean(dim=2)  # (N, C, k*k, patches) -> (N, C, patches)
 
     def __repr__(self):
         return f'AvgPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
