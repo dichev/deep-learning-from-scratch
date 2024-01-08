@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Linear, RNN, LayerNorm
+from lib.layers import Module, Linear, RNN, LayerNorm, ModuleList
 from lib.functions import init
 from lib.functions.activations import softmax
 from preprocessing.integer import one_hot
@@ -15,15 +15,9 @@ class RNN_factory(Module):
         self.device = device
         self.cell_type = cell
 
-        self.rnn_layers = [RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)]
+        self.rnn_layers = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)])
         if direction == 'bidirectional':
-            self.rnn_layers_reverse = [RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm, device=device) for _ in range(n_layers)]
-
-        # register the RNN layers (in the right order) as attributes to be detected by self.parameters()
-        for i in range(n_layers):
-            setattr(self, f'rnn_{i}', self.rnn_layers[i])
-            if direction == 'bidirectional':
-                setattr(self, f'rnn_{i}_rev', self.rnn_layers_reverse[i])
+            self.rnn_layers_reverse = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm, device=device) for _ in range(n_layers)])
 
         self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal_)
 
