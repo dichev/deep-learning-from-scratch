@@ -1,6 +1,7 @@
 import pytest
 import torch
-from models.convolutional_networks import SimpleCNN, SimpleFullyCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, Inception, GoogLeNet, DeepPlainCNN
+from models.convolutional_networks import SimpleCNN, SimpleFullyCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet, DeepPlainCNN
+from models.blocks.convolutional_blocks import Inception
 from utils.rng import seed_global
 
 @torch.no_grad()

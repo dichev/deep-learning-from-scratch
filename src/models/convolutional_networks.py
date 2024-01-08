@@ -1,6 +1,7 @@
 import torch
 from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, BatchNorm2d, Dropout, LocalResponseNorm, ReLU, Flatten
-from lib.functions.activations import softmax, relu, tanh
+from lib.functions.activations import relu, tanh
+from models.blocks.convolutional_blocks import Inception
 
 
 class SimpleCNN(Module):
@@ -258,40 +259,6 @@ class VGG16(Module):
     def test(self, n_samples=1):
         x = torch.randn(n_samples, 3, 224, 224).to(self.device)
         return self.forward(x, verbose=True)
-
-
-class Inception(Module):
-    """
-    Paper: Going deeper with convolutions
-    https://arxiv.org/pdf/1409.4842.pdf?
-    """
-
-    def __init__(self, in_channels, out_channels, spec=(0, (0, 0), (0, 0), 0), device='cpu'):
-        c1, (c2_reduce, c2), (c3_reduce, c3), c4 = spec
-        assert out_channels == c1 + c2 + c3 + c4, f'Wrong channel spec: expected {out_channels} total output channels, but got {c1}+{c2}+{c3}+{c4}={c1 + c2 + c3 + c4}'
-
-        self.branch1 = Sequential(
-            Conv2d(in_channels, c1, kernel_size=1, device=device))
-        self.branch2 = Sequential(
-            Conv2d(in_channels, c2_reduce, kernel_size=1, device=device), ReLU(),
-            Conv2d(c2_reduce, c2, kernel_size=3, padding='same', device=device))
-        self.branch3 = Sequential(
-            Conv2d(in_channels, c3_reduce, kernel_size=1, device=device), ReLU(),
-            Conv2d(c3_reduce, c3, kernel_size=5, padding='same', device=device))
-        self.branch4 = Sequential(
-            MaxPool2d(kernel_size=3, padding='same'),
-            Conv2d(in_channels, c4, kernel_size=1, device=device))
-
-    def forward(self, x):
-        features = [
-            self.branch1.forward(x),
-            self.branch2.forward(x),
-            self.branch3.forward(x),
-            self.branch4.forward(x),
-        ]
-        x = torch.cat(features, dim=1)  # 4 x (N, C, W, H) ->  (N, 4*C, W, H)
-        x = torch.relu(x)  # it might be attached outside the module
-        return x
 
 
 class GoogLeNet(Module):  # Inception modules
