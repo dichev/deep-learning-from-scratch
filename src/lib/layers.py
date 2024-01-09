@@ -113,7 +113,7 @@ class BatchNorm2d(Module):
     def forward(self, x):
         assert len(x.shape) == 4, f'BatchNorm2d layer requires 4D input, but got: {x.shape}'
         N, C, W, H = x.shape
-        assert C == self.size, f'Expected self.size channels from the input, but got {C}'
+        assert C == self.size, f'Expected {self.size} channels from the input, but got {C}'
 
         # mini-batch statistics
         if torch.is_grad_enabled():
@@ -188,7 +188,7 @@ class Dropout(Module):
         self.p = p
 
     def forward(self, x):  # note that each sample in the mini-batch is zeroed independently
-        if torch.is_grad_enabled():
+        if self.p > 0 and torch.is_grad_enabled():
             x = x.clone()
             dropped = torch.rand_like(x) < self.p  # same as torch.bernoulli(x, self.p)
             x[dropped] = 0
@@ -573,7 +573,8 @@ class ModuleList(list, Module):
     def __init__(self, modules):
         super().__init__()
         for module in modules:
-            self.add(module)
+            if module is not None:  # sometimes None element is passed when the module is under condition (e.g. [... , Dropout(dropout_rate) if dropout_rate else None, ...]
+                self.add(module)
 
     def add(self, module):
         assert isinstance(module, Module) or callable(module), f'Expected only Module instances or functions, but got: {module}'
@@ -593,14 +594,18 @@ class Sequential(ModuleList):
         if verbose:
             print(list(x.shape), '<-', 'Input')
         for i, module in enumerate(self):
-            if isinstance(module, Sequential):
-                x = module.forward(x, verbose=verbose)
-            elif isinstance(module, Module):
-                x = module.forward(x)
-            elif callable(module):
-                x = module(x)
-            else:
-                raise Exception('Unexpected module: ' + type(module))
+            try:
+                if isinstance(module, Sequential):
+                    x = module.forward(x, verbose=verbose)
+                elif isinstance(module, Module):
+                    x = module.forward(x)
+                elif callable(module):
+                    x = module(x)
+                else:
+                    raise Exception('Unexpected module: ' + type(module))
+            except Exception as e:  # simplifies debugging
+                print('ERROR', f'<- {i}.', module)
+                raise e
             if verbose:
                 print(list(x.shape), f'<- {i}.', module)
         # for name, module in self.modules():

@@ -1,6 +1,6 @@
 import torch
 from lib.layers import Module, Sequential, Linear, Conv2d, Conv2dGroups, AvgPool2d, MaxPool2d, BatchNorm2d, ReLU, Flatten
-from models.blocks.convolutional_blocks import ResBlock, ResBottleneckBlock, ResNeXtBlock
+from models.blocks.convolutional_blocks import ResBlock, ResBottleneckBlock, ResNeXtBlock, DenseBlock, DenseTransition
 
 class ResNet34(Module):
     """
@@ -192,4 +192,53 @@ class SEResNeXt50(ResNeXt50):
     """
     def __init__(self, n_classes=1000, device='cpu'):
         super().__init__(n_classes, attention=True, device=device)
+
+
+class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
+    """
+    Paper: Densely Connected Convolutional Networks
+    https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
+    """
+
+    def __init__(self, n_classes=1000, dropout=.2, device='cpu'):
+        self.stem = Sequential(                                                                               # in:   3, 224, 224
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', device=device),   # ->   64, 112, 112
+            BatchNorm2d(64, device=device), ReLU(),
+            MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1), device=device),                          # ->   64,  56,  56 (max)
+        )
+        self.body = Sequential(
+            DenseBlock(in_channels=64, growth_rate=32, n_convs=6, dropout=dropout, device=device),            # ->  256,  56,  56  [64 + 32*6]
+            DenseTransition(in_channels=256, out_channels=128, downsample_by=2, device=device),               # ->  256,  28,  28  (avg)
+
+            DenseBlock(in_channels=128, growth_rate=32, n_convs=12, dropout=dropout, device=device),          # ->  512,  28,  28  [128 + 32*12]
+            DenseTransition(in_channels=512, out_channels=256, downsample_by=2, device=device),               # ->  256,  14,  14  (avg)
+
+            DenseBlock(in_channels=256, growth_rate=32, n_convs=24, dropout=dropout, device=device),          # -> 1024,  14,  14  [256 + 32*24]
+            DenseTransition(in_channels=1024, out_channels=512, downsample_by=2, device=device),              # ->  512,   7,   7  (avg)
+
+            DenseBlock(in_channels=512, growth_rate=32, n_convs=16, dropout=dropout, device=device),          # -> 1024,   7,   7  [512 + 32*16]
+        )
+        self.head = Sequential(
+            BatchNorm2d(1024, device=device), ReLU(),
+            AvgPool2d(kernel_size=7),                                                                         # ->  1024, 1, 1
+            Flatten(),                                                                                        # ->  1024
+            Linear(input_size=1024, output_size=n_classes, device=device)                                     # ->  n_classes(1000)
+        )
+        self.device = device
+
+    def forward(self, x, verbose=False):
+        N, C, W, H = x.shape
+        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+
+        x = self.stem.forward(x, verbose)
+        x = self.body.forward(x, verbose)
+        x = self.head.forward(x, verbose)
+        # x = softmax(x)
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        x = torch.randn(n_samples, 3, 224, 224).to(self.device)
+        return self.forward(x, verbose=True)
+
 

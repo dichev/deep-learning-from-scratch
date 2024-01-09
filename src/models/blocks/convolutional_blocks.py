@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Sequential, Conv2d, Conv2dGroups, MaxPool2d, BatchNorm2d, ReLU, SEGate
+from lib.layers import Module, ModuleList, Sequential, Conv2d, Conv2dGroups, MaxPool2d, BatchNorm2d, ReLU, SEGate, AvgPool2d, Dropout
 from lib.functions.activations import relu
 
 
@@ -161,4 +161,79 @@ class ResNeXtBlock(Module):
         return f'ResNeXtBlock(in_channels={self.in_channels}, mid_channels={self.in_channels}, out_channels={self.out_channels}, groups={self.groups}, stride={self.stride}): {self.n_params} params'
 
 
+class DenseLayer(Module):
+    """
+    Paper: Densely Connected Convolutional Networks
+    https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
+    """
 
+    def __init__(self, in_channels, out_channels, bottleneck_channels_mplr=4, dropout_rate=0., device='cpu'):
+        bottle_channels = out_channels * bottleneck_channels_mplr
+        self.layer = Sequential(
+            BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
+            Conv2d(in_channels, bottle_channels, kernel_size=1, device=device),                   # 1x1 bottleneck
+            Dropout(dropout_rate) if dropout_rate else None,
+            BatchNorm2d(bottle_channels, device=device), ReLU(),
+            Conv2d(bottle_channels, out_channels, kernel_size=3, padding='same', device=device),  # 3x3 conv
+            Dropout(dropout_rate) if dropout_rate else None,
+        )
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.bottleneck_channels_mplr = bottleneck_channels_mplr
+        self.dropout_rate = dropout_rate
+
+    def forward(self, x):
+        x = self.layer.forward(x)
+        return x
+
+    def __repr__(self):
+        return f'DenseLayer(in_channels={self.in_channels}, out_channels={self.out_channels}, bottleneck_channels_mplr={self.bottleneck_channels_mplr}, dropout={self.dropout_rate}): {self.n_params} params'
+
+
+class DenseBlock(Module):  # with bottleneck
+    """
+    Paper: Densely Connected Convolutional Networks
+    https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
+    """
+
+    def __init__(self, in_channels, growth_rate, n_convs, bottleneck_channels_mplr=4, dropout=0., device='cpu'):
+        self.layers = ModuleList([
+            DenseLayer(in_channels + i * growth_rate, growth_rate, bottleneck_channels_mplr, dropout, device)
+            for i in range(n_convs)
+        ])
+        self.in_channels = in_channels
+        self.out_channels = growth_rate * n_convs
+
+    def forward(self, x):
+        for layer in self.layers:
+            y = layer.forward(x)
+            x = torch.cat((y, x), dim=1)  # concatenate the skip connection  (N, C, W, H) -> (N, 2*C, W, H)
+        return x
+
+    def __repr__(self):
+        return f'DenseBlock(in_channels={self.in_channels}, out_channels={self.out_channels}): {self.n_params} params'
+
+
+class DenseTransition(Module):
+    """
+    Paper: Densely Connected Convolutional Networks
+    https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
+    """
+
+    def __init__(self, in_channels, out_channels, downsample_by=2, device='cpu'):
+        self.downsample = Sequential(
+            BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
+            Conv2d(in_channels,  out_channels, kernel_size=1, padding='same', device=device),    # 1x1 conv (reduce channels)
+            AvgPool2d(kernel_size=2, stride=downsample_by, device=device),                       # pool /2
+        )
+        self.compression_factor = out_channels / in_channels
+        self.downsampling = downsample_by
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = self.downsample.forward(x)
+        return x
+
+    def __repr__(self):
+        return f'DenseTransition(in_channels={self.in_channels}, out_channels={self.out_channels}, downsampling={self.downsampling}): {self.n_params} params'
