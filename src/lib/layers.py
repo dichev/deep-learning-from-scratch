@@ -383,9 +383,10 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True, device='cpu'):
         self.weight = Param((out_channels, in_channels, kernel_size, kernel_size), device=device)  # (C_out, C_in, K, K)
-        self.bias = Param((out_channels,), device=device)  # (C)
+        if bias:
+            self.bias = Param((out_channels,), device=device)  # (C)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -394,6 +395,7 @@ class Conv2d(Module):
         self.stride = stride
         self.device = device
         self.padding = padding
+        self.has_bias = bias
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
         self.reset_parameters()
@@ -401,7 +403,8 @@ class Conv2d(Module):
     @torch.no_grad()
     def reset_parameters(self):
         init.kaiming_normal_relu_(self.weight, self.in_channels * self.kernel_size * self.kernel_size)
-        init.kaiming_normal_relu_(self.bias, 1)
+        if self.has_bias:
+            init.kaiming_normal_relu_(self.bias, 1)
 
     def forward(self, X):
         N, C, W, H, = X.shape
@@ -421,15 +424,17 @@ class Conv2d(Module):
         """
 
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
-        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)                            # (N, kernel_size_flat, patches)
-        kernel = self.weight.reshape(self.out_channels, -1)                                                          # * (channels, kernel_size_flat)
-        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                                            # -> (N, channels, patches)
-        Y = convolution.reshape(N, self.out_channels, W_out, H_out) + self.bias.reshape(1, -1, 1, 1)   # (N, channels, out_width, out_height)
+        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)         # (N, kernel_size_flat, patches)
+        kernel = self.weight.reshape(self.out_channels, -1)                               # * (channels, kernel_size_flat)
+        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                         # -> (N, channels, patches)
+        Y = convolution.reshape(N, self.out_channels, W_out, H_out)                      # (N, channels, out_width, out_height)
+        if self.has_bias:
+            Y += self.bias.reshape(1, -1, 1, 1)
 
         return Y  # (N, C_out, W_out, H_out)
 
     def __repr__(self):
-        return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}): {self.n_params} parameters'
+        return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}, bias={self.has_bias}): {self.n_params} parameters'
 
 
 class Conv2dGroups(Module):  # implemented as a stack of convolutional layers

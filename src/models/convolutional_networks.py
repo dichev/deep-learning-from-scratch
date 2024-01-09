@@ -119,7 +119,7 @@ class LeNet5(Module):
 
 class AlexNet(Module):
     """
-    Paper: ImageNet Classification with Deep ConvolutionalNeural Networks
+    Paper: ImageNet Classification with Deep Convolutional Neural Networks
     https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf
     * Following the paper, but modified for a single GPU
     """

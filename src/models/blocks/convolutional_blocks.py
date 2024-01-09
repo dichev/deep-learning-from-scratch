@@ -167,14 +167,14 @@ class DenseLayer(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, out_channels, bottleneck_channels_mplr=4, dropout_rate=0., device='cpu'):
+    def __init__(self, in_channels, out_channels, bottleneck_channels_mplr=4, dropout_rate=0., bias=False, device='cpu'):
         bottle_channels = out_channels * bottleneck_channels_mplr
         self.layer = Sequential(
             BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
-            Conv2d(in_channels, bottle_channels, kernel_size=1, device=device),                   # 1x1 bottleneck
+            Conv2d(in_channels, bottle_channels, kernel_size=1, bias=bias, device=device),                   # 1x1 bottleneck
             Dropout(dropout_rate) if dropout_rate else None,
             BatchNorm2d(bottle_channels, device=device), ReLU(),
-            Conv2d(bottle_channels, out_channels, kernel_size=3, padding='same', device=device),  # 3x3 conv
+            Conv2d(bottle_channels, out_channels, kernel_size=3, padding='same', bias=bias, device=device),  # 3x3 conv
             Dropout(dropout_rate) if dropout_rate else None,
         )
         self.in_channels = in_channels
@@ -196,9 +196,9 @@ class DenseBlock(Module):  # with bottleneck
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, growth_rate, n_convs, bottleneck_channels_mplr=4, dropout=0., device='cpu'):
+    def __init__(self, in_channels, growth_rate, n_convs, bottleneck_channels_mplr=4, dropout=0., bias=False, device='cpu'):
         self.layers = ModuleList([
-            DenseLayer(in_channels + i * growth_rate, growth_rate, bottleneck_channels_mplr, dropout, device)
+            DenseLayer(in_channels + i * growth_rate, growth_rate, bottleneck_channels_mplr, dropout, bias, device)
             for i in range(n_convs)
         ])
         self.in_channels = in_channels
@@ -207,7 +207,7 @@ class DenseBlock(Module):  # with bottleneck
     def forward(self, x):
         for layer in self.layers:
             y = layer.forward(x)
-            x = torch.cat((y, x), dim=1)  # concatenate the skip connection  (N, C, W, H) -> (N, 2*C, W, H)
+            x = torch.cat((y, x), dim=1)  # concatenate the skip connection  (N, C, W, H) -> (N, C + n*k, W, H)
         return x
 
     def __repr__(self):
@@ -220,11 +220,11 @@ class DenseTransition(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, out_channels, downsample_by=2, device='cpu'):
+    def __init__(self, in_channels, out_channels, downsample_by=2, bias=False, device='cpu'):
         self.downsample = Sequential(
             BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
-            Conv2d(in_channels,  out_channels, kernel_size=1, padding='same', device=device),    # 1x1 conv (reduce channels)
-            AvgPool2d(kernel_size=2, stride=downsample_by, device=device),                       # pool /2
+            Conv2d(in_channels,  out_channels, kernel_size=1, padding='same', bias=bias, device=device),   # 1x1 conv (reduce channels)
+            AvgPool2d(kernel_size=2, stride=downsample_by, device=device),                                 # pool /2
         )
         self.compression_factor = out_channels / in_channels
         self.downsampling = downsample_by

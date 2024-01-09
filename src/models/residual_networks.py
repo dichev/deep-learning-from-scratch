@@ -209,13 +209,10 @@ class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
         self.body = Sequential(
             DenseBlock(in_channels=64, growth_rate=32, n_convs=6, dropout=dropout, device=device),            # ->  256,  56,  56  [64 + 32*6]
             DenseTransition(in_channels=256, out_channels=128, downsample_by=2, device=device),               # ->  256,  28,  28  (avg)
-
             DenseBlock(in_channels=128, growth_rate=32, n_convs=12, dropout=dropout, device=device),          # ->  512,  28,  28  [128 + 32*12]
             DenseTransition(in_channels=512, out_channels=256, downsample_by=2, device=device),               # ->  256,  14,  14  (avg)
-
             DenseBlock(in_channels=256, growth_rate=32, n_convs=24, dropout=dropout, device=device),          # -> 1024,  14,  14  [256 + 32*24]
             DenseTransition(in_channels=1024, out_channels=512, downsample_by=2, device=device),              # ->  512,   7,   7  (avg)
-
             DenseBlock(in_channels=512, growth_rate=32, n_convs=16, dropout=dropout, device=device),          # -> 1024,   7,   7  [512 + 32*16]
         )
         self.head = Sequential(
