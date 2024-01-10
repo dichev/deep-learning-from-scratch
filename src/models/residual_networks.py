@@ -178,7 +178,7 @@ class ResNeXt50(Module):  # same computations/params as ResNet-50, but more chan
 
 class SEResNet50(ResNet50):
     """
-    Paper: Squeeze-and-Excitation Layer
+    Paper: Squeeze-and-Excitation Networks
     https://arxiv.org/pdf/1709.01507.pdf
     """
     def __init__(self, n_classes=1000, device='cpu'):
@@ -187,7 +187,7 @@ class SEResNet50(ResNet50):
 
 class SEResNeXt50(ResNeXt50):
     """
-    Paper: Squeeze-and-Excitation Layer
+    Paper: Squeeze-and-Excitation Networks
     https://arxiv.org/pdf/1709.01507.pdf
     """
     def __init__(self, n_classes=1000, device='cpu'):

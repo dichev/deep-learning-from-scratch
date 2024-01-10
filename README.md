@@ -11,7 +11,10 @@ I agree.
 * using PyTorch's autograd for the backpropagation
 
 
+<!-- auto-generated-bellow -->
+
 ### Layers
+
 `lib.layers` [➜](src/lib/layers.py)
 - Linear
 - Embedding
@@ -40,8 +43,11 @@ I agree.
 - AutoencoderLinear
 - Word2Vec
 
+
 ### Optimizers
+
 `lib.optimizers` [➜](src/lib/optimizers.py)
+- Optimizer
 - SGD
 - SGD_Momentum
 - AdaGrad
@@ -51,7 +57,7 @@ I agree.
 - LR_Scheduler
 - LR_StepScheduler
 - LR_PlateauScheduler
-- 
+
 `lib.regularizers` [➜](src/lib/regularizers.py)
 - L2_regularizer
 - L1_regularizer
@@ -60,8 +66,9 @@ I agree.
 - grad_clip_
 - grad_clip_norm_
 
-## Models / Networks
- 
+
+### Models / Networks
+
 `models.shallow_models` [➜](src/models/shallow_models.py)
 - Perceptron
 - SVM
@@ -77,6 +84,7 @@ I agree.
 - RestrictedBoltzmannMachine
 
 `models.recurrent_networks` [➜](src/models/recurrent_networks.py)
+- RNN_factory
 - SimpleRNN
 - LSTM
 - GRU
@@ -92,11 +100,7 @@ I agree.
 - GoogLeNet ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
 - DeepPlainCNN
 
-
 `models.residual_networks` [➜](src/models/residual_networks.py)
-- ResBlock
-- ResBottleneckBlock
-- ResNeXtBlock
 - ResNet34 ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
 - ResNet50 ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
 - ResNeXt50 ([*Aggregated Residual Transformations for Deep Neural Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf))
@@ -104,18 +108,18 @@ I agree.
 - SEResNeXt50 ([*Squeeze-and-Excitation Networks*](https://arxiv.org/pdf/1709.01507.pdf))
 - DenseNet121 ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
 
-
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
-  - Inception
-  - ResBlock
-  - ResBottleneckBlock
-  - ResNeXtBlock
-  - DenseLayer
-  - DenseBlock
-  - DenseTransition
+- Inception ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
+- ResBlock ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
+- ResBottleneckBlock ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
+- ResNeXtBlock ([*Aggregated Residual Transformations for Deep Neural Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf))
+- DenseLayer ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
+- DenseBlock ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
+- DenseTransition ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
 
-## Example usages
-- examples/ [➜](examples)
+
+### Example usages
+- examples/ [➜](examples/)
 - examples/convolutional [➜](examples/convolutional)
 - examples/energy_based [➜](examples/energy_based)
 - examples/recurrent [➜](examples/recurrent)
