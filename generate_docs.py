@@ -9,7 +9,6 @@ whitelist = {
     ],
     'Optimizers': [
         'src/lib/optimizers.py',
-        'src/lib/regularizers.py',
     ],
     'Models / Networks': [
         'src/models/shallow_models.py',
@@ -45,9 +44,9 @@ for group, paths in whitelist.items():
             module = path.replace('src/', '').replace('/', '.').replace('.py', '')
             text += f'\n`{module}` [➜]({path})\n'
             with open(path, 'r') as file:
-                pattern = r'\n(class|def) (\w+).*\n\s+(?:"""\s+Paper: (.*?)\s+(https?:\S+))?'
+                pattern = r'\nclass (\w+).*\n\s+(?:"""\s+Paper: (.*?)\s+(https?:\S+))?'
                 info = re.findall(pattern, file.read())
-                for _, cls, paper, link in info:
+                for cls, paper, link in info:
                     text += f'- {cls} ([*{paper}*]({link}))\n' if paper else f'- {cls}\n'
         else:
             text += f'- {path} [➜]({path})\n'

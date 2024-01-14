@@ -58,14 +58,6 @@ I agree.
 - LR_StepScheduler
 - LR_PlateauScheduler
 
-`lib.regularizers` [➜](src/lib/regularizers.py)
-- L2_regularizer
-- L1_regularizer
-- elastic_regularizer
-- max_norm_constraint_
-- grad_clip_
-- grad_clip_norm_
-
 
 ### Models / Networks
 
@@ -96,7 +88,7 @@ I agree.
 - LeNet5 ([*Gradient-based learning applied to document recognition*](https://hal.science/hal-03926082/document))
 - AlexNet ([*ImageNet Classification with Deep Convolutional Neural Networks*](https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
 - NetworkInNetwork ([*Network In Network*](https://arxiv.org/pdf/1312.4400.pdf))
-- VGG16 ([*Very Deep Convolutional Networks fpr Large-Scale Image Recognition*](https://arxiv.org/pdf/1409.1556.pdf))
+- VGG16 ([*Very Deep Convolutional Networks for Large-Scale Image Recognition*](https://arxiv.org/pdf/1409.1556.pdf))
 - GoogLeNet ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
 - DeepPlainCNN
 

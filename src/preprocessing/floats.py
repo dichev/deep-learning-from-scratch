@@ -5,7 +5,7 @@ def normalizeMinMax(x, x_min=None, x_max=None):
     if x_max is None:
         x_max = x.max().item()
 
-    diff = (x_max - x_min) or 1. # avoid division by zero if all values are the same
+    diff = (x_max - x_min) or 1.  # avoid division by zero if all values are the same
     x = (x - x_min) / diff
 
     if ((x < 0.) | (x > 1.)).any():

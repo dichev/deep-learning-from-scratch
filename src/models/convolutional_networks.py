@@ -215,7 +215,7 @@ class NetworkInNetwork(Module):
 
 class VGG16(Module):
     """
-    Paper: Very Deep Convolutional Networks fpr Large-Scale Image Recognition
+    Paper: Very Deep Convolutional Networks for Large-Scale Image Recognition
     https://arxiv.org/pdf/1409.1556.pdf
     """
 
