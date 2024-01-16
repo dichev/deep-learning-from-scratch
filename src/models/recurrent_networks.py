@@ -74,6 +74,10 @@ class SimpleRNN(RNN_factory):
         super().__init__(input_size, hidden_size, output_size, cell='rnn', n_layers=n_layers, direction=direction, layer_norm=layer_norm, device=device)
 
 class LSTM(RNN_factory):
+    """
+    Paper: Generating Sequences With Recurrent Neural Networks
+    https://arxiv.org/pdf/1308.0850.pdf
+    """
     def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False, device='cpu'):
         super().__init__(input_size, hidden_size, output_size, cell='lstm', n_layers=n_layers, direction=direction, layer_norm=layer_norm, device=device)
 

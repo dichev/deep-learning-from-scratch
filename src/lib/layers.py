@@ -53,6 +53,10 @@ class Embedding(Module):  # aka lookup table
 
 
 class BatchNorm1d(Module):
+    """
+    Paper: Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
+    https://proceedings.mlr.press/v37/ioffe15.pdf
+    """
 
     def __init__(self, size, device='cpu'):
         self.beta = Param((1, size), device=device)
@@ -92,6 +96,10 @@ class BatchNorm1d(Module):
         return f'BatchNorm1d({self.size}): {self.n_params} params'
 
 class BatchNorm2d(Module):
+    """
+    Paper: Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
+    https://proceedings.mlr.press/v37/ioffe15.pdf
+    """
 
     def __init__(self, size, device='cpu'):
         self.beta = Param((1, size, 1, 1), device=device)
@@ -136,6 +144,10 @@ class BatchNorm2d(Module):
 
 
 class LayerNorm(Module):
+    """
+    Paper: Layer Normalization
+    https://arxiv.org/pdf/1607.06450.pdf
+    """
 
     def __init__(self, size, device='cpu'):
         self.shift = Param((1, size), device=device)
@@ -159,6 +171,10 @@ class LayerNorm(Module):
 
 
 class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/resize:fit:720/format:webp/1*MFl0tPjwvc49HirAJZPhEA.png
+    """
+    Paper: ImageNet Classification with Deep Convolutional Neural Networks
+    https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf
+    """
 
     def __init__(self, size, alpha=1e-4, beta=.75, k=1.):
         assert size % 2 == 1, f'size must be odd, but got {size}'
@@ -182,6 +198,10 @@ class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/re
 
 
 class Dropout(Module):
+    """
+    Paper: Dropout: A Simple Way to Prevent Neural Networks from Overfitting
+    https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf
+    """
 
     def __init__(self, p=.5):  # as prob to be zeroed
         assert 0 <= p < 1, f'Dropout probability must be in [0, 1], but got {p}'
@@ -239,6 +259,10 @@ class RNN_cell(Module):
 
 
 class LSTM_cell(Module):
+    """
+    Paper: Generating Sequences With Recurrent Neural Networks
+    https://arxiv.org/pdf/1308.0850.pdf
+    """
     def __init__(self, input_size, hidden_size, device='cpu'):
         self.weight = Param((input_size + hidden_size, 4 * hidden_size), device=device)  # (I+H, 4H)
         self.bias = Param((1, 4 * hidden_size), device=device)  # (1, 4H)

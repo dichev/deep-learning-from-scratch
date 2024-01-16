@@ -18,13 +18,13 @@ I agree.
 `lib.layers` [➜](src/lib/layers.py)
 - Linear
 - Embedding
-- BatchNorm1d
-- BatchNorm2d
-- LayerNorm
-- LocalResponseNorm
-- Dropout
+- BatchNorm1d ([*Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift*](https://proceedings.mlr.press/v37/ioffe15.pdf))
+- BatchNorm2d ([*Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift*](https://proceedings.mlr.press/v37/ioffe15.pdf))
+- LayerNorm ([*Layer Normalization*](https://arxiv.org/pdf/1607.06450.pdf))
+- LocalResponseNorm ([*ImageNet Classification with Deep Convolutional Neural Networks*](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
+- Dropout ([*Dropout: A Simple Way to Prevent Neural Networks from Overfitting*](https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf))
 - RNN_cell
-- LSTM_cell
+- LSTM_cell ([*Generating Sequences With Recurrent Neural Networks*](https://arxiv.org/pdf/1308.0850.pdf))
 - GRU_cell
 - RNN
 - Conv2d
@@ -41,7 +41,7 @@ I agree.
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
 - AutoencoderLinear
-- Word2Vec
+- Word2Vec ([*Efficient Estimation of Word Representations in Vector Space*](https://arxiv.org/pdf/1301.3781.pdf))
 
 
 ### Optimizers
@@ -78,7 +78,7 @@ I agree.
 `models.recurrent_networks` [➜](src/models/recurrent_networks.py)
 - RNN_factory
 - SimpleRNN
-- LSTM
+- LSTM ([*Generating Sequences With Recurrent Neural Networks*](https://arxiv.org/pdf/1308.0850.pdf))
 - GRU
 - EchoStateNetwork
 

@@ -38,6 +38,10 @@ class AutoencoderLinear(Module):
 
 
 class Word2Vec(Module):
+    """
+    Paper: Efficient Estimation of Word Representations in Vector Space
+    https://arxiv.org/pdf/1301.3781.pdf
+    """
     def __init__(self, vocab_size, embedding_size, device='cpu'):
         self.target = Embedding(vocab_size, embedding_size, device=device)
         self.context = Embedding(vocab_size, embedding_size, device=device)
