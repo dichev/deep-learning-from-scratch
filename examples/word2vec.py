@@ -36,6 +36,10 @@ def word_sampling_table(word_counts, sampling_factor=1e-05):
 def generate_training_batch(sequences, word_counts, subsampling=True):
     targets_, contexts_, labels_ = [], [], []  # the first dimension  will vary
 
+    # set counters UNK and PAD token counter to zero, to be not subsampled
+    word_counts = word_counts.copy()
+    word_counts[:2] = 0
+
     # Generate distribution for the negative sampling (the factor 3/4 is empirically recommended in the word2vec paper)
     word_frequencies = word_counts ** (3/4) / np.sum(word_counts ** (3/4))
 
@@ -103,12 +107,12 @@ for epoch in pbar:
     for i in range(0, N, BATCH_SIZE):
         batch = indices[i:i+BATCH_SIZE]
         y = labels[batch]
-        y_hat_logit = word2vec.forward(targets[batch], contexts[batch])
 
+        optimizer.zero_grad()
+        y_hat_logit = word2vec.forward(targets[batch], contexts[batch])
         cost = cross_entropy(y_hat_logit, y, logits=True)
         cost.backward()
         optimizer.step()
-        optimizer.zero_grad()
 
         loss.append(cost.item())
         predicted, actual = y_hat_logit.argmax(1), y.argmax(1)

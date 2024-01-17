@@ -41,7 +41,7 @@ class Embedding(Module):  # aka lookup table
 
     @torch.no_grad()
     def reset_parameters(self):
-        init.kaiming_normal_relu_(self.weight, self.input_size)
+        self.weight.normal_()
 
     def forward(self, indices):
         assert torch.is_tensor(indices) and not torch.is_floating_point(indices), 'Use only tensor integer as indices, to avoid fancy indexing surprises'

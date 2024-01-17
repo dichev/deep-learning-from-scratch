@@ -46,10 +46,11 @@ for epoch in pbar:
         ratings = torch.tensor(ratings, device=DEVICE)
 
         # optimize
+        optimizer.zero_grad()
         predictions = model.forward(users, animes)
         cost = ((ratings - predictions)**2).mean()
         cost.backward()
-        optimizer.step().zero_grad()
+        optimizer.step()
 
         # collect metrics
         history.append((cost.item(),))
