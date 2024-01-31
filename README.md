@@ -33,6 +33,9 @@ I agree.
 - MaxPool2d
 - AvgPool2d
 - SEGate ([*Squeeze-and-Excitation Gate layer*](https://arxiv.org/pdf/1709.01507.pdf))
+- GraphLayer
+- GraphConvLayer ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
+- GraphSAGELayer ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
 - ModuleList
 - Sequential
 - ReLU

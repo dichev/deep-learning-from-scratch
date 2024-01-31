@@ -598,6 +598,134 @@ class SEGate(Module):
         return f'SEGate({self.channels}, {self.reduction}): {self.n_params} params'
 
 
+class GraphLayer(Module):  # graph layer with node-wise neighborhood function
+    def __init__(self, in_channels, out_channels, device='cpu'):
+        self.weight_neighbours = Param((in_channels, out_channels), device=device)  # (c_in, c_out)
+        self.weight_self = Param((in_channels, out_channels), device=device)        # (c_in, c_out)
+        self.bias = Param((1, out_channels), device=device)
+        self.in_channels, self.out_channels = in_channels, out_channels
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.kaiming_normal_relu_(self.weight_self, self.in_channels)
+        init.kaiming_normal_relu_(self.weight_neighbours, self.in_channels)
+        self.bias.zero_()
+
+    def forward(self, X, A):
+        n, c = X.shape
+        assert A.shape == (n, n)
+
+        deg = A.sum(dim=1, keepdims=True)
+        message = A @ X * torch.where(deg != 0, 1 / deg, 0)
+        X = message @ self.weight_neighbours + X @ self.weight_self + self.bias
+        return X
+
+class GraphConvLayer(Module):  # used by GCN
+    """
+    Paper: Semi-Supervised Classification with Graph Convolutional Networks
+    https://arxiv.org/pdf/1609.02907.pdf
+    """
+    def __init__(self, in_channels, out_channels, device='cpu'):
+        self.weight = Param((in_channels, out_channels), device=device)  # (c_in, c_out) - shared for self and neighbors connections
+        self.bias = Param((1, out_channels), device=device)
+        self.in_channels, self.out_channels = in_channels, out_channels
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.kaiming_normal_relu_(self.weight, self.in_channels)
+        self.bias.zero_()
+
+    def forward(self, X, A):
+        n, c = X.shape
+        assert A.shape == (n, n)
+
+        I = torch.eye(n, device=A.device)
+        A_self = A + I                     # add the self connections
+        D = A_self.sum(dim=1).diag()       # diagonal degree matrix
+        D[D != 0] = D[D != 0] ** (-1 / 2)  # inverse squared degree matrix
+        A_norm = D @ A_self @ D            # normalized adjacency matrix
+
+        H = A_norm @ X
+        X = H @ self.weight + self.bias
+        return X
+
+
+class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
+    """
+    Paper: Inductive Representation Learning on Large Graphs
+    https://arxiv.org/pdf/1706.02216.pdf
+    """
+    def __init__(self, in_channels, hidden_channels, aggregation='maxpool', device='cpu'):
+        assert aggregation in ('neighbour', 'maxpool', 'meanpool', 'mean'), f'Invalid aggregation operator: {aggregation}'
+
+        self.weight_self = Param((in_channels, hidden_channels), device=device)       # self (c_in, c_out)
+        self.weight_neighbors = Param((in_channels, hidden_channels), device=device)  # neighbours (c_in, c_out)
+        self.bias_self = Param((1, hidden_channels), device=device)
+        self.bias_neighbors = Param((1, hidden_channels), device=device)
+        if aggregation == 'maxpool':
+            self.weight_pool = Param((in_channels, in_channels), device=device)
+            self.bias_pool = Param((1, in_channels), device=device)
+
+        self.in_channels, self.hidden_channels, self.device = in_channels, hidden_channels, device
+        self.out_channels = self.hidden_channels * 2
+        self.aggregate_operator = aggregation
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        for name, param in self.parameters():
+            if 'weight' in name:
+                init.kaiming_normal_relu_(param, self.in_channels)
+            else:  # bias
+                param.zero_()
+
+    def forward(self, X, A):
+        n, c = X.shape
+        assert A.shape == (n, n)
+
+        message = self.aggregate(X, A)
+        X = torch.cat((  # project without mixing self to neighbours features
+            message @ self.weight_neighbors + self.bias_self,
+            X @ self.weight_self + self.bias_neighbors  # can be viewed as dense (skip) connection
+        ), dim=1)
+
+        # Skip activation and normalization, to use a modular approach
+        # X = relu(X)
+        # X /= X.norm(dim=-1, keepdim=True)
+
+        return X  # (n, c) -> (n, 2c)
+
+    def aggregate(self, X, A):
+        if self.aggregate_operator == 'neighbour':
+            deg = A.sum(dim=1, keepdims=True)
+            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbour_features(X, A).sum(dim=1)
+
+        elif self.aggregate_operator == 'mean':
+            neighbor_features = self.get_neighbour_features(X, A)
+            message = neighbor_features.mean(dim=1)
+
+        elif self.aggregate_operator == 'meanpool':
+            H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
+            neighbor_features = self.get_neighbour_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            message = neighbor_features.mean(dim=1)                 # and then select only the max features values across each adjacent nodes
+
+        elif self.aggregate_operator == 'maxpool':  # (paper) samples fixed number of neighbors
+            H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
+            neighbor_features = self.get_neighbour_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            message, _ = neighbor_features.max(dim=1)               # and then select only the max features values across each adjacent nodes
+
+        else:
+            raise ValueError
+        return message
+
+    def get_neighbour_features(self, X, A):
+        n, c = X.shape
+        neighbor_features = X.view(1, n, c) * A.bool().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
+        return neighbor_features
+
+
 class ModuleList(list, Module):
     def __init__(self, modules):
         super().__init__()
@@ -651,3 +779,5 @@ class Flatten(Module):
 
     def forward(self, x):
         return x.flatten(self.start_dim)
+
+
