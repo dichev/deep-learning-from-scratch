@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from lib.functions import init
 from lib.functions.activations import relu, tanh, sigmoid
-from lib.base import Param, Module
+from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int
 from collections import namedtuple
 
@@ -725,49 +725,6 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
         neighbor_features = X.view(1, n, c) * A.bool().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features
 
-
-class ModuleList(list, Module):
-    def __init__(self, modules):
-        super().__init__()
-        for module in modules:
-            if module is not None:  # sometimes None element is passed when the module is under condition (e.g. [... , Dropout(dropout_rate) if dropout_rate else None, ...]
-                self.add(module)
-
-    def add(self, module):
-        assert isinstance(module, Module) or callable(module), f'Expected only Module instances or functions, but got: {module}'
-        self.append(module)
-        setattr(self, f'm{len(self)}', module)  # this is to make the modules discoverable (refer to self.modules())
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({len(self)}): {self.n_params} parameters'
-
-
-class Sequential(ModuleList):
-
-    def __init__(self, *modules):
-        super().__init__(modules)
-
-    def forward(self, x, verbose=False):
-        if verbose:
-            print(list(x.shape), '<-', 'Input')
-        for i, module in enumerate(self):
-            try:
-                if isinstance(module, Sequential):
-                    x = module.forward(x, verbose=verbose)
-                elif isinstance(module, Module):
-                    x = module.forward(x)
-                elif callable(module):
-                    x = module(x)
-                else:
-                    raise Exception('Unexpected module: ' + type(module))
-            except Exception as e:  # simplifies debugging
-                print('ERROR', f'<- {i}.', module)
-                raise e
-            if verbose:
-                print(list(x.shape), f'<- {i}.', module)
-        # for name, module in self.modules():
-        #     x = module.forward(x)
-        return x
 
 class ReLU(Module):
     def forward(self, x):

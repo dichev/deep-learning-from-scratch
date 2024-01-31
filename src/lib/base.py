@@ -2,6 +2,7 @@ import json
 import re
 import torch
 from torch._C import _disabled_torch_function_impl
+from abc import abstractmethod
 
 class Param(torch.Tensor):
     def __new__(cls, size, device=None, requires_grad=True):
@@ -23,9 +24,9 @@ class Param(torch.Tensor):
 
 
 class Module:
-
-    def forward(self, x):
-        raise NotImplementedError
+    @abstractmethod
+    def forward(self, *args, **kwargs):
+        pass
 
     def parameters(self, named=True, prefix='', deep=True):
         for key, val in vars(self).items():
@@ -83,3 +84,44 @@ class Module:
     def __repr__(self):
         return f'{self.__class__.__name__}(): {self.n_params} parameters'.replace(': 0 parameters', '')
 
+class ModuleList(list, Module):
+    def __init__(self, modules):
+        super().__init__()
+        for module in modules:
+            if module is not None:  # sometimes None element is passed when the module is under condition (e.g. [... , Dropout(dropout_rate) if dropout_rate else None, ...]
+                self.add(module)
+
+    def add(self, module):
+        assert isinstance(module, Module) or callable(module), f'Expected only Module instances or functions, but got: {module}'
+        self.append(module)
+        setattr(self, f'm{len(self)}', module)  # this is to make the modules discoverable (refer to self.modules())
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({len(self)}): {self.n_params} parameters'
+
+class Sequential(ModuleList):
+
+    def __init__(self, *modules):
+        super().__init__(modules)
+
+    def forward(self, x, verbose=False):
+        if verbose:
+            print(list(x.shape), '<-', 'Input')
+        for i, module in enumerate(self):
+            try:
+                if isinstance(module, Sequential):
+                    x = module.forward(x, verbose=verbose)
+                elif isinstance(module, Module):
+                    x = module.forward(x)
+                elif callable(module):
+                    x = module(x)
+                else:
+                    raise Exception('Unexpected module: ' + type(module))
+            except Exception as e:  # simplifies debugging
+                print('ERROR', f'<- {i}.', module)
+                raise e
+            if verbose:
+                print(list(x.shape), f'<- {i}.', module)
+        # for name, module in self.modules():
+        #     x = module.forward(x)
+        return x
