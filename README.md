@@ -36,8 +36,6 @@ I agree.
 - GraphLayer
 - GraphConvLayer ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
 - GraphSAGELayer ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
-- ModuleList
-- Sequential
 - ReLU
 - Flatten
 
@@ -117,5 +115,6 @@ I agree.
 - examples/ [➜](examples/)
 - examples/convolutional [➜](examples/convolutional)
 - examples/energy_based [➜](examples/energy_based)
+- examples/graph [➜](examples/graph)
 - examples/recurrent [➜](examples/recurrent)
 - examples/shallow [➜](examples/shallow)

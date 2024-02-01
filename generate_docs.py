@@ -22,6 +22,7 @@ whitelist = {
         'examples/',
         'examples/convolutional',
         'examples/energy_based',
+        'examples/graph',
         'examples/recurrent',
         'examples/shallow',
     ]
