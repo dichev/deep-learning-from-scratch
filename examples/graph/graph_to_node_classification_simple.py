@@ -18,7 +18,7 @@ EPOCHS = 100
 
 # Graph dataset
 dataset = KarateClub()
-A = to_adj_matrix(dataset.edge_index)
+A = to_adj_matrix(dataset.edge_index, sparse=False)
 
 # Define models
 class GraphNet(Module):  # Baseline
@@ -56,7 +56,7 @@ for name, model in models.items():
         if epoch % 10 == 0:
             print(f'Epoch {epoch:>3} | Loss: {loss:.2f} | Acc: {acc*100:.2f}%')
 
-    G = nx.DiGraph(A.numpy())
+    G = nx.DiGraph(A.to_dense().numpy())
     plt.figure(figsize=(7, 7))
     plt.title(f'{name} ({acc*100:.2f}% accuracy)')
     plt.axis(False)

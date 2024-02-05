@@ -631,7 +631,7 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
         n, c = X.shape
         assert A.shape == (n, n)
 
-        deg = A.sum(dim=1, keepdims=True)
+        deg = A.sum(dim=1, keepdims=True).to_dense()
         message = A @ X * torch.where(deg != 0, 1 / deg, 0)
         X = message @ self.weight_neighbours + X @ self.weight_self + self.bias
         return X
@@ -646,7 +646,7 @@ class GraphAddLayer(Module):  # used by GIN (Graph Isomorphism Network)
         assert A.shape == (n, n)
 
         # Aggregation - simply add neighbors and self features (summation is considered injective in contrast to mean or max)
-        I = identity(n, sparse=A.layout == torch.sparse_coo, device=X.device)
+        I = identity(n, sparse=A.is_sparse, device=X.device)
         X = (A + (1 + self.eps) * I) @ X
         return X
 
@@ -671,11 +671,13 @@ class GraphConvLayer(Module):  # used by GCN
         n, c = X.shape
         assert A.shape == (n, n)
 
-        I = torch.eye(n, device=A.device)
-        A_self = A + I                     # add the self connections
-        D = A_self.sum(dim=1).diag()       # diagonal degree matrix
-        D[D != 0] = D[D != 0] ** (-1 / 2)  # inverse squared degree matrix
-        A_norm = D @ A_self @ D            # normalized adjacency matrix
+        I = identity(n, sparse=A.is_sparse, device=A.device)
+        A_self = A + I                         # add the self connections
+        D = I * A_self.sum(dim=1).to_dense()   # diagonal degree matrix
+        D = D ** (-1 / 2)                      # inverse squared degree matrix
+        if D.layout != torch.sparse_coo:
+            D[torch.isinf(D)] = 0              # handle zero division (note that's not necessary if D is in sparse layout)
+        A_norm = D @ A_self @ D                # normalized adjacency matrix
 
         H = A_norm @ X
         X = H @ self.weight + self.bias
@@ -694,7 +696,7 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
         self.weight_neighbors = Param((in_channels, hidden_channels), device=device)  # neighbours (c_in, c_out)
         self.bias_self = Param((1, hidden_channels), device=device)
         self.bias_neighbors = Param((1, hidden_channels), device=device)
-        if aggregation == 'maxpool':
+        if aggregation in ('maxpool', 'meanpool'):
             self.weight_pool = Param((in_channels, in_channels), device=device)
             self.bias_pool = Param((1, in_channels), device=device)
 
@@ -729,7 +731,7 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
 
     def aggregate(self, X, A):
         if self.aggregate_operator == 'neighbour':
-            deg = A.sum(dim=1, keepdims=True)
+            deg = A.sum(dim=1, keepdims=True).to_dense()
             message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbour_features(X, A).sum(dim=1)
 
         elif self.aggregate_operator == 'mean':
@@ -752,7 +754,7 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
 
     def get_neighbour_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
         n, c = X.shape
-        neighbor_features = X.view(1, n, c) * A.bool().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
+        neighbor_features = X.view(1, n, c) * A.bool().to_dense().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features
 
 
