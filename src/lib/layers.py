@@ -615,7 +615,7 @@ class SEGate(Module):
 
 class GraphLayer(Module):  # graph layer with node-wise neighborhood function
     def __init__(self, in_channels, out_channels, device='cpu'):
-        self.weight_neighbours = Param((in_channels, out_channels), device=device)  # (c_in, c_out)
+        self.weight_neighbors = Param((in_channels, out_channels), device=device)  # (c_in, c_out)
         self.weight_self = Param((in_channels, out_channels), device=device)        # (c_in, c_out)
         self.bias = Param((1, out_channels), device=device)
         self.in_channels, self.out_channels = in_channels, out_channels
@@ -624,7 +624,7 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
     @torch.no_grad()
     def reset_parameters(self):
         init.kaiming_normal_relu_(self.weight_self, self.in_channels)
-        init.kaiming_normal_relu_(self.weight_neighbours, self.in_channels)
+        init.kaiming_normal_relu_(self.weight_neighbors, self.in_channels)
         self.bias.zero_()
 
     def forward(self, X, A):
@@ -633,7 +633,7 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
 
         deg = A.sum(dim=1, keepdims=True).to_dense()
         message = A @ X * torch.where(deg != 0, 1 / deg, 0)
-        X = message @ self.weight_neighbours + X @ self.weight_self + self.bias
+        X = message @ self.weight_neighbors + X @ self.weight_self + self.bias
         return X
 
 
@@ -690,10 +690,10 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
     https://arxiv.org/pdf/1706.02216.pdf
     """
     def __init__(self, in_channels, hidden_channels, aggregation='maxpool', device='cpu'):
-        assert aggregation in ('neighbour', 'maxpool', 'meanpool', 'mean'), f'Invalid aggregation operator: {aggregation}'
+        assert aggregation in ('neighbor', 'maxpool', 'meanpool', 'mean'), f'Invalid aggregation operator: {aggregation}'
 
         self.weight_self = Param((in_channels, hidden_channels), device=device)       # self (c_in, c_out)
-        self.weight_neighbors = Param((in_channels, hidden_channels), device=device)  # neighbours (c_in, c_out)
+        self.weight_neighbors = Param((in_channels, hidden_channels), device=device)  # neighbors (c_in, c_out)
         self.bias_self = Param((1, hidden_channels), device=device)
         self.bias_neighbors = Param((1, hidden_channels), device=device)
         if aggregation in ('maxpool', 'meanpool'):
@@ -718,7 +718,7 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
         assert A.shape == (n, n)
 
         message = self.aggregate(X, A)
-        X = torch.cat((  # project without mixing self to neighbours features
+        X = torch.cat((  # project without mixing self to neighbors features
             message @ self.weight_neighbors + self.bias_self,
             X @ self.weight_self + self.bias_neighbors  # can be viewed as dense (skip) connection
         ), dim=1)
@@ -730,29 +730,29 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
         return X  # (n, c) -> (n, 2c)
 
     def aggregate(self, X, A):
-        if self.aggregate_operator == 'neighbour':
+        if self.aggregate_operator == 'neighbor':
             deg = A.sum(dim=1, keepdims=True).to_dense()
-            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbour_features(X, A).sum(dim=1)
+            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbor_features(X, A).sum(dim=1)
 
         elif self.aggregate_operator == 'mean':
-            neighbor_features = self.get_neighbour_features(X, A)
+            neighbor_features = self.get_neighbor_features(X, A)
             message = neighbor_features.mean(dim=1)
 
         elif self.aggregate_operator == 'meanpool':
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
-            neighbor_features = self.get_neighbour_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            neighbor_features = self.get_neighbor_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
             message = neighbor_features.mean(dim=1)                 # and then select only the max features values across each adjacent nodes
 
         elif self.aggregate_operator == 'maxpool':  # (paper) samples fixed number of neighbors
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
-            neighbor_features = self.get_neighbour_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            neighbor_features = self.get_neighbor_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
             message, _ = neighbor_features.max(dim=1)               # and then select only the max features values across each adjacent nodes
 
         else:
             raise ValueError
         return message
 
-    def get_neighbour_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
+    def get_neighbor_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
         n, c = X.shape
         neighbor_features = X.view(1, n, c) * A.bool().to_dense().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features

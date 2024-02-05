@@ -27,10 +27,10 @@ def skip_grams(sequence, half_window=2, n=2, padding_token=0):
     sequence = [s for s in sequence if s != padding_token]  # drop the paddings
     if len(sequence) > 1:
         for i, word in enumerate(sequence):
-            neighbours = sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
-            for comb in combinations(neighbours, n-1):
+            neighbors = sequence[max(0, i-half_window):i] + sequence[i+1:i+half_window+1]
+            for comb in combinations(neighbors, n-1):
                 grams.append([word, *comb])
-                full_context.append(neighbours)
+                full_context.append(neighbors)
 
     return grams, full_context
 
