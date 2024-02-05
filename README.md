@@ -18,13 +18,13 @@ I agree.
 `lib.layers` [➜](src/lib/layers.py)
 - Linear
 - Embedding
-- BatchNorm1d ([*Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift*](https://proceedings.mlr.press/v37/ioffe15.pdf))
-- BatchNorm2d ([*Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift*](https://proceedings.mlr.press/v37/ioffe15.pdf))
-- LayerNorm ([*Layer Normalization*](https://arxiv.org/pdf/1607.06450.pdf))
-- LocalResponseNorm ([*ImageNet Classification with Deep Convolutional Neural Networks*](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
-- Dropout ([*Dropout: A Simple Way to Prevent Neural Networks from Overfitting*](https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf))
+- BatchNorm1d <sup>[*[Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift]*](https://proceedings.mlr.press/v37/ioffe15.pdf)</sup>
+- BatchNorm2d <sup>[*[Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift]*](https://proceedings.mlr.press/v37/ioffe15.pdf)</sup>
+- LayerNorm <sup>[*[Layer Normalization]*](https://arxiv.org/pdf/1607.06450.pdf)</sup>
+- LocalResponseNorm <sup>[*[ImageNet Classification with Deep Convolutional Neural Networks]*](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)</sup>
+- Dropout <sup>[*[Dropout: A Simple Way to Prevent Neural Networks from Overfitting]*](https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf)</sup>
 - RNN_cell
-- LSTM_cell ([*Generating Sequences With Recurrent Neural Networks*](https://arxiv.org/pdf/1308.0850.pdf))
+- LSTM_cell <sup>[*[Generating Sequences With Recurrent Neural Networks]*](https://arxiv.org/pdf/1308.0850.pdf)</sup>
 - GRU_cell
 - RNN
 - Conv2d
@@ -33,18 +33,18 @@ I agree.
 - MaxPool2d
 - AvgPool2d
 - BatchAddPool
-- SEGate ([*Squeeze-and-Excitation Gate layer*](https://arxiv.org/pdf/1709.01507.pdf))
+- SEGate <sup>[*[Squeeze-and-Excitation Gate layer]*](https://arxiv.org/pdf/1709.01507.pdf)</sup>
 - GraphLayer
 - GraphAddLayer
-- GraphConvLayer ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
-- GraphSAGELayer ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
+- GraphConvLayer <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
+- GraphSAGELayer <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
 - ReLU
 - Flatten
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
 - AutoencoderLinear
-- Word2Vec ([*Efficient Estimation of Word Representations in Vector Space*](https://arxiv.org/pdf/1301.3781.pdf))
+- Word2Vec <sup>[*[Efficient Estimation of Word Representations in Vector Space]*](https://arxiv.org/pdf/1301.3781.pdf)</sup>
 
 
 ### Optimizers
@@ -81,41 +81,41 @@ I agree.
 `models.recurrent_networks` [➜](src/models/recurrent_networks.py)
 - RNN_factory
 - SimpleRNN
-- LSTM ([*Generating Sequences With Recurrent Neural Networks*](https://arxiv.org/pdf/1308.0850.pdf))
+- LSTM <sup>[*[Generating Sequences With Recurrent Neural Networks]*](https://arxiv.org/pdf/1308.0850.pdf)</sup>
 - GRU
 - EchoStateNetwork
 
 `models.convolutional_networks` [➜](src/models/convolutional_networks.py)
 - SimpleCNN
 - SimpleFullyCNN
-- LeNet5 ([*Gradient-based learning applied to document recognition*](https://hal.science/hal-03926082/document))
-- AlexNet ([*ImageNet Classification with Deep Convolutional Neural Networks*](https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf))
-- NetworkInNetwork ([*Network In Network*](https://arxiv.org/pdf/1312.4400.pdf))
-- VGG16 ([*Very Deep Convolutional Networks for Large-Scale Image Recognition*](https://arxiv.org/pdf/1409.1556.pdf))
-- GoogLeNet ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
+- LeNet5 <sup>[*[Gradient-based learning applied to document recognition]*](https://hal.science/hal-03926082/document)</sup>
+- AlexNet <sup>[*[ImageNet Classification with Deep Convolutional Neural Networks]*](https://proceedings.neurips.cc/paper_files/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)</sup>
+- NetworkInNetwork <sup>[*[Network In Network]*](https://arxiv.org/pdf/1312.4400.pdf)</sup>
+- VGG16 <sup>[*[Very Deep Convolutional Networks for Large-Scale Image Recognition]*](https://arxiv.org/pdf/1409.1556.pdf)</sup>
+- GoogLeNet <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>
 - DeepPlainCNN
 
 `models.residual_networks` [➜](src/models/residual_networks.py)
-- ResNet34 ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
-- ResNet50 ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
-- ResNeXt50 ([*Aggregated Residual Transformations for Deep Neural Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf))
-- SEResNet50 ([*Squeeze-and-Excitation Networks*](https://arxiv.org/pdf/1709.01507.pdf))
-- SEResNeXt50 ([*Squeeze-and-Excitation Networks*](https://arxiv.org/pdf/1709.01507.pdf))
-- DenseNet121 ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
+- ResNet34 <sup>[*[Deep Residual Learning for Image Recognition]*](https://arxiv.org/pdf/1512.03385.pdf)</sup>
+- ResNet50 <sup>[*[Deep Residual Learning for Image Recognition]*](https://arxiv.org/pdf/1512.03385.pdf)</sup>
+- ResNeXt50 <sup>[*[Aggregated Residual Transformations for Deep Neural Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf)</sup>
+- SEResNet50 <sup>[*[Squeeze-and-Excitation Networks]*](https://arxiv.org/pdf/1709.01507.pdf)</sup>
+- SEResNeXt50 <sup>[*[Squeeze-and-Excitation Networks]*](https://arxiv.org/pdf/1709.01507.pdf)</sup>
+- DenseNet121 <sup>[*[Densely Connected Convolutional Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf)</sup>
 
 `models.graph_networks` [➜](src/models/graph_networks.py)
-- GCN ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
-- GraphSAGE ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
-- GIN ([*How Powerful are Graph Neural Networks?*](https://arxiv.org/pdf/1810.00826v3.pdf))
+- GCN <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
+- GraphSAGE <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
+- GIN <sup>[*[How Powerful are Graph Neural Networks?]*](https://arxiv.org/pdf/1810.00826v3.pdf)</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
-- Inception ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
-- ResBlock ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
-- ResBottleneckBlock ([*Deep Residual Learning for Image Recognition*](https://arxiv.org/pdf/1512.03385.pdf))
-- ResNeXtBlock ([*Aggregated Residual Transformations for Deep Neural Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf))
-- DenseLayer ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
-- DenseBlock ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
-- DenseTransition ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
+- Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>
+- ResBlock <sup>[*[Deep Residual Learning for Image Recognition]*](https://arxiv.org/pdf/1512.03385.pdf)</sup>
+- ResBottleneckBlock <sup>[*[Deep Residual Learning for Image Recognition]*](https://arxiv.org/pdf/1512.03385.pdf)</sup>
+- ResNeXtBlock <sup>[*[Aggregated Residual Transformations for Deep Neural Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf)</sup>
+- DenseLayer <sup>[*[Densely Connected Convolutional Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf)</sup>
+- DenseBlock <sup>[*[Densely Connected Convolutional Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf)</sup>
+- DenseTransition <sup>[*[Densely Connected Convolutional Networks]*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf)</sup>
 
 
 ### Example usages

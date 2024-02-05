@@ -49,7 +49,10 @@ for group, paths in whitelist.items():
                 pattern = r'\nclass (\w+).*\n\s+(?:"""\s+Paper: (.*?)\s+(https?:\S+))?'
                 info = re.findall(pattern, file.read())
                 for cls, paper, link in info:
-                    text += f'- {cls} ([*{paper}*]({link}))\n' if paper else f'- {cls}\n'
+                    text += f'- {cls}'
+                    if paper:
+                        text += f' <sup>[*[{paper}]*]({link})</sup>'
+                    text += '\n'
         else:
             text += f'- {path} [➜]({path})\n'
 
