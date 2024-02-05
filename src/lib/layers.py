@@ -562,6 +562,21 @@ class AvgPool2d(Pool2d):
         return f'AvgPool2d({self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})'
 
 
+class BatchAddPool(Module):  # adds features across batch dimension with batch_index provided (i.e. scatter_add)
+
+    def forward(self, x, batch_index=None):
+        assert len(x.shape) == 2, f'Expected 2d tensor, got {x.shape}'
+        if batch_index is not None:
+            batch_index = batch_index.view(-1, 1).expand(x.shape)
+            batch_size, dim_h = batch_index.max().item() + 1, x.shape[-1]
+
+            x_sums = torch.zeros((batch_size, dim_h), device=x.device, dtype=x.dtype)
+            x_sums.scatter_add_(dim=0, index=batch_index, src=x)
+        else:
+            x_sums = x.sum(dim=0, keepdim=True)
+
+        return x_sums
+
 class SEGate(Module):
     """
     Paper: Squeeze-and-Excitation Gate layer
@@ -620,6 +635,21 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
         message = A @ X * torch.where(deg != 0, 1 / deg, 0)
         X = message @ self.weight_neighbours + X @ self.weight_self + self.bias
         return X
+
+
+class GraphAddLayer(Module):  # used by GIN (Graph Isomorphism Network)
+    def __init__(self, eps=0., device='cpu'):
+        self.eps = eps
+
+    def forward(self, X, A):
+        n, c = X.shape
+        assert A.shape == (n, n)
+
+        # Aggregation - simply add neighbors and self features (summation is considered injective in contrast to mean or max)
+        I = torch.eye(n, device=X.device)
+        X = (A + (1 + self.eps) * I) @ X
+        return X
+
 
 class GraphConvLayer(Module):  # used by GCN
     """
@@ -720,7 +750,7 @@ class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
             raise ValueError
         return message
 
-    def get_neighbour_features(self, X, A):
+    def get_neighbour_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
         n, c = X.shape
         neighbor_features = X.view(1, n, c) * A.bool().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features

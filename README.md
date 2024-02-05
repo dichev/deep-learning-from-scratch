@@ -32,8 +32,10 @@ I agree.
 - Pool2d
 - MaxPool2d
 - AvgPool2d
+- BatchAddPool
 - SEGate ([*Squeeze-and-Excitation Gate layer*](https://arxiv.org/pdf/1709.01507.pdf))
 - GraphLayer
+- GraphAddLayer
 - GraphConvLayer ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
 - GraphSAGELayer ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
 - ReLU
@@ -100,6 +102,9 @@ I agree.
 - SEResNet50 ([*Squeeze-and-Excitation Networks*](https://arxiv.org/pdf/1709.01507.pdf))
 - SEResNeXt50 ([*Squeeze-and-Excitation Networks*](https://arxiv.org/pdf/1709.01507.pdf))
 - DenseNet121 ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
+
+`models.graph_networks` [➜](src/models/graph_networks.py)
+- GIN ([*How Powerful are Graph Neural Networks?*](https://arxiv.org/pdf/1810.00826v3.pdf))
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception ([*Going deeper with convolutions*](https://arxiv.org/pdf/1409.4842.pdf?))
