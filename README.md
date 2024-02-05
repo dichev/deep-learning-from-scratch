@@ -104,6 +104,8 @@ I agree.
 - DenseNet121 ([*Densely Connected Convolutional Networks*](https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf))
 
 `models.graph_networks` [➜](src/models/graph_networks.py)
+- GCN ([*Semi-Supervised Classification with Graph Convolutional Networks*](https://arxiv.org/pdf/1609.02907.pdf))
+- GraphSAGE ([*Inductive Representation Learning on Large Graphs*](https://arxiv.org/pdf/1706.02216.pdf))
 - GIN ([*How Powerful are Graph Neural Networks?*](https://arxiv.org/pdf/1810.00826v3.pdf))
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)

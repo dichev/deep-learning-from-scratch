@@ -3,9 +3,10 @@ from torch_geometric.datasets import KarateClub
 import networkx as nx
 import matplotlib.pyplot as plt
 
-from lib.layers import GraphLayer, GraphConvLayer, GraphSAGELayer, Module, Linear
+from lib.layers import Module, Linear, GraphLayer
+from models.graph_networks import GCN, GraphSAGE
 from lib.functions.activations import relu
-from lib.functions.losses import cross_entropy
+from lib.functions.losses import cross_entropy, accuracy
 from lib.optimizers import Adam
 from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
 
@@ -19,22 +20,28 @@ EPOCHS = 100
 dataset = KarateClub()
 A = to_adj_matrix(dataset.edge_index)
 
-# Define model factory
-class GraphNet(Module):
-    def __init__(self, GraphLayerClass):
-        self.graph = GraphLayerClass(dataset.num_features, HIDDEN_CHANNELS)
-        self.out = Linear(self.graph.out_channels, dataset.num_classes)
+# Define models
+class GraphNet(Module):  # Baseline
+    def __init__(self, input_channels, hidden_channels, n_classes):
+        self.graph1 = GraphLayer(input_channels, hidden_channels)
+        self.graph2 = GraphLayer(hidden_channels, hidden_channels)
+        self.out = Linear(hidden_channels, n_classes)
 
     def forward(self, x, A):
-        x = self.graph.forward(x, A)
-        x = relu(x)
+        x = relu(self.graph1.forward(x, A))
+        x = relu(self.graph2.forward(x, A))
         x = self.out.forward(x)
         return x
 
+models = {
+    'GraphNet':  GraphNet(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes),
+    'GraphConv': GCN(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, n_layers=2),
+    'GraphSAGE': GraphSAGE(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, n_layers=2, aggregation='maxpool'),
+}
+
 
 # Overfit the different types of graph layers
-for GraphLayerType in (GraphLayer, GraphConvLayer, GraphSAGELayer):
-    model = GraphNet(GraphLayerType)
+for name, model in models.items():
     model.summary()
     optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 
@@ -42,7 +49,7 @@ for GraphLayerType in (GraphLayer, GraphConvLayer, GraphSAGELayer):
         optimizer.zero_grad()
         z = model.forward(dataset.x, A)
         loss = cross_entropy(z, dataset.y, logits=True)
-        acc = (z.argmax(dim=1) == dataset.y).sum() / len(z)
+        acc = accuracy(z.argmax(dim=1), dataset.y)
         loss.backward()
         optimizer.step()
 
@@ -51,7 +58,7 @@ for GraphLayerType in (GraphLayer, GraphConvLayer, GraphSAGELayer):
 
     G = nx.DiGraph(A.numpy())
     plt.figure(figsize=(7, 7))
-    plt.title(f'{GraphLayerType.__name__} ({acc*100:.2f}% accuracy)')
+    plt.title(f'{name} ({acc*100:.2f}% accuracy)')
     plt.axis(False)
     nx.draw_networkx(G, arrows=False, node_color=z.argmax(dim=1))
     plt.show()

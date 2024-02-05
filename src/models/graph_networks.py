@@ -1,5 +1,48 @@
 import torch
-from lib.layers import Module, ModuleList, Linear, BatchNorm1d, ReLU, Sequential, Dropout, GraphAddLayer, BatchAddPool
+from lib.layers import Module, ModuleList, Linear, BatchNorm1d, ReLU, Sequential, Dropout, GraphAddLayer, BatchAddPool, GraphConvLayer, GraphSAGELayer
+from lib.functions.activations import relu
+
+class GCN(Module):  # Graph Convolutional Network
+    """
+    Paper: Semi-Supervised Classification with Graph Convolutional Networks
+    https://arxiv.org/pdf/1609.02907.pdf
+    """
+    def __init__(self, in_channels, hidden_size, n_classes, n_layers=1, device='cpu'):
+        self.layers = ModuleList([
+            GraphConvLayer(in_channels if i == 0 else hidden_size, hidden_size, device)
+            for i in range(n_layers)]
+        )
+        self.head = Linear(hidden_size, n_classes)
+
+    def forward(self, x, A):
+        for graph in self.layers:
+            x = graph.forward(x, A)
+            x = relu(x)
+
+        x = self.head.forward(x)
+        return x
+
+
+class GraphSAGE(Module):
+    """
+    Paper: Inductive Representation Learning on Large Graphs
+    https://arxiv.org/pdf/1706.02216.pdf
+    """
+    def __init__(self, in_channels, hidden_size, n_classes, n_layers=1, aggregation='maxpool', device='cpu'):
+        self.layers = ModuleList([
+            GraphSAGELayer(in_channels if i == 0 else hidden_size * 2, hidden_size, aggregation, device)
+            for i in range(n_layers)]
+        )
+        self.head = Linear(self.layers[-1].out_channels, n_classes)
+
+    def forward(self, x, A):
+        for graph in self.layers:
+            x = graph.forward(x, A)
+            x = relu(x)
+            x = x / x.norm(dim=-1, keepdim=True).clamp_min(1e-12)
+
+        x = self.head.forward(x)
+        return x
 
 
 class GIN(Module):  # Graph Isomorphism Network
@@ -53,5 +96,4 @@ class GIN(Module):  # Graph Isomorphism Network
         features = torch.cat(features, dim=1)               # (batch_size, n_layers * h)
         z = self.head.forward(features)                     # (n_classes)
         return z
-
 
