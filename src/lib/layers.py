@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from lib.functions import init
 from lib.functions.activations import relu, tanh, sigmoid
 from lib.base import Param, Module, ModuleList, Sequential
-from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int
+from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
 from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
@@ -638,7 +638,7 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
 
 
 class GraphAddLayer(Module):  # used by GIN (Graph Isomorphism Network)
-    def __init__(self, eps=0., device='cpu'):
+    def __init__(self, eps=0.):
         self.eps = eps
 
     def forward(self, X, A):
@@ -646,7 +646,7 @@ class GraphAddLayer(Module):  # used by GIN (Graph Isomorphism Network)
         assert A.shape == (n, n)
 
         # Aggregation - simply add neighbors and self features (summation is considered injective in contrast to mean or max)
-        I = torch.eye(n, device=X.device)
+        I = identity(n, sparse=A.layout == torch.sparse_coo, device=X.device)
         X = (A + (1 + self.eps) * I) @ X
         return X
 

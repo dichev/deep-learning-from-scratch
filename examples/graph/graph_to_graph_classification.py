@@ -14,7 +14,7 @@ GRAPH_LAYERS = 3
 HIDDEN_CHANNELS = 64
 LEARN_RATE = 0.01
 EPOCHS = 100
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 DEVICE = 'cuda'
 
 
@@ -44,7 +44,7 @@ def evaluate(model, loader):
     n = len(loader)
     for data in loader:
         data = data.to(DEVICE)
-        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index), data.y, data.batch
+        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index, sparse=True), data.y, data.batch
 
         z = model.forward(X, A, batch_index)
         loss += cross_entropy(z, y, logits=True) / n
@@ -59,7 +59,7 @@ for epoch in range(1, EPOCHS+1):
 
     for data in train_loader:
         data = data.to(DEVICE)
-        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index), data.y, data.batch
+        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index, sparse=True), data.y, data.batch
 
         optimizer.zero_grad()
         z = model.forward(X, A, batch_index)

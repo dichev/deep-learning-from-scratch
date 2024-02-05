@@ -1,16 +1,14 @@
-
+import torch
 import warnings
 
-def nested(t):
-    for i in t:
-        if isinstance(i, tuple):
-            yield from nested(i)
-        else:
-            yield i
 
-# tup = ((1, 2, 3), (4, 5, (6, 7)), 8, 9)
-# for elem in nested(tup):
-#     print(elem)
+def identity(n, sparse=False, device=None):
+    if sparse:
+        indices = torch.arange(n).unsqueeze(0).repeat(2, 1)
+        values = torch.ones(n)
+        return torch.sparse_coo_tensor(indices, values, (n, n), device=device)
+    else:
+        return torch.eye(n, device=device).to_sparse_coo()
 
 
 def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
