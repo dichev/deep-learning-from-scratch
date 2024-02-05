@@ -32,3 +32,5 @@ def evaluate_accuracy_per_class(y_hat, y, classes):
     accuracy_per_class = {classes[idx]: matched[idx] / all[idx] for idx in sorted(all.keys())}
     return overall_accuracy, accuracy_per_class
 
+def accuracy(y_hat, y):
+    return ((y_hat == y).sum() / len(y)).item()

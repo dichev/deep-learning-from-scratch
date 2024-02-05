@@ -1,5 +1,9 @@
-from matplotlib import pyplot as plt
 import torch
+from matplotlib import pyplot as plt
+import networkx as nx
+from torch_geometric.utils import to_networkx
+import numpy as np
+import math
 
 def decision_boundary_2d(X, Y, classifier):
     xx, yy = torch.meshgrid(torch.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 500),
@@ -59,5 +63,45 @@ def img_topk(images, probs, labels, k=5, title=''):
         axs[i, 1].invert_yaxis()
         axs[i, 1].set_xlim(0, 1)
 
+    plt.tight_layout()
+    plt.show()
+
+
+def graph_as_spring_2d(G):
+    pos = nx.spring_layout(G)
+    nx.draw(G, pos, with_labels=False, edge_color='gray')
+    plt.show()
+
+
+def graph_as_spring_3d(G):
+    pos = nx.spring_layout(G, dim=3)
+
+    fig = plt.figure(figsize=(16, 16))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.axis(False)
+
+    # Draw nodes
+    x, y, z = np.array([pos[v] for v in sorted(G.nodes)]).T  # node coordinates
+    ax.scatter(x, y, z, s=500)
+
+    # Draw edges
+    for u, v in G.edges():
+        x, y, z = np.array([pos[u], pos[v]]).T
+        ax.plot(x, y, z, 'gray', alpha=0.5)
+
+    fig.tight_layout()
+    plt.show()
+
+
+def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16)):
+    N = len(graphs)
+    fig, axes = plt.subplots(math.ceil(N/cols), cols, figsize=figsize)
+    for i, ax in enumerate(axes.reshape(-1)):
+        ax.axis(False)
+        if i < N:
+            graph = graphs[i]
+            color = 'green' if labels_mask[i] else 'red'
+            G = to_networkx(graph, to_undirected=True)
+            nx.draw_networkx(G, pos=nx.spring_layout(G, seed=0), with_labels=False, node_size=150, node_color=color, width=0.8, ax=ax)
     plt.tight_layout()
     plt.show()
