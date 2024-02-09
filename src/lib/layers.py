@@ -632,8 +632,8 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
         assert A.shape == (n, n)
 
         deg = A.sum(dim=1, keepdims=True).to_dense()
-        message = A @ X * torch.where(deg != 0, 1 / deg, 0)
-        X = message @ self.weight_neighbors + X @ self.weight_self + self.bias
+        message = A @ X * torch.where(deg != 0, 1 / deg, 0)                        # message function m = (node:opt, neighbors, edges)
+        X = message @ self.weight_neighbors + X @ self.weight_self + self.bias     # update function  h = (node, m)
         return X
 
 
@@ -661,6 +661,7 @@ class GraphConvLayer(Module):  # used by GCN
         self.bias = Param((1, out_channels), device=device)
         self.in_channels, self.out_channels = in_channels, out_channels
         self.reset_parameters()
+        self._cache = {'adjacency': None, 'adjacency_normalized': None}
 
     @torch.no_grad()
     def reset_parameters(self):
@@ -671,7 +672,15 @@ class GraphConvLayer(Module):  # used by GCN
         n, c = X.shape
         assert A.shape == (n, n)
 
-        I = identity(n, sparse=A.is_sparse, device=A.device)
+        A_norm = self._normalize_adjacency(A)
+        X = A_norm @ X @ self.weight + self.bias
+        return X
+
+    def _normalize_adjacency(self, A):
+        if self._cache['adjacency'] is A:
+            return self._cache['adjacency_normalized']
+
+        I = identity(len(A), sparse=A.is_sparse, device=A.device)
         A_self = A + I                         # add the self connections
         D = I * A_self.sum(dim=1).to_dense()   # diagonal degree matrix
         D = D ** (-1 / 2)                      # inverse squared degree matrix
@@ -679,9 +688,9 @@ class GraphConvLayer(Module):  # used by GCN
             D[torch.isinf(D)] = 0              # handle zero division (note that's not necessary if D is in sparse layout)
         A_norm = D @ A_self @ D                # normalized adjacency matrix
 
-        H = A_norm @ X
-        X = H @ self.weight + self.bias
-        return X
+        self._cache['adjacency'] = A
+        self._cache['adjacency_normalized'] = A_norm
+        return A_norm
 
 
 class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
