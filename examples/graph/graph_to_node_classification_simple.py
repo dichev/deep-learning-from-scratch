@@ -3,7 +3,7 @@ from torch_geometric.datasets import KarateClub
 import networkx as nx
 import matplotlib.pyplot as plt
 
-from lib.layers import Module, Linear, GraphLayer
+from lib.layers import Module, Linear, Graph_cell
 from models.graph_networks import GCN, GraphSAGE
 from lib.functions.activations import relu
 from lib.functions.losses import cross_entropy, accuracy
@@ -23,8 +23,8 @@ A = to_adj_matrix(dataset.edge_index, sparse=False)
 # Define models
 class GraphNet(Module):  # Baseline
     def __init__(self, input_channels, hidden_channels, n_classes):
-        self.graph1 = GraphLayer(input_channels, hidden_channels)
-        self.graph2 = GraphLayer(hidden_channels, hidden_channels)
+        self.graph1 = Graph_cell(input_channels, hidden_channels)
+        self.graph2 = Graph_cell(hidden_channels, hidden_channels)
         self.out = Linear(hidden_channels, n_classes)
 
     def forward(self, x, A):
@@ -35,8 +35,8 @@ class GraphNet(Module):  # Baseline
 
 models = {
     'GraphNet':  GraphNet(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes),
-    'GraphConv': GCN(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, n_layers=2),
-    'GraphSAGE': GraphSAGE(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, n_layers=2, aggregation='maxpool'),
+    'GraphConv': GCN(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2),
+    'GraphSAGE': GraphSAGE(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2, aggregation='maxpool'),
 }
 
 

@@ -613,7 +613,7 @@ class SEGate(Module):
         return f'SEGate({self.channels}, {self.reduction}): {self.n_params} params'
 
 
-class GraphLayer(Module):  # graph layer with node-wise neighborhood function
+class Graph_cell(Module):  # graph layer with node-wise neighborhood function
     def __init__(self, in_channels, out_channels, device='cpu'):
         self.weight_neighbors = Param((in_channels, out_channels), device=device)  # (c_in, c_out)
         self.weight_self = Param((in_channels, out_channels), device=device)        # (c_in, c_out)
@@ -637,21 +637,7 @@ class GraphLayer(Module):  # graph layer with node-wise neighborhood function
         return X
 
 
-class GraphAddLayer(Module):  # used by GIN (Graph Isomorphism Network)
-    def __init__(self, eps=0.):
-        self.eps = eps
-
-    def forward(self, X, A):
-        n, c = X.shape
-        assert A.shape == (n, n)
-
-        # Aggregation - simply add neighbors and self features (summation is considered injective in contrast to mean or max)
-        I = identity(n, sparse=A.is_sparse, device=X.device)
-        X = (A + (1 + self.eps) * I) @ X
-        return X
-
-
-class GraphConvLayer(Module):  # used by GCN
+class GCN_cell(Module):
     """
     Paper: Semi-Supervised Classification with Graph Convolutional Networks
     https://arxiv.org/pdf/1609.02907.pdf
@@ -693,7 +679,7 @@ class GraphConvLayer(Module):  # used by GCN
         return A_norm
 
 
-class GraphSAGELayer(Module):  # SAGE = SAmple and aggreGatE
+class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
     """
     Paper: Inductive Representation Learning on Large Graphs
     https://arxiv.org/pdf/1706.02216.pdf

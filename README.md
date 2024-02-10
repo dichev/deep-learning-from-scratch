@@ -34,10 +34,9 @@ I agree.
 - AvgPool2d
 - BatchAddPool
 - SEGate <sup>[*[Squeeze-and-Excitation Gate layer]*](https://arxiv.org/pdf/1709.01507.pdf)</sup>
-- GraphLayer
-- GraphAddLayer
-- GraphConvLayer <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
-- GraphSAGELayer <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
+- Graph_cell
+- GCN_cell <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
+- GraphSAGE_cell <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
 - ReLU
 - Flatten
 

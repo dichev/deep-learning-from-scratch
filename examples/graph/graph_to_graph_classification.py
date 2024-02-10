@@ -10,7 +10,7 @@ from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
 
 
 # hyperparams
-GRAPH_LAYERS = 3
+GRAPH_ITERATIONS = 3
 HIDDEN_CHANNELS = 64
 LEARN_RATE = 0.01
 EPOCHS = 100
@@ -33,7 +33,7 @@ test_loader  = DataLoader(dataset[int(N*.9):], batch_size=BATCH_SIZE, shuffle=Fa
 
 
 # Model
-model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, n_layers=GRAPH_LAYERS, eps=0., device=DEVICE)
+model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=GRAPH_ITERATIONS, eps=0., device=DEVICE)
 model.summary()
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 
