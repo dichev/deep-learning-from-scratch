@@ -440,10 +440,10 @@ class Conv2d(Module):
 
 
 class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, device='cpu'):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, device='cpu'):
         assert in_channels % groups == 0 and out_channels % groups == 0, f'the channels must be divisible by the groups, but got: {in_channels=}, {out_channels=} for {groups=}'
         self.convs = ModuleList(
-            Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, device)
+            Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, bias, device)
             for g in range(groups)
         )
         self.in_channels = in_channels
