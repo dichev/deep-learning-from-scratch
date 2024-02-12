@@ -108,7 +108,7 @@ def test_batch_norm1d(size):
     expected = bn1(x)
     output = bn2.forward(x)
     assert torch.allclose(bn1.running_mean.flatten(), bn2.running_mean.flatten())
-    # assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten()) # it looks like the running variance in pytorch is computed with unbiased variance
+    assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten())
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
 @pytest.mark.parametrize('size',  [1, 2, 5, 10, 99])
@@ -119,6 +119,6 @@ def test_batch_norm2d(size):
     expected = bn1(x)
     output = bn2.forward(x)
     assert torch.allclose(bn1.running_mean.flatten(), bn2.running_mean.flatten())
-    # assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten()) # it looks like the running variance in pytorch is computed with unbiased variance
+    assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten())
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 

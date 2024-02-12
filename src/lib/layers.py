@@ -52,20 +52,22 @@ class Embedding(Module):  # aka lookup table
         return f'Embedding({self.input_size}, {self.output_size}, bias=false): {self.n_params} params'
 
 
-class BatchNorm1d(Module):
+class BatchNorm(Module):
     """
     Paper: Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
     https://proceedings.mlr.press/v37/ioffe15.pdf
     """
 
-    def __init__(self, size, device='cpu'):
-        self.beta = Param((1, size), device=device)
-        self.gamma = Param((1, size), device=device)
+    def __init__(self, size, batch_dims=(), device='cpu'):
+        shape = tuple(size if d not in batch_dims else 1 for d in range(len(batch_dims) + 1))  # necessary to maintain proper broadcasting
+        self.beta = Param(shape, device=device)
+        self.gamma = Param(shape, device=device)
 
-        self.running_mean = torch.zeros(1, size, device=device)
-        self.running_var = torch.ones(1, size, device=device)
+        self.running_mean = torch.zeros(shape, device=device)
+        self.running_var = torch.ones(shape, device=device)
         self.decay = 0.9
         self.size = size
+        self.dims = batch_dims
         self.reset_parameters()
 
     @torch.no_grad()
@@ -76,13 +78,13 @@ class BatchNorm1d(Module):
         self.running_var.fill_(1)
 
     def forward(self, x):
+        assert len(x.shape) == len(self.dims) + 1, f'Expect tensor with {len(self.dims) + 1} axis, but got {x.shape}'
+
         # mini-batch statistics
         if torch.is_grad_enabled():
-            assert len(x) > 1, 'BatchNorm layer requires at least 2 samples in batch'
-
-            mu, var = x.mean(dim=0), x.var(dim=0, correction=0)
+            mu, var, var_unbias = x.mean(dim=self.dims, keepdims=True), x.var(dim=self.dims, correction=0, keepdims=True), x.var(dim=self.dims, keepdims=True)
             self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
-            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var
+            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var_unbias
         else:
             mu, var = self.running_mean, self.running_var
 
@@ -93,54 +95,30 @@ class BatchNorm1d(Module):
         return x
 
     def __repr__(self):
-        return f'BatchNorm1d({self.size}): {self.n_params} params'
+        return f'{self.__class__.__name__}({self.size}): {self.n_params} params'
 
-class BatchNorm2d(Module):
-    """
-    Paper: Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift
-    https://proceedings.mlr.press/v37/ioffe15.pdf
-    """
+class BatchNorm1d(BatchNorm):
 
     def __init__(self, size, device='cpu'):
-        self.beta = Param((1, size, 1, 1), device=device)
-        self.gamma = Param((1, size, 1, 1), device=device)
+        super().__init__(size, batch_dims=(0,), device=device)
 
-        self.running_mean = torch.zeros(1, size, 1, 1, device=device)
-        self.running_var = torch.ones(1, size, 1, 1, device=device)
-        self.decay = 0.9
-        self.size = size
-        self.reset_parameters()
+    def forward(self, x):
+        assert len(x.shape) == 2, f'Linear layer expect 2d tensor (batch, features), but got {x.shape}'
+        assert len(x) > 1 or not torch.is_grad_enabled(), 'BatchNorm1d layer requires at least 2 samples in batch'
+        return super().forward(x)
 
-    @torch.no_grad()
-    def reset_parameters(self):
-        self.beta.fill_(0)
-        self.gamma.fill_(1)
-        self.running_mean.fill_(0)
-        self.running_var.fill_(1)
+
+class BatchNorm2d(BatchNorm):
+
+    def __init__(self, size, device='cpu'):
+        super().__init__(size, batch_dims=(0, 2, 3), device=device)  # note here N, W, H are all considered to be from the batch dim
 
     def forward(self, x):
         assert len(x.shape) == 4, f'BatchNorm2d layer requires 4D input, but got: {x.shape}'
         N, C, W, H = x.shape
         assert C == self.size, f'Expected {self.size} channels from the input, but got {C}'
-
-        # mini-batch statistics
-        if torch.is_grad_enabled():
-            assert max(N, W, H) > 1, 'BatchNorm layer requires at least 2 samples'
-
-            mu, var = x.mean(dim=(0, 2, 3), keepdims=True), x.var(dim=(0, 2, 3), keepdims=True, correction=0)
-            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
-            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var
-        else:
-            mu, var = self.running_mean, self.running_var
-
-        # normalize x along the mini-batch
-        x = (x - mu) / (var + 1e-5).sqrt()
-        x = self.gamma * x + self.beta
-
-        return x
-
-    def __repr__(self):
-        return f'BatchNorm2d({self.size}): {self.n_params} params'
+        assert max(N, W, H) > 1 or not torch.is_grad_enabled(), 'BatchNorm2d layer requires at least 2 samples'
+        return super().forward(x)
 
 
 class LayerNorm(Module):
