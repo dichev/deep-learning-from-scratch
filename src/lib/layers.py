@@ -606,10 +606,10 @@ class Graph_cell(Module):  # graph layer with node-wise neighborhood function
         self.bias.zero_()
 
     def forward(self, X, A):
-        n, c = X.shape
-        assert A.shape == (n, n)
+        b, n, c = X.shape
+        assert A.shape == (b, n, n)
 
-        deg = A.sum(dim=1, keepdims=True).to_dense()
+        deg = A.sum(dim=1).to_dense().view(b, n, 1)
         message = A @ X * torch.where(deg != 0, 1 / deg, 0)                        # message function m = (node:opt, neighbors, edges)
         X = message @ self.weight_neighbors + X @ self.weight_self + self.bias     # update function  h = (node, m)
         return X
@@ -633,8 +633,8 @@ class GCN_cell(Module):
         self.bias.zero_()
 
     def forward(self, X, A):
-        n, c = X.shape
-        assert A.shape == (n, n)
+        b, n, c = X.shape
+        assert A.shape == (b, n, n)
 
         A_norm = self._normalize_adjacency(A)
         X = A_norm @ X @ self.weight + self.bias
@@ -644,9 +644,11 @@ class GCN_cell(Module):
         if self._cache['adjacency'] is A:
             return self._cache['adjacency_normalized']
 
-        I = identity(len(A), sparse=A.is_sparse, device=A.device)
+        b, n, n = A.shape
+
+        I = identity(n, sparse=A.is_sparse, device=A.device)
         A_self = A + I                         # add the self connections
-        D = I * A_self.sum(dim=1).to_dense()   # diagonal degree matrix
+        D = I * A_self.sum(dim=1, keepdims=True).to_dense()   # diagonal degree matrix
         D = D ** (-1 / 2)                      # inverse squared degree matrix
         if D.layout != torch.sparse_coo:
             D[torch.isinf(D)] = 0              # handle zero division (note that's not necessary if D is in sparse layout)
@@ -687,47 +689,48 @@ class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
                 param.zero_()
 
     def forward(self, X, A):
-        n, c = X.shape
-        assert A.shape == (n, n)
+        b, n, c = X.shape
+        assert A.shape == (b, n, n)
 
         message = self.aggregate(X, A)
         X = torch.cat((  # project without mixing self to neighbors features
             message @ self.weight_neighbors + self.bias_self,
             X @ self.weight_self + self.bias_neighbors  # can be viewed as dense (skip) connection
-        ), dim=1)
+        ), dim=-1)
 
         # Skip activation and normalization, to use a modular approach
         # X = relu(X)
         # X /= X.norm(dim=-1, keepdim=True)
 
-        return X  # (n, c) -> (n, 2c)
+        return X  # (b, n, c) -> (b, n, 2c)
 
     def aggregate(self, X, A):
+        b, n, c = X.shape
         if self.aggregate_operator == 'neighbor':
-            deg = A.sum(dim=1, keepdims=True).to_dense()
-            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbor_features(X, A).sum(dim=1)
+            deg = A.sum(dim=1).to_dense().view(1, n, 1)
+            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbor_features(X, A).sum(dim=2)
 
         elif self.aggregate_operator == 'mean':
             neighbor_features = self.get_neighbor_features(X, A)
-            message = neighbor_features.mean(dim=1)
+            message = neighbor_features.mean(dim=2)
 
         elif self.aggregate_operator == 'meanpool':
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
-            neighbor_features = self.get_neighbor_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
-            message = neighbor_features.mean(dim=1)                 # and then select only the max features values across each adjacent nodes
+            neighbor_features = self.get_neighbor_features(H, A)    # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            message = neighbor_features.mean(dim=2)                 # and then select only the max features values across each adjacent nodes
 
         elif self.aggregate_operator == 'maxpool':  # (paper) samples fixed number of neighbors
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
-            neighbor_features = self.get_neighbor_features(H, A)   # for each node, collect all adjacent node features with broadcasting (N, N, c)
-            message, _ = neighbor_features.max(dim=1)               # and then select only the max features values across each adjacent nodes
+            neighbor_features = self.get_neighbor_features(H, A)    # for each node, collect all adjacent node features with broadcasting (N, N, c)
+            message, _ = neighbor_features.max(dim=2)              # and then select only the max features values across each adjacent nodes
 
         else:
             raise ValueError
         return message
 
     def get_neighbor_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
-        n, c = X.shape
-        neighbor_features = X.view(1, n, c) * A.bool().to_dense().view(n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
+        b, n, c = X.shape
+        neighbor_features = X.view(b, 1, n, c) * A.bool().to_dense().view(b, n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features
 
 

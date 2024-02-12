@@ -12,13 +12,20 @@ from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
 
 
 # hyperparams
-HIDDEN_CHANNELS = 4
+HIDDEN_CHANNELS = 6
 LEARN_RATE = 0.1
 EPOCHS = 100
 
 # Graph dataset
 dataset = KarateClub()
-A = to_adj_matrix(dataset.edge_index, sparse=False)
+n = len(dataset[0].x)                    # total nodes
+num_features = dataset.num_features + 6  # the one-hot features are equal to the num of nodes. Extending their dimensions for dimensionality sanity checks
+
+X = torch.zeros(1, n, num_features)      # batch, nodes, features
+X[:, :, :n] = dataset.x
+y = dataset.y.view(1, n)
+A = to_adj_matrix(dataset.edge_index, sparse=False).view(1, n, n)
+
 
 # Define models
 class GraphNet(Module):  # Baseline
@@ -34,9 +41,9 @@ class GraphNet(Module):  # Baseline
         return x
 
 models = {
-    'GraphNet':  GraphNet(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes),
-    'GraphConv': GCN(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2),
-    'GraphSAGE': GraphSAGE(dataset.num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2, aggregation='maxpool'),
+    'GraphNet':  GraphNet(num_features, HIDDEN_CHANNELS, dataset.num_classes),
+    'GraphConv': GCN(num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2),
+    'GraphSAGE': GraphSAGE(num_features, HIDDEN_CHANNELS, dataset.num_classes, k_iterations=2, aggregation='maxpool'),
 }
 
 
@@ -47,19 +54,20 @@ for name, model in models.items():
 
     for epoch in range(1, EPOCHS+1):
         optimizer.zero_grad()
-        z = model.forward(dataset.x, A)
-        loss = cross_entropy(z, dataset.y, logits=True)
-        acc = accuracy(z.argmax(dim=1), dataset.y)
+
+        z = model.forward(X, A)
+        loss = cross_entropy(z, y, logits=True)
+        acc = accuracy(z.argmax(dim=-1), y)
         loss.backward()
         optimizer.step()
 
         if epoch % 10 == 0:
             print(f'Epoch {epoch:>3} | Loss: {loss:.2f} | Acc: {acc*100:.2f}%')
 
-    G = nx.DiGraph(A.to_dense().numpy())
+    G = nx.DiGraph(A[0].to_dense().numpy())
     plt.figure(figsize=(7, 7))
     plt.title(f'{name} ({acc*100:.2f}% accuracy)')
     plt.axis(False)
-    nx.draw_networkx(G, arrows=False, node_color=z.argmax(dim=1))
+    nx.draw_networkx(G, arrows=False, node_color=z[0].argmax(dim=-1))
     plt.show()
 

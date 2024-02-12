@@ -33,4 +33,4 @@ def evaluate_accuracy_per_class(y_hat, y, classes):
     return overall_accuracy, accuracy_per_class
 
 def accuracy(y_hat, y):
-    return ((y_hat == y).sum() / len(y)).item()
+    return ((y_hat == y).sum() / y.sum()).item()
