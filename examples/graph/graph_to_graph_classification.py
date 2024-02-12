@@ -1,12 +1,13 @@
 import torch
 from torch_geometric.datasets import TUDataset
-from torch_geometric.loader import DataLoader
+from torch_geometric.loader import DenseDataLoader
+import torch_geometric.transforms as T
 from utils import plots
 
 from models.graph_networks import GIN
 from lib.functions.losses import cross_entropy, accuracy
 from lib.optimizers import Adam
-from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
+from utils.graph import edge_index_to_adj_list as to_adj_list
 
 
 # hyperparams
@@ -14,12 +15,17 @@ GRAPH_ITERATIONS = 3
 HIDDEN_CHANNELS = 64
 LEARN_RATE = 0.01
 EPOCHS = 100
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 DEVICE = 'cuda'
 
 
 # Data
-dataset = TUDataset(root='./data', name='proteins').shuffle()
+max_nodes = 200  # only 12 from 1113 graphs in the dataset has more nodes
+dataset = TUDataset(
+    root='./data/PROTEINS-dense', name='PROTEINS',
+    transform=T.ToDense(max_nodes),                 # make each graph with the same number of nodes (to allow batching) by adding nodes with zero connections
+    pre_filter=lambda d: d.num_nodes <= max_nodes   # remove the graphs with more than max_nodes
+).shuffle()
 print(f'Dataset: {dataset}')
 print(f'Number of graphs: {len(dataset)}')
 print(f'Number of nodes: {dataset[0].x.shape[0]}')
@@ -27,9 +33,9 @@ print(f'Number of features: {dataset.num_features}')
 print(f'Number of classes: {dataset.num_classes}')
 
 N = len(dataset)
-train_loader = DataLoader(dataset[:int(N*.8)], batch_size=BATCH_SIZE, shuffle=True)
-val_loader   = DataLoader(dataset[int(N*.8):int(N*.9)], batch_size=BATCH_SIZE, shuffle=True)
-test_loader  = DataLoader(dataset[int(N*.9):], batch_size=BATCH_SIZE, shuffle=False)
+train_loader = DenseDataLoader(dataset[:int(N*.8)], batch_size=BATCH_SIZE, shuffle=True)
+val_loader   = DenseDataLoader(dataset[int(N*.8):int(N*.9)], batch_size=BATCH_SIZE, shuffle=True)
+test_loader  = DenseDataLoader(dataset[int(N*.9):], batch_size=BATCH_SIZE, shuffle=False)
 
 
 # Model
@@ -44,9 +50,9 @@ def evaluate(model, loader):
     n = len(loader)
     for data in loader:
         data = data.to(DEVICE)
-        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index, sparse=True), data.y, data.batch
+        X, A, y = data.x, data.adj, data.y.squeeze()
 
-        z = model.forward(X, A, batch_index)
+        z = model.forward(X, A)
         loss += cross_entropy(z, y, logits=True) / n
         acc += accuracy(z.argmax(dim=1), y) / n
 
@@ -59,10 +65,10 @@ for epoch in range(1, EPOCHS+1):
 
     for data in train_loader:
         data = data.to(DEVICE)
-        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index, sparse=True), data.y, data.batch
+        X, A, y = data.x, data.adj, data.y.squeeze()  # sparse is not supported for the assignment matrix  # todo: use directly data.x, data.adj
 
         optimizer.zero_grad()
-        z = model.forward(X, A, batch_index)
+        z = model.forward(X, A)
         cost = cross_entropy(z, y, logits=True)
         loss += cost / n
         acc += accuracy(z.argmax(dim=1), y) / n
@@ -83,8 +89,10 @@ print(f'Test Loss: {test_loss:.2f} | Test Acc: {test_acc * 100:.2f}%')
 with torch.no_grad():
     for data in test_loader:
         data = data.to(DEVICE)
-        X, A, y, batch_index = data.x, to_adj_matrix(data.edge_index), data.y, data.batch
-        z = model.forward(X, A, batch_index)
+        X, A, y = data.x, data.adj, data.y.squeeze()
+        z = model.forward(X, A)
         correct_mask = z.argmax(dim=1) == y
-        plots.graphs_grid(data[:24], correct_mask)
+        graphs = [to_adj_list(adj.to_sparse().indices()) for adj in data.adj]
+        plots.graphs_grid(graphs[:16], correct_mask[:16])
         break
+

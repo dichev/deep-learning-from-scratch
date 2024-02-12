@@ -95,7 +95,7 @@ class BatchNorm(Module):
         return x
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.size}): {self.n_params} params'
+        return f'{self.__class__.__name__}({self.size}, batch_dims={self.dims}): {self.n_params} params'
 
 class BatchNorm1d(BatchNorm):
 

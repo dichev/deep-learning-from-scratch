@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, ModuleList, Linear, BatchNorm1d, ReLU, Sequential, Dropout, BatchAddPool, GCN_cell, GraphSAGE_cell
+from lib.layers import Module, ModuleList, Linear, BatchNorm, ReLU, Sequential, Dropout, BatchAddPool, GCN_cell, GraphSAGE_cell
 from lib.functions.activations import relu
 from utils.other import identity
 
@@ -56,10 +56,10 @@ class GIN(Module):  # Graph Isomorphism Network
         self.layers = ModuleList([
             Sequential(  # that is the MLP
                 Linear(in_channels if i == 0 else hidden_size, hidden_size, device=device),
-                BatchNorm1d(hidden_size, device=device),
+                BatchNorm(hidden_size, batch_dims=(0, 1), device=device),
                 ReLU(),
                 Linear(hidden_size, hidden_size, device=device),
-                BatchNorm1d(hidden_size, device=device),
+                BatchNorm(hidden_size, batch_dims=(0, 1), device=device),
                 ReLU(),
             )
             for i in range(k_iterations)
@@ -77,24 +77,27 @@ class GIN(Module):  # Graph Isomorphism Network
         self.n_classes = n_classes
 
     def forward(self, X, A, batch_index=None):
-        n, c = X.shape
-        assert A.shape == (n, n)
+        b, n, c = X.shape  # batch_size, nodes, channel(features)
+        assert A.shape == (b, n, n)
+
+        # cache a "soft-self" adjacency matrix
         I = identity(n, sparse=A.is_sparse, device=X.device)
+        A_self = (A + (1 + self.eps) * I)
 
         features = []
         for layer in self.layers:
             # Aggregation - simply add neighbors and self features (summation is considered injective in contrast to mean or max)
-            message = (A + (1 + self.eps) * I) @ X
+            message = A_self @ X                      # (b, n, c) -> (b, n, c)
 
             # Transform
-            X = layer.forward(message)                      # (n, h)
+            X = layer.forward(message)                # (b, n, h)
 
             # Collect features as sum pool
-            X_sums = self.add_pool.forward(X, batch_index)  # (batch_size, h)
+            X_sums = X.sum(dim=1)                     # (b, h)
             features.append(X_sums)
 
         # Classifier using the summed embeddings from each layer
-        features = torch.cat(features, dim=1)               # (batch_size, n_layers * h)
-        z = self.head.forward(features)                     # (n_classes)
+        features = torch.cat(features, dim=-1)        # (b, h * num_layers)
+        z = self.head.forward(features)               # (n_classes)
         return z
 

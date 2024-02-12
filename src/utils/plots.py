@@ -101,7 +101,8 @@ def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16)):
         if i < N:
             graph = graphs[i]
             color = 'green' if labels_mask[i] else 'red'
-            G = to_networkx(graph, to_undirected=True)
-            nx.draw_networkx(G, pos=nx.spring_layout(G, seed=0), with_labels=False, node_size=150, node_color=color, width=0.8, ax=ax)
+            # G = to_networkx(graph, to_undirected=True)
+            G = nx.DiGraph(graph)
+            nx.draw_networkx(G, pos=nx.spring_layout(G, seed=0), arrows=False, with_labels=False, node_size=150, node_color=color, width=0.8, ax=ax)
     plt.tight_layout()
     plt.show()
