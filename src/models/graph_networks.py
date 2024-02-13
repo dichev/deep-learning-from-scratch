@@ -32,12 +32,14 @@ class GraphSAGE(Module):
     Paper: Inductive Representation Learning on Large Graphs
     https://arxiv.org/pdf/1706.02216.pdf
     """
-    def __init__(self, in_channels, hidden_size, n_classes, k_iterations=1, aggregation='maxpool', device='cpu'):
+    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1, aggregation='maxpool', device='cpu'):
         self.layers = ModuleList([
             GraphSAGE_cell(in_channels if i == 0 else hidden_size * 2, hidden_size, aggregation, device)
             for i in range(k_iterations)]
         )
-        self.head = Linear(self.layers[-1].out_channels, n_classes)
+        self.project = n_classes is not None
+        if self.project:
+            self.head = Linear(self.layers[-1].out_channels, n_classes)
 
     def forward(self, x, A):
         for graph in self.layers:
@@ -45,7 +47,8 @@ class GraphSAGE(Module):
             x = relu(x)
             x = x / x.norm(dim=-1, keepdim=True).clamp_min(1e-12)
 
-        x = self.head.forward(x)
+        if self.project:
+            x = self.head.forward(x)
         return x
 
 
@@ -110,20 +113,20 @@ class DiffPoolNet(Module):
     Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
     https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
     """
-    # todo: (paper) batch normalize + GraphSage with mean
+    # todo: (paper) batch normalize
     def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1, device='cpu'):
         self.n_clusters = n_clusters
 
-        self.gcn1_embed = GCN(in_channels, embed_size, k_iterations=2, device=device)
-        self.gcn1_assign = GCN(in_channels, n_clusters[0], k_iterations=2, device=device)
+        self.gcn1_embed = GraphSAGE(in_channels, embed_size // 2, k_iterations=2, aggregation='mean', device=device)  # note graphSage output is concatenated, thus the out_size will be embed_size
+        self.gcn1_assign = GraphSAGE(in_channels, n_clusters[0], k_iterations=2, aggregation='mean', device=device)
         self.pool1 = DiffPool()
 
-        self.gcn2_embed = GCN(embed_size, embed_size, k_iterations=3, device=device)
-        self.gcn2_assign = GCN(embed_size, n_clusters[1], k_iterations=3, device=device)
+        self.gcn2_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean', device=device)
+        self.gcn2_assign = GraphSAGE(embed_size, n_clusters[1], k_iterations=3, aggregation='mean', device=device)
         self.pool2 = DiffPool()
 
-        self.gcn3_embed = GCN(embed_size, embed_size, k_iterations=3, device=device)
-        self.pool_final = DiffPool()
+        self.gcn3_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean', device=device)
+        # self.pool_final = DiffPool()
 
         self.head = Sequential(
             Linear(embed_size, embed_size, device=device),
