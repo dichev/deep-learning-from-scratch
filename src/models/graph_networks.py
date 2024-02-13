@@ -113,12 +113,11 @@ class DiffPoolNet(Module):
     Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
     https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
     """
-    # todo: (paper) batch normalize
     def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1, device='cpu'):
         self.n_clusters = n_clusters
 
         self.gcn1_embed = GraphSAGE(in_channels, embed_size // 2, k_iterations=2, aggregation='mean', device=device)  # note graphSage output is concatenated, thus the out_size will be embed_size
-        self.gcn1_assign = GraphSAGE(in_channels, n_clusters[0], k_iterations=2, aggregation='mean', device=device)
+        self.gcn1_assign = GraphSAGE(in_channels, n_clusters[0], k_iterations=2, aggregation='mean', device=device)   # [paper] they used BatchNorm, but here simple normalization is performed across the channels
         self.pool1 = DiffPool()
 
         self.gcn2_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean', device=device)

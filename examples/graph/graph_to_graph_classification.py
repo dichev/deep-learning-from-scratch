@@ -39,6 +39,34 @@ val_loader   = DenseDataLoader(dataset[int(N*.8):int(N*.9)], batch_size=BATCH_SI
 test_loader  = DenseDataLoader(dataset[int(N*.9):], batch_size=BATCH_SIZE, shuffle=False)
 
 
+@torch.no_grad()
+def evaluate(model, loader):
+    acc = 0
+    n = len(loader)
+    for data in loader:
+        data = data.to(DEVICE)
+        z, _ = model.forward(data.x, data.adj)
+        acc += accuracy(z.argmax(dim=1), data.y.view(-1)) / n
+
+    return loss, acc
+
+def train(model, loader):
+    loss = acc = 0
+    n = len(loader)  # n batch iterations
+    for data in loader:
+        data = data.to(DEVICE)
+        optimizer.zero_grad()
+        z, (loss_link, loss_entropy) = model.forward(data.x, data.adj)
+        cost = cross_entropy(z, data.y.view(-1), logits=True) + loss_link + loss_entropy
+        cost.backward()
+        optimizer.step()
+
+        loss += cost / n
+        acc += accuracy(z.argmax(dim=1), data.y.view(-1)) / n
+
+    return loss, acc
+
+
 # Model
 # model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=GRAPH_ITERATIONS, eps=0., device=DEVICE)
 model = DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes, device=DEVICE)
@@ -46,39 +74,10 @@ model.summary()
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 
 
-@torch.no_grad()
-def evaluate(model, loader):
-    loss = acc = 0
-    n = len(loader)
-    for data in loader:
-        data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.view(-1)
-        z, _ = model.forward(X, A)
-        acc += accuracy(z.argmax(dim=1), y) / n
-
-    return loss, acc
-
-
+# Training
 for epoch in range(1, EPOCHS+1):
-    loss = acc = val_loss = val_acc = 0
-    n = len(train_loader)  # n batch iterations
-
-    for data in train_loader:
-        data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.view(-1)  # sparse is not supported for the assignment matrix  # todo: use directly data.x, data.adj
-
-        optimizer.zero_grad()
-        z, (loss_link, loss_entropy) = model.forward(X, A)
-        cost = cross_entropy(z, y, logits=True) + loss_link + loss_entropy
-        loss += cost / n
-        acc += accuracy(z.argmax(dim=1), y) / n
-        cost.backward()
-        optimizer.step()
-
-    # Validation
+    loss, acc = train(model, train_loader)
     val_loss, val_acc = evaluate(model, val_loader)
-
-    # Log
     print(f'Epoch {epoch:>3} | Train Total Loss: {loss:.2f} | Train Acc: {acc * 100:>5.2f}% | Val Acc: {val_acc * 100:.2f}%')
 
 test_loss, test_acc = evaluate(model, test_loader)
