@@ -53,9 +53,7 @@ def evaluate(model, loader):
     for data in loader:
         data = data.to(DEVICE)
         X, A, y = data.x, data.adj, data.y.view(-1)
-
-        z = model.forward(X, A)
-        loss += cross_entropy(z, y, logits=True) / n
+        z, _ = model.forward(X, A)
         acc += accuracy(z.argmax(dim=1), y) / n
 
     return loss, acc
@@ -70,8 +68,8 @@ for epoch in range(1, EPOCHS+1):
         X, A, y = data.x, data.adj, data.y.view(-1)  # sparse is not supported for the assignment matrix  # todo: use directly data.x, data.adj
 
         optimizer.zero_grad()
-        z = model.forward(X, A)
-        cost = cross_entropy(z, y, logits=True)
+        z, (loss_link, loss_entropy) = model.forward(X, A)
+        cost = cross_entropy(z, y, logits=True) + loss_link + loss_entropy
         loss += cost / n
         acc += accuracy(z.argmax(dim=1), y) / n
         cost.backward()
@@ -81,10 +79,10 @@ for epoch in range(1, EPOCHS+1):
     val_loss, val_acc = evaluate(model, val_loader)
 
     # Log
-    print(f'Epoch {epoch:>3} | Train Loss: {loss:.2f} | Train Acc: {acc * 100:>5.2f}% | Val Loss: {val_loss:.2f} | Val Acc: {val_acc * 100:.2f}%')
+    print(f'Epoch {epoch:>3} | Train Total Loss: {loss:.2f} | Train Acc: {acc * 100:>5.2f}% | Val Acc: {val_acc * 100:.2f}%')
 
 test_loss, test_acc = evaluate(model, test_loader)
-print(f'Test Loss: {test_loss:.2f} | Test Acc: {test_acc * 100:.2f}%')
+print(f'Test Acc: {test_acc * 100:.2f}%')
 
 
 # Plot some graphs from the test set (green correct / red incorrect)
@@ -92,7 +90,7 @@ with torch.no_grad():
     for data in test_loader:
         data = data.to(DEVICE)
         X, A, y = data.x, data.adj, data.y.view(-1)
-        z = model.forward(X, A)
+        z, _ = model.forward(X, A)
         correct_mask = z.argmax(dim=1) == y
         graphs = [to_adj_list(adj.to_sparse().indices()) for adj in data.adj]
         plots.graphs_grid(graphs[:16], correct_mask[:16])

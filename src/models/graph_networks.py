@@ -1,6 +1,6 @@
 import torch
 from lib.layers import Module, ModuleList, Linear, BatchNorm, ReLU, Sequential, Dropout, BatchAddPool, GCN_cell, GraphSAGE_cell, DiffPool
-from lib.functions.activations import relu, softmax
+from lib.functions.activations import relu
 from utils.other import identity
 
 class GCN(Module):  # Graph Convolutional Network
@@ -110,7 +110,7 @@ class DiffPoolNet(Module):
     Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
     https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
     """
-    # todo: (paper) batch normalize + GraphSage with mean + collect pool losses
+    # todo: (paper) batch normalize + GraphSage with mean
     def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1, device='cpu'):
         self.n_clusters = n_clusters
 
@@ -134,16 +134,20 @@ class DiffPoolNet(Module):
     def forward(self, X, A):
         b, n, c = X.shape
 
-        Z = self.gcn1_embed.forward(X, A)                    # node embeddings
-        S = softmax(self.gcn1_assign.forward(X, A), dim=1)   # cluster assignment matrix
-        X, A = self.pool1.forward(Z, A, S)                   # A is no more a sparse binary matrix, but a weighted dense matrix that represents the connectivity strength between each cluster
+        Z = self.gcn1_embed.forward(X, A)                         # node embeddings
+        S = self.gcn1_assign.forward(X, A)                        # cluster assignment matrix (softmax is done by the pool)
+        X, A, (loss_l1, loss_e1) = self.pool1.forward(Z, A, S)    # A is no more a sparse binary matrix, but a weighted dense matrix that represents the connectivity strength between each cluster
 
-        Z = self.gcn2_embed.forward(X, A)                    # node embeddings
-        S = softmax(self.gcn2_assign.forward(X, A), dim=1)   # cluster assignment matrix
-        X, A = self.pool2.forward(Z, A, S)
+        Z = self.gcn2_embed.forward(X, A)                         # node embeddings
+        S = self.gcn2_assign.forward(X, A)                        # cluster assignment matrix (softmax is done by the pool)
+        X, A, (loss_l2, loss_e2) = self.pool2.forward(Z, A, S)
 
-        Z = self.gcn3_embed.forward(X, A)                    # node embeddings
-        X = Z.sum(dim=1)                                     # global add pooling - it is equivalent to the final pool (from paper), where S is a vector of 1's, thus all nodes are always assigned to a single cluster
+        Z = self.gcn3_embed.forward(X, A)                         # node embeddings
+        X = Z.sum(dim=1)                                          # global add pooling - it is equivalent to the final pool (from paper), where S is a vector of 1's, thus all nodes are always assigned to a single cluster
 
         X = self.head.forward(X)
-        return X
+
+        # Collect the pooling losses
+        loss_link, loss_entropy = loss_l1 + loss_l2, loss_e1 + loss_e2
+
+        return X, (loss_link, loss_entropy)

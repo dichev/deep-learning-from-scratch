@@ -1,7 +1,8 @@
 import torch
 import torch.nn.functional as F
 from lib.functions import init
-from lib.functions.activations import relu, tanh, sigmoid
+from lib.functions.activations import relu, tanh, sigmoid, softmax
+from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
 from collections import namedtuple
@@ -737,15 +738,21 @@ class DiffPool(Module):
     Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
     https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
     """
-    def forward(self, Z, A, S):  # S is the cluster assignment matrix
+    def forward(self, Z, A, S_logit):  # S is the cluster assignment matrix
         b, n, c = Z.shape
-        assert A.shape == (b, n, n) and S.shape[:2] == (b, n)
+        assert A.shape == (b, n, n) and S_logit.shape[:2] == (b, n)
+
+        S = softmax(S_logit, dim=1)
         ST = S.permute(0, 2, 1)
 
         X = ST @ Z            # (b, m, n) @ (b, n, c) -> (b, m, c)
         A_new = ST @ A @ S    # (b, m, n) @ (b, n, n) @ (b, n, m) -> (b, m, m)
 
-        return X, A_new
+        # Compute additional losses
+        loss_link = torch.norm(A - S @ ST)  / A.numel()   # to pool nearby nodes together
+        loss_entropy = entropy(S_logit, logits=True)      # to have S vectors close to one-hot
+
+        return X, A_new, (loss_link, loss_entropy)
 
 class ReLU(Module):
     def forward(self, x):

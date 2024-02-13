@@ -2,6 +2,15 @@ import torch
 from lib.functions.activations import log_softmax
 from collections import Counter
 
+def entropy(p, logits=True):
+    if logits:
+        log_prob = log_softmax(p)
+    else:
+        log_prob = torch.log(p)
+
+    losses = -(p * log_prob).sum(dim=-1)
+    return losses.mean()
+
 def cross_entropy(y_hat, y, logits=True):
     if logits:
         log_prob = log_softmax(y_hat)
