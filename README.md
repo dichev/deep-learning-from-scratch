@@ -18,8 +18,9 @@ I agree.
 `lib.layers` [➜](src/lib/layers.py)
 - Linear
 - Embedding
-- BatchNorm1d <sup>[*[Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift]*](https://proceedings.mlr.press/v37/ioffe15.pdf)</sup>
-- BatchNorm2d <sup>[*[Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift]*](https://proceedings.mlr.press/v37/ioffe15.pdf)</sup>
+- BatchNorm <sup>[*[Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift]*](https://proceedings.mlr.press/v37/ioffe15.pdf)</sup>
+- BatchNorm1d
+- BatchNorm2d
 - LayerNorm <sup>[*[Layer Normalization]*](https://arxiv.org/pdf/1607.06450.pdf)</sup>
 - LocalResponseNorm <sup>[*[ImageNet Classification with Deep Convolutional Neural Networks]*](https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf)</sup>
 - Dropout <sup>[*[Dropout: A Simple Way to Prevent Neural Networks from Overfitting]*](https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf)</sup>
@@ -37,6 +38,7 @@ I agree.
 - Graph_cell
 - GCN_cell <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
 - GraphSAGE_cell <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
+- DiffPool <sup>[*[Hierarchical Graph Representation Learning with Differentiable Pooling]*](https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf)</sup>
 - ReLU
 - Flatten
 
@@ -106,6 +108,7 @@ I agree.
 - GCN <sup>[*[Semi-Supervised Classification with Graph Convolutional Networks]*](https://arxiv.org/pdf/1609.02907.pdf)</sup>
 - GraphSAGE <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
 - GIN <sup>[*[How Powerful are Graph Neural Networks?]*](https://arxiv.org/pdf/1810.00826v3.pdf)</sup>
+- DiffPoolNet <sup>[*[Hierarchical Graph Representation Learning with Differentiable Pooling]*](https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf)</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>

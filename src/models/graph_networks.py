@@ -1,6 +1,6 @@
 import torch
-from lib.layers import Module, ModuleList, Linear, BatchNorm, ReLU, Sequential, Dropout, BatchAddPool, GCN_cell, GraphSAGE_cell
-from lib.functions.activations import relu
+from lib.layers import Module, ModuleList, Linear, BatchNorm, ReLU, Sequential, Dropout, BatchAddPool, GCN_cell, GraphSAGE_cell, DiffPool
+from lib.functions.activations import relu, softmax
 from utils.other import identity
 
 class GCN(Module):  # Graph Convolutional Network
@@ -8,19 +8,22 @@ class GCN(Module):  # Graph Convolutional Network
     Paper: Semi-Supervised Classification with Graph Convolutional Networks
     https://arxiv.org/pdf/1609.02907.pdf
     """
-    def __init__(self, in_channels, hidden_size, n_classes, k_iterations=1, device='cpu'):
+    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1, device='cpu'):
         self.layers = ModuleList([
             GCN_cell(in_channels if i == 0 else hidden_size, hidden_size, device)
             for i in range(k_iterations)]
         )
-        self.head = Linear(hidden_size, n_classes)
+        self.project = n_classes is not None
+        if self.project:
+            self.head = Linear(hidden_size, n_classes)
 
     def forward(self, x, A):
         for graph in self.layers:
             x = graph.forward(x, A)
             x = relu(x)
 
-        x = self.head.forward(x)
+        if self.project:
+            x = self.head.forward(x)
         return x
 
 
@@ -101,3 +104,46 @@ class GIN(Module):  # Graph Isomorphism Network
         z = self.head.forward(features)               # (n_classes)
         return z
 
+
+class DiffPoolNet(Module):
+    """
+    Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
+    https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
+    """
+    # todo: (paper) batch normalize + GraphSage with mean + collect pool losses
+    def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1, device='cpu'):
+        self.n_clusters = n_clusters
+
+        self.gcn1_embed = GCN(in_channels, embed_size, k_iterations=2, device=device)
+        self.gcn1_assign = GCN(in_channels, n_clusters[0], k_iterations=2, device=device)
+        self.pool1 = DiffPool()
+
+        self.gcn2_embed = GCN(embed_size, embed_size, k_iterations=3, device=device)
+        self.gcn2_assign = GCN(embed_size, n_clusters[1], k_iterations=3, device=device)
+        self.pool2 = DiffPool()
+
+        self.gcn3_embed = GCN(embed_size, embed_size, k_iterations=3, device=device)
+        self.pool_final = DiffPool()
+
+        self.head = Sequential(
+            Linear(embed_size, embed_size, device=device),
+            ReLU(),
+            Linear(embed_size, n_classes, device=device)
+        )
+
+    def forward(self, X, A):
+        b, n, c = X.shape
+
+        Z = self.gcn1_embed.forward(X, A)                    # node embeddings
+        S = softmax(self.gcn1_assign.forward(X, A), dim=1)   # cluster assignment matrix
+        X, A = self.pool1.forward(Z, A, S)                   # A is no more a sparse binary matrix, but a weighted dense matrix that represents the connectivity strength between each cluster
+
+        Z = self.gcn2_embed.forward(X, A)                    # node embeddings
+        S = softmax(self.gcn2_assign.forward(X, A), dim=1)   # cluster assignment matrix
+        X, A = self.pool2.forward(Z, A, S)
+
+        Z = self.gcn3_embed.forward(X, A)                    # node embeddings
+        X = Z.sum(dim=1)                                     # global add pooling - it is equivalent to the final pool (from paper), where S is a vector of 1's, thus all nodes are always assigned to a single cluster
+
+        X = self.head.forward(X)
+        return X

@@ -732,6 +732,21 @@ class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
         return neighbor_features
 
 
+class DiffPool(Module):
+    """
+    Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
+    https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
+    """
+    def forward(self, Z, A, S):  # S is the cluster assignment matrix
+        b, n, c = Z.shape
+        assert A.shape == (b, n, n) and S.shape[:2] == (b, n)
+        ST = S.permute(0, 2, 1)
+
+        X = ST @ Z            # (b, m, n) @ (b, n, c) -> (b, m, c)
+        A_new = ST @ A @ S    # (b, m, n) @ (b, n, n) @ (b, n, m) -> (b, m, m)
+
+        return X, A_new
+
 class ReLU(Module):
     def forward(self, x):
         return relu(x)

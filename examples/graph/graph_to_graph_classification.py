@@ -1,10 +1,11 @@
 import torch
+from math import ceil
 from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DenseDataLoader
 import torch_geometric.transforms as T
-from utils import plots
 
-from models.graph_networks import GIN
+from utils import plots
+from models.graph_networks import GIN, DiffPoolNet
 from lib.functions.losses import cross_entropy, accuracy
 from lib.optimizers import Adam
 from utils.graph import edge_index_to_adj_list as to_adj_list
@@ -25,7 +26,7 @@ dataset = TUDataset(
     root='./data/PROTEINS-dense', name='PROTEINS',
     transform=T.ToDense(max_nodes),                 # make each graph with the same number of nodes (to allow batching) by adding nodes with zero connections
     pre_filter=lambda d: d.num_nodes <= max_nodes   # remove the graphs with more than max_nodes
-).shuffle()
+)
 print(f'Dataset: {dataset}')
 print(f'Number of graphs: {len(dataset)}')
 print(f'Number of nodes: {dataset[0].x.shape[0]}')
@@ -39,7 +40,8 @@ test_loader  = DenseDataLoader(dataset[int(N*.9):], batch_size=BATCH_SIZE, shuff
 
 
 # Model
-model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=GRAPH_ITERATIONS, eps=0., device=DEVICE)
+# model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=GRAPH_ITERATIONS, eps=0., device=DEVICE)
+model = DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes, device=DEVICE)
 model.summary()
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 
@@ -50,7 +52,7 @@ def evaluate(model, loader):
     n = len(loader)
     for data in loader:
         data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.squeeze()
+        X, A, y = data.x, data.adj, data.y.view(-1)
 
         z = model.forward(X, A)
         loss += cross_entropy(z, y, logits=True) / n
@@ -65,7 +67,7 @@ for epoch in range(1, EPOCHS+1):
 
     for data in train_loader:
         data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.squeeze()  # sparse is not supported for the assignment matrix  # todo: use directly data.x, data.adj
+        X, A, y = data.x, data.adj, data.y.view(-1)  # sparse is not supported for the assignment matrix  # todo: use directly data.x, data.adj
 
         optimizer.zero_grad()
         z = model.forward(X, A)
@@ -89,7 +91,7 @@ print(f'Test Loss: {test_loss:.2f} | Test Acc: {test_acc * 100:.2f}%')
 with torch.no_grad():
     for data in test_loader:
         data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.squeeze()
+        X, A, y = data.x, data.adj, data.y.view(-1)
         z = model.forward(X, A)
         correct_mask = z.argmax(dim=1) == y
         graphs = [to_adj_list(adj.to_sparse().indices()) for adj in data.adj]
