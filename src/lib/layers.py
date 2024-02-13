@@ -707,21 +707,19 @@ class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
         b, n, c = X.shape
         if self.aggregate_operator == 'neighbor':
             deg = A.sum(dim=1).to_dense().view(1, n, 1)
-            message = A @ X * torch.where(deg != 0, 1 / deg, 0)  # A @ X == self.get_neighbor_features(X, A).sum(dim=2)
+            message = A @ X * torch.where(deg != 0, 1 / deg, 0)     # A @ X / deg  == self.get_neighbor_features(X, A).sum(dim=2) / deg
 
         elif self.aggregate_operator == 'mean':
-            neighbor_features = self.get_neighbor_features(X, A)
-            message = neighbor_features.mean(dim=2)
+            message = A @ X / n                                     # A @ X / n == self.get_neighbor_features(X, A).mean(dim=2)
 
         elif self.aggregate_operator == 'meanpool':
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
-            neighbor_features = self.get_neighbor_features(H, A)    # for each node, collect all adjacent node features with broadcasting (N, N, c)
-            message = neighbor_features.mean(dim=2)                 # and then select only the max features values across each adjacent nodes
+            message = A @ H / n                                     # A @ H / n == self.get_neighbor_features(H, A).mean(dim=2)
 
         elif self.aggregate_operator == 'maxpool':  # (paper) samples fixed number of neighbors
             H = relu(X @ self.weight_pool + self.bias_pool)         # trainable projection
             neighbor_features = self.get_neighbor_features(H, A)    # for each node, collect all adjacent node features with broadcasting (N, N, c)
-            message, _ = neighbor_features.max(dim=2)              # and then select only the max features values across each adjacent nodes
+            message, _ = neighbor_features.max(dim=2)               # and then select only the max features values across each adjacent nodes
 
         else:
             raise ValueError
@@ -729,7 +727,7 @@ class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
 
     def get_neighbor_features(self, X, A):  # neighbor sampling is done on data level (as mini-batched subgraphs)
         b, n, c = X.shape
-        neighbor_features = X.view(b, 1, n, c) * A.bool().to_dense().view(b, n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
+        neighbor_features = X.view(b, 1, n, c) * A.to_dense().view(b, n, n, 1)     # for each node, collect all adjacent node features with broadcasting (N, N, c)
         return neighbor_features
 
 
