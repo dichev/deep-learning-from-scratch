@@ -12,10 +12,9 @@ from utils.graph import edge_index_to_adj_list as to_adj_list
 
 
 # hyperparams
-GRAPH_ITERATIONS = 3
 HIDDEN_CHANNELS = 64
 LEARN_RATE = 0.01
-EPOCHS = 100
+EPOCHS = 20
 BATCH_SIZE = 32
 DEVICE = 'cuda'
 
@@ -68,30 +67,31 @@ def train(model, loader):
 
 
 # Model
-# model = GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=GRAPH_ITERATIONS, eps=0., device=DEVICE)
-model = DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes, device=DEVICE)
-model.summary()
-optimizer = Adam(model.parameters(), lr=LEARN_RATE)
-
+models = {
+    'GIN': GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=3, eps=0., device=DEVICE),
+    'DiffPool': DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes, device=DEVICE)
+}
 
 # Training
-for epoch in range(1, EPOCHS+1):
-    loss, acc = train(model, train_loader)
-    val_loss, val_acc = evaluate(model, val_loader)
-    print(f'Epoch {epoch:>3} | Train Total Loss: {loss:.2f} | Train Acc: {acc * 100:>5.2f}% | Val Acc: {val_acc * 100:.2f}%')
+for name, model in models.items():
+    model.summary()
+    optimizer = Adam(model.parameters(), lr=LEARN_RATE)
+    for epoch in range(1, EPOCHS+1):
+        loss, acc = train(model, train_loader)
+        val_loss, val_acc = evaluate(model, val_loader)
+        print(f'Epoch {epoch:>3} | Train Total Loss: {loss:.2f} | Train Acc: {acc * 100:>5.2f}% | Val Acc: {val_acc * 100:.2f}%')
 
-test_loss, test_acc = evaluate(model, test_loader)
-print(f'Test Acc: {test_acc * 100:.2f}%')
+    test_loss, test_acc = evaluate(model, test_loader)
+    print(f'Test Acc: {test_acc * 100:.2f}%')
 
-
-# Plot some graphs from the test set (green correct / red incorrect)
-with torch.no_grad():
-    for data in test_loader:
-        data = data.to(DEVICE)
-        X, A, y = data.x, data.adj, data.y.view(-1)
-        z, _ = model.forward(X, A)
-        correct_mask = z.argmax(dim=1) == y
-        graphs = [to_adj_list(adj.to_sparse().indices()) for adj in data.adj]
-        plots.graphs_grid(graphs[:16], correct_mask[:16])
-        break
+    # Plot some graphs from the test set (green correct / red incorrect)
+    with torch.no_grad():
+        for data in test_loader:
+            data = data.to(DEVICE)
+            X, A, y = data.x, data.adj, data.y.view(-1)
+            z, _ = model.forward(X, A)
+            correct_mask = z.argmax(dim=1) == y
+            graphs = [to_adj_list(adj.to_sparse().indices()) for adj in data.adj]
+            plots.graphs_grid(graphs[:16], correct_mask[:16], title=name)
+            break
 

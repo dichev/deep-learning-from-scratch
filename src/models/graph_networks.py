@@ -105,7 +105,7 @@ class GIN(Module):  # Graph Isomorphism Network
         # Classifier using the summed embeddings from each layer
         features = torch.cat(features, dim=-1)        # (b, h * num_layers)
         z = self.head.forward(features)               # (n_classes)
-        return z
+        return z, (0, 0)  # ignore the zeros, there are for compatibility with DiffPoolNet output
 
 
 class DiffPoolNet(Module):

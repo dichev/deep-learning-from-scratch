@@ -93,9 +93,10 @@ def graph_as_spring_3d(G):
     plt.show()
 
 
-def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16)):
+def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16), title=''):
     N = len(graphs)
     fig, axes = plt.subplots(math.ceil(N/cols), cols, figsize=figsize)
+    fig.suptitle(title)
     for i, ax in enumerate(axes.reshape(-1)):
         ax.axis(False)
         if i < N:
