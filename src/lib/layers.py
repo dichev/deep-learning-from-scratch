@@ -646,13 +646,11 @@ class GCN_cell(Module):
 
         b, n, n = A.shape
 
-        I = identity(n, sparse=A.is_sparse, device=A.device)
-        A_self = A + I                         # add the self connections
-        D = I * A_self.sum(dim=1, keepdims=True).to_dense()   # diagonal degree matrix
-        D = D ** (-1 / 2)                      # inverse squared degree matrix
-        if D.layout != torch.sparse_coo:
-            D[torch.isinf(D)] = 0              # handle zero division (note that's not necessary if D is in sparse layout)
-        A_norm = D @ A_self @ D                # normalized adjacency matrix
+        I = identity(n, sparse=False, device=A.device)
+        A_self = A + I                                   # add self connections
+        D = I * A_self.sum(dim=1, keepdims=True)         # diagonal degree matrix
+        D[D != 0] = D[D != 0] ** (-1 / 2)                # inverse squared degree matrix
+        A_norm = D @ A_self @ D                          # normalized adjacency matrix
 
         self._cache['adjacency'] = A
         self._cache['adjacency_normalized'] = A_norm
