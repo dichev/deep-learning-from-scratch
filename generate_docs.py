@@ -17,6 +17,7 @@ whitelist = {
         'src/models/convolutional_networks.py',
         'src/models/residual_networks.py',
         'src/models/graph_networks.py',
+        'src/models/attention_networks.py',
         'src/models/blocks/convolutional_blocks.py',
     ],
     "Example usages": [
