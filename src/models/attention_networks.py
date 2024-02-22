@@ -1,7 +1,7 @@
 import torch
 from torchvision.transforms import functional as TF
 
-from lib.layers import Module, Linear, LSTM_cell
+from lib.layers import Module, Linear, RNN_cell
 from lib.functions.activations import relu
 from preprocessing.transforms import batched_crop_on_different_positions
 
@@ -12,8 +12,7 @@ class RecurrentAttention(Module):
     https://arxiv.org/pdf/1406.6247.pdf
     """
 
-    def __init__(self, steps=6, focus_size=5, k_focus_patches=3, n_classes=10, device='cpu'):
-        assert focus_size % 2 == 1, f'focus_size must be an odd number, but got {focus_size}'
+    def __init__(self, steps=6, focus_size=8, k_focus_patches=3, n_classes=10, device='cpu'):
         self.focus_size = focus_size
         self.k = k_focus_patches
         self.steps = steps
@@ -25,7 +24,7 @@ class RecurrentAttention(Module):
         self.gnet_combine = Linear(128*2, 256, device=device)
 
         # Core network
-        self.rnn = LSTM_cell(256, 512, device=device)
+        self.rnn = RNN_cell(256, 512, use_relu=True, device=device)
 
         # Heads
         self.head_action = Linear(512, n_classes, device=device)
