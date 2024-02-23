@@ -198,9 +198,10 @@ class Dropout(Module):
     def __repr__(self):
         return f'Dropout({self.p})'
 
+
 class RNN_cell(Module):
 
-    def __init__(self, input_size, hidden_size, layer_norm=False, device='cpu'):
+    def __init__(self, input_size, hidden_size, layer_norm=False, use_relu=False, device='cpu'):
         self.weight = Param((input_size + hidden_size, hidden_size), device=device)  # (I+H, H)
         self.bias = Param((1, hidden_size), device=device)  # (1, H)
         if layer_norm:
@@ -210,12 +211,17 @@ class RNN_cell(Module):
         self.hidden_size = hidden_size
         self.layer_norm = layer_norm
         self.device = device
+        self.use_relu = use_relu
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
-        init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
-        self.bias.fill_(1)
+        if self.use_relu:
+            init.kaiming_normal_relu_(self.weight, self.weight.shape[0])
+            self.bias.fill_(0)
+        else:
+            init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
+            self.bias.fill_(1)
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
@@ -225,11 +231,13 @@ class RNN_cell(Module):
             h = torch.zeros(N, self.hidden_size, device=self.device)
 
         # Compute the hidden state
-        xh = torch.concat((x, h), dim=-1)  # (N, I+H)
-        a = xh @ self.weight + self.bias           # (N, I+H) -> (N, H)
+        xh = torch.concat((x, h), dim=-1)      # (N, I+H)
+        a = xh @ self.weight + self.bias               # (N, I+H) -> (N, H)
+
         if self.layer_norm:
-            a = self.norm.forward(a)               # (N, H)
-        h = tanh(a)                                # (N, H)
+            a = self.norm.forward(a)                   # (N, H)
+
+        h = tanh(a) if not self.use_relu else relu(a)  # (N, H)
 
         return h, None
 

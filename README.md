@@ -10,6 +10,9 @@ I agree.
 * using PyTorch's tensors for GPU computation
 * using PyTorch's autograd for the backpropagation
 
+```
+conda env create --name dev --file=deep-learning/environment.yml
+```
 
 <!-- auto-generated-bellow -->
 
@@ -109,6 +112,9 @@ I agree.
 - GraphSAGE <sup>[*[Inductive Representation Learning on Large Graphs]*](https://arxiv.org/pdf/1706.02216.pdf)</sup>
 - GIN <sup>[*[How Powerful are Graph Neural Networks?]*](https://arxiv.org/pdf/1810.00826v3.pdf)</sup>
 - DiffPoolNet <sup>[*[Hierarchical Graph Representation Learning with Differentiable Pooling]*](https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf)</sup>
+
+`models.attention_networks` [➜](src/models/attention_networks.py)
+- RecurrentAttention <sup>[*[Recurrent Models of Visual Attention]*](https://arxiv.org/pdf/1406.6247.pdf)</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>
