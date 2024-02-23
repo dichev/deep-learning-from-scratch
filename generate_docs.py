@@ -1,7 +1,8 @@
 import re
 
 readme_path = 'README.md'
-marker = '<!-- auto-generated-bellow -->'
+marker_start = '<!-- auto-generated-start -->'
+marker_end = '<!-- auto-generated-end -->'
 whitelist = {
     'Layers': [
         'src/lib/layers.py',
@@ -34,9 +35,9 @@ whitelist = {
 # Find the marker from where the writing begins
 with open(readme_path, 'r') as file:
     content = file.read()
-    position = content.find(marker)
-    text = content[:content.find(marker) + len(marker)]
-    assert position != -1, f'The marker: "{marker}" is not found'
+    start, end = content.find(marker_start), content.find(marker_end)
+    assert start != -1 and end != -1, f'The markers are not found: {marker_start=}, {marker_end=}. Aborting!'
+    header, text, footer = content[:start + len(marker_start)], '', content[end:]
 
 
 # Collect and format all the whitelisted classes and functions
@@ -60,6 +61,6 @@ for group, paths in whitelist.items():
 
 # Finally write the content
 with open(readme_path, 'w', encoding='utf-8') as readme:
-    readme.write(text)
+    readme.write(header + '\n' + text + '\n' + footer)
     print(f'Document files generated:\n {readme_path}')
 

@@ -10,11 +10,9 @@ I agree.
 * using PyTorch's tensors for GPU computation
 * using PyTorch's autograd for the backpropagation
 
-```
-conda env create --name dev --file=deep-learning/environment.yml
-```
 
-<!-- auto-generated-bellow -->
+<!-- auto-generated-start -->
+
 
 ### Layers
 
@@ -133,3 +131,10 @@ conda env create --name dev --file=deep-learning/environment.yml
 - examples/graph [➜](examples/graph)
 - examples/recurrent [➜](examples/recurrent)
 - examples/shallow [➜](examples/shallow)
+
+<!-- auto-generated-end -->
+
+## Installation
+```
+conda env create --name dev --file=./environment.yml
+```

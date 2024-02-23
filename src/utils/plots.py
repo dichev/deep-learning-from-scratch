@@ -1,7 +1,6 @@
 import torch
 from matplotlib import pyplot as plt
 import networkx as nx
-from torch_geometric.utils import to_networkx
 import numpy as np
 import math
 

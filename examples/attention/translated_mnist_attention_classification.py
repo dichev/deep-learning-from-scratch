@@ -1,16 +1,14 @@
 import torch
 from torchvision import datasets
 from torchvision.transforms import v2 as T
+from torch.utils.data import DataLoader, random_split
 from tqdm import trange
 
-from torch.utils.data import DataLoader, random_split
 from models.attention_networks import RecurrentAttention
 from lib.functions.losses import cross_entropy, accuracy
 from lib.optimizers import Adam
 from preprocessing.transforms import random_canvas_expand
 
-from utils.rng import seed_global
-seed_global(4)
 
 # model hyperparams
 focus_size = 8
@@ -83,10 +81,10 @@ def train(model, loader):
 
 
 # Training
-for epoch in range(1, EPOCHS+1):
+for epoch in range(EPOCHS):
     loss, acc, pbar = train(model, train_loader)
     val_loss, val_acc = evaluate(model, val_loader)
-    pbar.desc = f'Epoch {epoch}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}'); pbar.close()
+    pbar.desc = f'Epoch {epoch+1}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}'); pbar.close()
 
 test_loss, test_acc = evaluate(model, test_loader)
 print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')
