@@ -1,0 +1,92 @@
+import torch
+from torchvision import datasets
+from torchvision.transforms import v2 as T
+from tqdm import trange
+
+from torch.utils.data import DataLoader, random_split
+from models.attention_networks import RecurrentAttention
+from lib.functions.losses import cross_entropy, accuracy
+from lib.optimizers import Adam
+from preprocessing.transforms import random_canvas_expand
+
+from utils.rng import seed_global
+seed_global(4)
+
+# model hyperparams
+focus_size = 8
+k_focus_patches = 3
+glimpses = 6
+
+# training hyperparams & settings
+EPOCHS = 100
+BATCH_SIZE = 2 * 1024
+LEARN_RATE = 0.1
+DEVICE = 'cuda'
+
+
+# Get data
+transform = T.Compose([
+    T.ToImage(),
+    T.ToDtype(torch.float32, scale=True),                    # normalized to [0,1]
+    lambda x: random_canvas_expand(x, width=60, height=60),  # translated MNIST: 28x28 -> 60x60 at random position
+])
+train_dataset = datasets.MNIST('./data/', download=True, train=True,  transform=transform)
+test_dataset  = datasets.MNIST('./data/', download=True, train=False, transform=transform)
+train_dataset, val_dataset = random_split(train_dataset, (0.8, 0.2))
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader   = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+
+# Model
+print('WARNING! REINFORCE learning is not implemented yet.')
+model = RecurrentAttention(focus_size=focus_size, steps=glimpses, k_focus_patches=k_focus_patches, device=DEVICE)
+model.summary()
+model.visualize(next(iter(train_loader))[0][:5].to(DEVICE), loc=(torch.Tensor(5, 2).uniform_(-1, 1)).to(DEVICE))
+optimizer = Adam(model.parameters(), lr=LEARN_RATE)
+
+@torch.no_grad()
+def evaluate(model, loader):
+    total_loss = total_acc = 0
+    n = len(loader)
+    for X, y in loader:
+        X, y = X.to(DEVICE), y.to(DEVICE)
+        z, _ = model.forward(X)
+        cost = cross_entropy(z, y, logits=True)
+        total_acc += accuracy(z.argmax(dim=1), y) / n
+        total_loss += cost.item() / n
+
+    return total_loss, total_acc
+
+
+def train(model, loader):
+    total_loss = total_acc = 0
+    n = len(loader)  # n batch iterations
+    pbar = trange(len(loader)*BATCH_SIZE, desc=f'Epoch (batch_size={BATCH_SIZE})')
+    for i, (X, y) in enumerate(loader):
+        X, y = X.to(DEVICE), y.to(DEVICE)
+        optimizer.zero_grad()
+        z, locs = model.forward(X)  # todo: implement REINFORCE learning to the "locs"
+        cost = cross_entropy(z, y, logits=True)
+        cost.backward()
+        optimizer.step()
+
+        loss, acc = cost.item(), accuracy(z.argmax(dim=1), y)
+        total_loss += loss / n
+        total_acc += acc / n
+
+        pbar.update(BATCH_SIZE)
+        pbar.set_postfix_str(f'loss={loss:.3f}, acc={acc:.3f}')
+
+    return total_loss, total_acc, pbar
+
+
+# Training
+for epoch in range(1, EPOCHS+1):
+    loss, acc, pbar = train(model, train_loader)
+    val_loss, val_acc = evaluate(model, val_loader)
+    pbar.desc = f'Epoch {epoch}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}'); pbar.close()
+
+test_loss, test_acc = evaluate(model, test_loader)
+print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')

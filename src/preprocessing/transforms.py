@@ -1,6 +1,16 @@
 import torch
 
 
+def random_canvas_expand(img, width=60, height=60):
+    C, H, W = img.shape
+    assert H <= height and W <= width
+    out = torch.zeros((C, height, width), device=img.device)
+    y = torch.randint(height - H + 1, (1,))
+    x = torch.randint(width - W + 1, (1,))
+    out[:, y:y+H, x:x+W] = img
+    return out
+
+
 def batched_crop_on_different_positions(imgs, coords, size):
     """ Vectorized version of:
     B = len(imgs)

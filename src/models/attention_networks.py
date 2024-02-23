@@ -1,4 +1,7 @@
 import torch
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+from torchvision.utils import make_grid
 from torchvision.transforms import functional as TF
 
 from lib.layers import Module, Linear, RNN_cell
@@ -93,3 +96,21 @@ class RecurrentAttention(Module):
         coords = 0.5 * ((loc + 1.0) * img_size)
         coords = coords.round().long().clamp(min=0, max=img_size)
         return coords
+
+    def visualize(self, x, loc):
+        B, C, H, W = x.shape
+        patches = self.glimpse_sensor(x, loc)
+        pos = self.denormalize_loc(loc, W)
+
+        fig, ax = plt.subplots(B, 2, figsize=(2 * 2, B * 2))
+        for i in range(B):
+            grid = make_grid(patches[i].unsqueeze(1).cpu(), normalize=True, pad_value=1, padding=1).permute(1, 2, 0)
+            ax[i, 0].imshow(x[i].view(H, W).cpu(), cmap='gray')
+            ax[i, 0].axis(False)
+            for k in range(1, self.k + 1):
+                size = self.focus_size * 2 ** (k - 1)
+                ax[i, 0].add_patch(Rectangle(pos[i].cpu() - size // 2, size, size, linewidth=1, edgecolor='r', facecolor='none'))
+            ax[i, 1].imshow(grid)
+            ax[i, 1].axis(False)
+        plt.tight_layout()
+        plt.show()
