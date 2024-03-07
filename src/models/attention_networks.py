@@ -4,9 +4,10 @@ from matplotlib.patches import Rectangle
 from torchvision.utils import make_grid
 from torchvision.transforms import functional as TF
 
-from lib.layers import Module, Linear, RNN_cell
+from lib.layers import Module, Linear, RNN_cell, Conv2d, MaxPool2d, ReLU, Sequential, Dropout, Flatten
 from lib.functions.activations import relu
 from preprocessing.transforms import batched_crop_on_different_positions
+from utils import images as I
 
 
 class RecurrentAttention(Module):
@@ -114,3 +115,93 @@ class RecurrentAttention(Module):
             ax[i, 1].axis(False)
         plt.tight_layout()
         plt.show()
+
+
+
+class SpatialTransformer(Module):
+    """
+    Paper: Spatial Transformer Networks
+    https://arxiv.org/pdf/1506.02025.pdf
+    """
+
+    def __init__(self, transformation_mode='affine', localisation_net=None, device='cpu'):
+        self.mode = transformation_mode
+        if self.mode == 'affine':       # [[a b t1], [c d t2]]
+            n_params = 6
+        elif self.mode == 'attention':  # [[s 0 t1], [0 s t2]]
+            n_params = 3
+        else:
+            raise NotImplemented
+
+        if localisation_net is None:
+            self.localisation = Sequential(                                                       # in:  1, 28, 28
+                Conv2d(in_channels=1, out_channels=10, kernel_size=5, device=device), ReLU(),     # ->  10, 24, 24
+                MaxPool2d(kernel_size=2, stride=2),                                               # ->  10, 12, 12
+                Conv2d(in_channels=10, out_channels=20, kernel_size=5, device=device), ReLU(),    # ->  20,  8,  8
+                MaxPool2d(kernel_size=2, stride=2),                                               # ->  20,  4,  4
+                Flatten(),                                                                        # -> 320
+                Linear(input_size=20*4*4, output_size=64, device=device), ReLU(),                 # ->  64
+                Linear(input_size=64, output_size=n_params, device=device)                        # -> n_params
+            )
+        else:
+            self.localisation = localisation_net
+
+        # Initialize as identity transformation
+        with torch.no_grad():
+            self.localisation[-1].weight.data.zero_()
+            if self.mode == 'affine':
+                self.localisation[-1].bias.data.copy_(torch.eye(2, 3, dtype=torch.float).flatten())
+            elif self.mode == 'attention':
+                self.localisation[-1].bias.data.copy_(torch.tensor([1, 0, 0]))
+
+    def forward(self, U):
+        B, C, H, W = U.shape
+
+        # Localisation net - predict transformation over input image
+        theta = self.localisation.forward(U)               # (B, n_params)
+        transform = self.to_transformation_matrix(theta)   # (B, 2, 3) <- affine transformation matrix
+
+        # Grid generator: transform the input image grid (with reverse mapping)
+        grid_source = I.affine_grid(transform, U.size())  # todo: use out size W != W_out, H != H_out ->
+
+        # Sampler: sample input pixel values after the transformation with bilinear interpolation
+        x_sampled = I.transform_image(U, grid_source, interpolation='bilinear')
+
+        return x_sampled
+
+    def to_transformation_matrix(self, theta):
+        B = len(theta)
+        if self.mode == 'affine':         # [[a b t1], [c d t2]]
+            return theta.view(B, 2, 3)
+        elif self.mode == 'attention':    # [[s 0 t1], [0 s t2]]
+            s, t1, t2 = theta.unbind(-1)
+            transform = torch.zeros(B, 2, 3, device=theta.device, dtype=torch.float)
+            transform[:, 0, 0] = transform[:, 1, 1] = s         # dilation (scaling in same aspect ratio)
+            transform[:, 0, 2], transform[:, 1, 2] = t1, t2     # translation
+            return transform
+
+
+class SpatialTransformerNet(Module):
+
+    def __init__(self, n_classes=10, device='cpu'):
+        self.spatial_transform = SpatialTransformer(transformation_mode='affine', device=device)
+
+        self.body = Sequential(                                                               # in:   1, 28, 28
+            Conv2d(in_channels=1, out_channels=10, kernel_size=5, device=device), ReLU(),     # ->   10, 24, 24
+            MaxPool2d(kernel_size=2, stride=2),                                               # ->   10, 12, 12
+            Conv2d(in_channels=10, out_channels=20, kernel_size=5, device=device), ReLU(),    # ->   20,  8,  8
+            MaxPool2d(kernel_size=2, stride=2),                                               # ->   20,  4,  4
+        )
+        self.head = Sequential(
+            Flatten(),                                                                        # ->  320
+            # Dropout(.5),
+            Linear(20*4*4, 64, device=device), ReLU(),                             # ->  64
+            Linear(64, n_classes, device=device)                                    # ->  n_classes
+        )
+        self.device = device
+
+    def forward(self, x):
+        x = self.spatial_transform.forward(x)
+        x = self.body.forward(x)
+        x = self.head.forward(x)
+        return x

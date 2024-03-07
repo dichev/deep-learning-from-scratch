@@ -113,6 +113,8 @@ I agree.
 
 `models.attention_networks` [➜](src/models/attention_networks.py)
 - RecurrentAttention <sup>[*[Recurrent Models of Visual Attention]*](https://arxiv.org/pdf/1406.6247.pdf)</sup>
+- SpatialTransformer <sup>[*[Spatial Transformer Networks]*](https://arxiv.org/pdf/1506.02025.pdf)</sup>
+- SpatialTransformerNet
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>
