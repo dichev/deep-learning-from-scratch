@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from math import sqrt
 from lib.functions import init
 from lib.functions.activations import relu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
@@ -10,7 +11,7 @@ from collections import namedtuple
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
 
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, weights_init=init.kaiming_normal_relu_, device='cpu'):
+    def __init__(self, input_size, output_size=1, weights_init=None, device='cpu'):
         self.weight = Param((input_size, output_size), device=device)  # (D, C)
         self.bias = Param((1, output_size), device=device)  # (D, C)
         self.input_size, self.output_size = input_size, output_size
@@ -19,8 +20,14 @@ class Linear(Module):
 
     @torch.no_grad()
     def reset_parameters(self):
-        self.weights_initializer(self.weight, self.input_size, self.output_size)  # kaiming_normal_relu_ by default
-        self.bias.fill_(0)
+        if self.weights_initializer is not None:
+            self.weights_initializer(self.weight, self.input_size, self.output_size)  # kaiming_uniform_relu_ by default
+            self.weights_initializer(self.bias, self.input_size, self.output_size)
+        else:
+            # using pytorch's default initialization for Linear layers:
+            bound = 1 / sqrt(self.input_size)
+            self.weight.uniform_(-bound, bound)
+            self.bias.uniform_(-bound, bound)
 
     def forward(self, X):
         z = X @ self.weight + self.bias    # (N, D)x(D, C) + (1, C)  --> (N, C)
