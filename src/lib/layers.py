@@ -91,8 +91,9 @@ class BatchNorm(Module):
         # mini-batch statistics
         if torch.is_grad_enabled():
             mu, var, var_unbias = x.mean(dim=self.dims, keepdims=True), x.var(dim=self.dims, correction=0, keepdims=True), x.var(dim=self.dims, keepdims=True)
-            self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
-            self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var_unbias
+            with torch.no_grad():  # fix a memory leak in the computation graph (for var_unbias only)
+                self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
+                self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var_unbias
         else:
             mu, var = self.running_mean, self.running_var
 
