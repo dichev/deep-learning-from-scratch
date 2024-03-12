@@ -4,7 +4,7 @@ from matplotlib.patches import Rectangle
 from torchvision.utils import make_grid
 from torchvision.transforms import functional as TF
 
-from lib.layers import Module, Linear, RNN_cell, Conv2d, MaxPool2d, ReLU, Sequential, Dropout, Flatten
+from lib.layers import Module, Linear, RNN_cell, Conv2d, MaxPool2d, ReLU, Sequential, Dropout, Flatten, BatchNorm2d
 from lib.functions.activations import relu
 from preprocessing.transforms import batched_crop_on_different_positions
 from utils import images as I
@@ -135,11 +135,13 @@ class SpatialTransformer(Module):
 
         if localisation_net is None:
             self.localisation = Sequential(                                                       # in:  1, 28, 28
-                Conv2d(in_channels=1, out_channels=10, kernel_size=5, device=device), ReLU(),     # ->  10, 24, 24
-                MaxPool2d(kernel_size=2, stride=2),                                               # ->  10, 12, 12
-                Conv2d(in_channels=10, out_channels=20, kernel_size=5, device=device), ReLU(),    # ->  20,  8,  8
-                MaxPool2d(kernel_size=2, stride=2),                                               # ->  20,  4,  4
-                Flatten(),                                                                        # -> 320
+                Conv2d(in_channels=1, out_channels=8, kernel_size=5, device=device),              # ->   8, 24, 24
+                BatchNorm2d(8, device=device), ReLU(),
+                MaxPool2d(kernel_size=2, stride=2),                                               # ->   8, 12, 12
+                Conv2d(in_channels=8, out_channels=16, kernel_size=5, device=device),             # ->  1616,  8,  8
+                BatchNorm2d(16, device=device), ReLU(),
+                MaxPool2d(kernel_size=2, stride=2),                                               # ->  1616,  4,  4
+                Flatten(),                                                                        # -> 256
                 Linear(input_size=20*4*4, output_size=64, device=device), ReLU(),                 # ->  64
                 Linear(input_size=64, output_size=n_params, device=device)                        # -> n_params
             )
@@ -183,19 +185,21 @@ class SpatialTransformer(Module):
 
 class SpatialTransformerNet(Module):
 
-    def __init__(self, n_classes=10, device='cpu'):
-        self.spatial_transform = SpatialTransformer(transformation_mode='affine', device=device)
+    def __init__(self, n_classes=10, transformation_mode='affine', device='cpu'):
+        self.spatial_transform = SpatialTransformer(transformation_mode, device=device)
 
         self.body = Sequential(                                                               # in:   1, 28, 28
-            Conv2d(in_channels=1, out_channels=10, kernel_size=5, device=device), ReLU(),     # ->   10, 24, 24
-            MaxPool2d(kernel_size=2, stride=2),                                               # ->   10, 12, 12
-            Conv2d(in_channels=10, out_channels=20, kernel_size=5, device=device), ReLU(),    # ->   20,  8,  8
-            MaxPool2d(kernel_size=2, stride=2),                                               # ->   20,  4,  4
+            Conv2d(in_channels=1, out_channels=8, kernel_size=5, device=device),              # ->    8, 24, 24
+            BatchNorm2d(8, device=device), ReLU(),
+            MaxPool2d(kernel_size=2, stride=2),                                               # ->    8, 12, 12
+            Conv2d(in_channels=8, out_channels=16, kernel_size=5, device=device),             # ->   16,  8,  8
+            BatchNorm2d(16, device=device), ReLU(),
+            MaxPool2d(kernel_size=2, stride=2),                                               # ->   16,  4,  4
         )
         self.head = Sequential(
-            Flatten(),                                                                        # ->  320
-            # Dropout(.5),
-            Linear(20*4*4, 64, device=device), ReLU(),                             # ->  64
+            Flatten(),                                                                        # ->  256
+            # Dropout(.5),                            # ->  64
+            Linear(16*4*4, 64, device=device), ReLU(),                             # ->  64
             Linear(64, n_classes, device=device)                                    # ->  n_classes
         )
         self.device = device
