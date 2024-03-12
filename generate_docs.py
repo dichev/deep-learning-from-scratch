@@ -27,6 +27,7 @@ whitelist = {
         'examples/energy_based',
         'examples/graph',
         'examples/recurrent',
+        'examples/attention',
         'examples/shallow',
     ]
 }

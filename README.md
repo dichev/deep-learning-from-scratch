@@ -132,6 +132,7 @@ I agree.
 - examples/energy_based [➜](examples/energy_based)
 - examples/graph [➜](examples/graph)
 - examples/recurrent [➜](examples/recurrent)
+- examples/attention [➜](examples/attention)
 - examples/shallow [➜](examples/shallow)
 
 <!-- auto-generated-end -->

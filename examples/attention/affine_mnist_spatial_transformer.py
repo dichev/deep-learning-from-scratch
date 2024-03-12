@@ -1,22 +1,16 @@
 import torch
 from tqdm import trange
 
-from models.attention_networks import RecurrentAttention
+from models.attention_networks import SpatialTransformerNet
 from lib.functions.losses import cross_entropy, accuracy
-from lib.optimizers import Adam
-from data.mnist import MNIST
+from lib.optimizers import SGD_Momentum
 from torchvision.transforms import v2 as T
-from preprocessing.transforms import random_canvas_expand
+from data.mnist import MNIST
 
-
-# model hyperparams
-focus_size = 8
-k_focus_patches = 3
-glimpses = 6
 
 # training hyperparams & settings
-EPOCHS = 100
-BATCH_SIZE = 2 * 1024
+EPOCHS = 20
+BATCH_SIZE = 1024
 LEARN_RATE = 0.1
 DEVICE = 'cuda'
 
@@ -25,18 +19,15 @@ DEVICE = 'cuda'
 train_loader, val_loader, test_loader = MNIST(transforms=[
     T.ToImage(),
     T.ToDtype(torch.float32, scale=True),                    # normalized to [0,1]
-    lambda x: random_canvas_expand(x, width=60, height=60),  # translated MNIST: 28x28 -> 60x60 at random position
+    T.RandomAffine(degrees=(-60, 60), translate=(0.3, 0.3), scale=(0.4, 1.0), interpolation=T.InterpolationMode.BILINEAR),
 ], batch_size=BATCH_SIZE)
-X_sample, _ = next(iter(test_loader))               # non-varying sample used for visualizations
-loc_sample = torch.Tensor(5, 2).uniform_(-1, 1)
-
+X_sample, y_sample = next(iter(test_loader))  # non-varying sample used for visualizations
 
 # Model
-print('WARNING! REINFORCE learning is not implemented yet.')
-model = RecurrentAttention(focus_size=focus_size, steps=glimpses, k_focus_patches=k_focus_patches, device=DEVICE)
+model = SpatialTransformerNet(n_classes=10, device=DEVICE, transformation_mode='affine')
 model.summary()
-model.visualize(X_sample[:5].to(DEVICE), loc=loc_sample.to(DEVICE))
-optimizer = Adam(model.parameters(), lr=LEARN_RATE)
+optimizer = SGD_Momentum(model.parameters(), lr=LEARN_RATE)
+
 
 @torch.no_grad()
 def evaluate(model, loader):
@@ -44,7 +35,7 @@ def evaluate(model, loader):
     n = len(loader)
     for X, y in loader:
         X, y = X.to(DEVICE), y.to(DEVICE)
-        z, _ = model.forward(X)
+        z = model.forward(X)
         cost = cross_entropy(z, y, logits=True)
         total_acc += accuracy(z.argmax(dim=1), y) / n
         total_loss += cost.item() / n
@@ -59,7 +50,7 @@ def train(model, loader):
     for i, (X, y) in enumerate(loader):
         X, y = X.to(DEVICE), y.to(DEVICE)
         optimizer.zero_grad()
-        z, locs = model.forward(X)  # todo: implement REINFORCE learning to the "locs"
+        z = model.forward(X)
         cost = cross_entropy(z, y, logits=True)
         cost.backward()
         optimizer.step()
@@ -75,10 +66,14 @@ def train(model, loader):
 
 
 # Training
+model.spatial_transform.visualize(X_sample, y_sample, title='Start')
 for epoch in range(EPOCHS):
     loss, acc, pbar = train(model, train_loader)
     val_loss, val_acc = evaluate(model, val_loader)
     pbar.desc = f'Epoch {epoch+1}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}'); pbar.close()
+    model.spatial_transform.visualize(X_sample, y_sample, title=f'Epoch {epoch+1}/{EPOCHS}')
 
 test_loss, test_acc = evaluate(model, test_loader)
 print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')
+
+

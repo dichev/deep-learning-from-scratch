@@ -126,6 +126,7 @@ class SpatialTransformer(Module):
 
     def __init__(self, transformation_mode='affine', localisation_net=None, device='cpu'):
         self.mode = transformation_mode
+        self.device = device
         if self.mode == 'affine':       # [[a b t1], [c d t2]]
             n_params = 6
         elif self.mode == 'attention':  # [[s 0 t1], [0 s t2]]
@@ -142,7 +143,7 @@ class SpatialTransformer(Module):
                 BatchNorm2d(16, device=device), ReLU(),
                 MaxPool2d(kernel_size=2, stride=2),                                               # ->  1616,  4,  4
                 Flatten(),                                                                        # -> 256
-                Linear(input_size=20*4*4, output_size=64, device=device), ReLU(),                 # ->  64
+                Linear(input_size=16*4*4, output_size=64, device=device), ReLU(),                 # ->  64
                 Linear(input_size=64, output_size=n_params, device=device)                        # -> n_params
             )
         else:
@@ -164,7 +165,7 @@ class SpatialTransformer(Module):
         transform = self.to_transformation_matrix(theta)   # (B, 2, 3) <- affine transformation matrix
 
         # Grid generator: transform the input image grid (with reverse mapping)
-        grid_source = I.affine_grid(transform, U.size())  # todo: use out size W != W_out, H != H_out ->
+        grid_source = I.affine_grid(transform, U.size())
 
         # Sampler: sample input pixel values after the transformation with bilinear interpolation
         x_sampled = I.transform_image(U, grid_source, interpolation='bilinear')
@@ -182,6 +183,20 @@ class SpatialTransformer(Module):
             transform[:, 0, 2], transform[:, 1, 2] = t1, t2     # translation
             return transform
 
+    @torch.no_grad()
+    def visualize(self, X, y, samples_per_digit=6, title=''):
+        N = samples_per_digit
+        X = torch.cat([X[y == i][:N] for i in range(10)], dim=0)  # filter and sort by digit
+        X_transformed = self.forward(X.to(self.device))
+
+        img_grid = make_grid(X.cpu(), padding=1, pad_value=.5, nrow=N).permute(1, 2, 0)
+        img_grid_transformed = make_grid(X_transformed.cpu(), padding=1, pad_value=.5, nrow=N).permute(1, 2, 0)
+
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        ax1.imshow(img_grid); ax1.axis(False); ax1.set_title('Dataset')
+        ax2.imshow(img_grid_transformed); ax2.axis(False); ax2.set_title('Transformed')
+        plt.suptitle(title); plt.tight_layout(); plt.show()
+
 
 class SpatialTransformerNet(Module):
 
@@ -198,9 +213,9 @@ class SpatialTransformerNet(Module):
         )
         self.head = Sequential(
             Flatten(),                                                                        # ->  256
-            # Dropout(.5),                            # ->  64
-            Linear(16*4*4, 64, device=device), ReLU(),                             # ->  64
-            Linear(64, n_classes, device=device)                                    # ->  n_classes
+            # Dropout(.5),                                                                    # ->  64
+            Linear(input_size=16*4*4, output_size=64, device=device), ReLU(),                 # ->  64
+            Linear(input_size=64, output_size=n_classes, device=device)                       # ->  n_classes
         )
         self.device = device
 
