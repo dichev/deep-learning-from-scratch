@@ -24,14 +24,9 @@ def cross_entropy(y_hat, y, logits=True):
 
     return losses.mean()
 
-@torch.no_grad()
-def evaluate_accuracy(y_hat, y):
-    predicted, actual = y_hat.argmax(1), y.argmax(1)
-    correct = (predicted == actual)
-    return correct.float().mean().item()
 
 def evaluate_accuracy_per_class(y_hat, y, classes):
-    predicted, actual = y_hat.argmax(1), y.argmax(1)
+    predicted, actual = y_hat.argmax(1), y
     correct = (predicted == actual)
     overall_accuracy = correct.float().mean().item()
 

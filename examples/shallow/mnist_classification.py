@@ -7,7 +7,7 @@ from datetime import datetime
 
 from lib.functions import init
 from lib.functions.activations import relu
-from lib.functions.losses import cross_entropy, evaluate_accuracy
+from lib.functions.losses import cross_entropy, accuracy as evaluate_accuracy
 from lib.layers import Module, Linear, Dropout
 from lib import optimizers
 from lib.regularizers import grad_clip_norm_, max_norm_constraint_
@@ -47,15 +47,6 @@ X_test, y_test = test.data.view(-1, n_features), test.targets
 X_train = normalizeMinMax(X_train, x_min, x_max)
 X_val   = normalizeMinMax(X_val, x_min, x_max)
 X_test  = normalizeMinMax(X_test, x_min, x_max)
-y_train = one_hot(y_train, num_classes)
-y_val   = one_hot(y_val, num_classes)
-y_test  = one_hot(y_test, num_classes)
-
-# Add test/val sets to the device
-X_val   = X_val.to(DEVICE)
-X_test  = X_test.to(DEVICE)
-y_val   = y_val.to(DEVICE)
-y_test  = y_test.to(DEVICE)
 
 
 # Model
@@ -115,7 +106,7 @@ for epoch in pbar:
         max_norm_constraint_(net.parameters(), 3.)
 
         loss += cost.item() * batch_fraction
-        accuracy += evaluate_accuracy(y_hat_logit, y) * batch_fraction
+        accuracy += evaluate_accuracy(y_hat_logit.argmax(-1), y) * batch_fraction
         grad_norm += grad_norm_batch * batch_fraction
 
     # Metrics
@@ -130,9 +121,10 @@ for epoch in pbar:
             train_writer.add_histogram(name.replace('.', '/'), param, epoch)
 
         with torch.no_grad():
+            X_val, y_val = X_val.to(DEVICE), y_val.to(DEVICE)
             y_hat_logit = net.forward(X_val)
             val_loss = cross_entropy(y_hat_logit, y_val, logits=True).item() # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
-            val_accuracy = evaluate_accuracy(y_hat_logit, y_val)
+            val_accuracy = evaluate_accuracy(y_hat_logit.argmax(-1), y_val)
             val_writer.add_scalar('t/Loss', val_loss, epoch)
             val_writer.add_scalar('t/Accuracy', val_accuracy, epoch)
 
@@ -142,9 +134,10 @@ for epoch in pbar:
 
 
 with torch.no_grad():
+    X_test, y_test = X_test.to(DEVICE), y_test.to(DEVICE)
     y_hat_logit = net.forward(X_test)
     test_loss = cross_entropy(y_hat_logit, y_test, logits=True).item() # + elastic_regularizer(net.parameters(), WEIGHT_DECAY, 0.8).item()
-    test_accuracy = evaluate_accuracy(y_hat_logit, y_test)
+    test_accuracy = evaluate_accuracy(y_hat_logit.argmax(-1), y_test)
     print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
     print(f'[Report only]: Failed on {int((1-test_accuracy)*len(y_test))} samples out of {len(y_test)}')
 

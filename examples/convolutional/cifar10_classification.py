@@ -1,100 +1,113 @@
 import torch
 import torch.cuda
-from torchvision import datasets, transforms
+from torchvision import datasets
+from torchvision.transforms import v2 as T
+from torch.utils.data import DataLoader, random_split
 from tqdm import trange
 
-from preprocessing.dataset import data_split
-from preprocessing.integer import one_hot
-from preprocessing.floats import img_normalize, img_unnormalize
-from lib.functions.losses import cross_entropy, evaluate_accuracy, evaluate_accuracy_per_class
-from lib.training import batches
+from preprocessing.floats import img_unnormalize
+from lib.functions.losses import cross_entropy, accuracy
 from lib import optimizers
 from lib.functions.activations import softmax
 from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
 from utils import plots
 
 # hyperparams & settings
-img_shape = (32, 32, 3)  # train.data.shape
-n_classes  = 10          # len(train.classes)
-EPOCHS = 5
+EPOCHS = 10
 BATCH_SIZE = 16
 LEARN_RATE = 0.001
 DEVICE = 'cuda'
 SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to avoid validation data leakage into the training set
 
 
-# Get data
-train = datasets.CIFAR10('./data/', download=True, train=True)
-test  = datasets.CIFAR10('./data/', download=True, train=False)
-classes = train.classes
-# Split data
-X_train, y_train, X_val, y_val = data_split(train.data, train.targets, (len(train.data)-2000, 2000), seed=SEED_DATA)
-X_test, y_test = torch.tensor(test.data), torch.tensor(test.targets)
-# Normalize and encode data
-X_train, X_val, X_test = [img_normalize(X) for X in (X_train, X_val, X_test)]  # (N, C, W, H)
-y_train, y_val, y_test = [one_hot(y, n_classes) for y in (y_train, y_val, y_test)]   # (N, C)
+# Data loaders
+transforms = T.Compose([
+    T.ToImage(),
+    T.ToDtype(torch.float32, scale=True),                      # normalized to [0,1]
+    T.Normalize((.5, .5, .5), (.5, .5, .5)),  # shift and scale in the typical range (-1, 1)
+])
+train_dataset = datasets.CIFAR10('./data/', download=True, train=True, transform=transforms)
+test_dataset  = datasets.CIFAR10('./data/', download=True, train=False, transform=transforms)
+train_dataset, val_dataset = random_split(train_dataset, (len(train_dataset)-2000, 2000))
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 
+# Models
 models = {
     'SimpleCNN': (SimpleCNN(n_classes=10, device=DEVICE), lambda x: x),
-    'LeNet-5':   (LeNet5(n_classes=10, device=DEVICE), transforms.Grayscale(num_output_channels=1)),
-    'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),  # well, yeah..
-    'NetworkInNetwork':   (NetworkInNetwork(n_classes=10, device=DEVICE), transforms.Resize((227, 227), antialias=True)),
-    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), transforms.Resize((224, 224))),
-    'GoogLeNet': (GoogLeNet(n_classes=10, device=DEVICE), transforms.Resize((224, 224))),
+    'LeNet-5':   (LeNet5(n_classes=10, device=DEVICE), T.Grayscale(num_output_channels=1)),
+    'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), T.Resize((227, 227), antialias=True)),  # well, yeah..
+    'NetworkInNetwork':   (NetworkInNetwork(n_classes=10, device=DEVICE), T.Resize((227, 227), antialias=True)),
+    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), T.Resize((224, 224))),
+    'GoogLeNet': (GoogLeNet(n_classes=10, device=DEVICE), T.Resize((224, 224))),
 }
 
-for model_name, (net, adapt) in models.items():
-    optimizer = optimizers.SGD_Momentum(net.parameters(), lr=LEARN_RATE, momentum=0.9)
-    print(net.summary())
 
-    # Training loop
-    N = len(y_train)
-    print(f'Fit {N} training samples in model: {net}')
-    pbar = trange(EPOCHS * ( 1 + N//BATCH_SIZE))
-    for epoch in range(1, EPOCHS+1):
-        pbar.set_description(f"Epoch {epoch}/{EPOCHS}")
-        accuracy, loss = 0, 0
+@torch.no_grad()
+def evaluate(model, loader, transform):
+    total_loss = total_acc = 0
+    n = len(loader)
+    for X, y in loader:
+        X, y = transform(X).to(DEVICE), y.to(DEVICE)
+        z = model.forward(X)
+        cost = cross_entropy(z, y, logits=True)
+        total_acc += accuracy(z.argmax(dim=1), y) / n
+        total_loss += cost.item() / n
 
-        for i, (X, y, batch_fraction) in enumerate(batches(X_train, y_train, BATCH_SIZE, shuffle=True, device=DEVICE)):
-            optimizer.zero_grad()
+    return total_loss, total_acc
 
-            y_hat_logit = net.forward(adapt(X))
-            cost = cross_entropy(y_hat_logit, y, logits=True)
-            cost.backward()
-            optimizer.step()
 
-            loss += cost.item()
-            accuracy += evaluate_accuracy(y_hat_logit, y)
-            pbar.update(1)
-            if i % 10 == 9:
-                pbar.set_postfix(cost=f"{loss/(i+1):.4f}", accuracy=f"{accuracy/(i+1):.4f}", lr=optimizer.lr)
+def train(model, loader, transform):
+    total_loss = total_acc = 0
+    n = len(loader)  # n batch iterations
+    pbar = trange(len(loader)*BATCH_SIZE, desc=f'Epoch (batch_size={BATCH_SIZE})')
+    for i, (X, y) in enumerate(loader):
+        X, y = transform(X).to(DEVICE), y.to(DEVICE)
+        optimizer.zero_grad()
+        z = model.forward(X)
+        cost = cross_entropy(z, y, logits=True)
+        cost.backward()
+        optimizer.step()
 
-        with torch.no_grad():
-            y_hat_logit, targets = net.forward(adapt(X_val.to(DEVICE))), y_val.to(DEVICE)
-            val_loss = cross_entropy(y_hat_logit, targets, logits=True).item()
-            val_accuracy = evaluate_accuracy(y_hat_logit, targets)
+        loss, acc = cost.item(), accuracy(z.argmax(dim=1), y)
+        total_loss += loss / n
+        total_acc += acc / n
 
-        pbar.set_postfix(cost=f"{loss/(i+1):.4f}|{val_loss:.4f}", accuracy=f"{accuracy/(i+1):.4f}|{val_accuracy:.4f}", lr=optimizer.lr)
-        pbar.write(f" Completed Epoch {epoch}")
+        pbar.update(BATCH_SIZE)
+        pbar.set_postfix_str(f'loss={loss:.3f}, acc={acc:.3f}')
 
-    with torch.no_grad():
-        torch.cuda.empty_cache()
-        y_hat_logit, targets = net.forward(adapt(X_test.to(DEVICE))), y_test.to(DEVICE)
-        test_loss = cross_entropy(y_hat_logit, targets, logits=True).item()
-        test_accuracy, test_accuracy_per_class = evaluate_accuracy_per_class(y_hat_logit, targets, classes)
-        print(f'[Report only]: test_accuracy={test_accuracy:.4f}, test_cost={test_loss:.4f}')  # never tune hyperparams on the test set!
-        print(f'[Report only]: Failed on {int((1-test_accuracy)*len(y_test))} samples out of {len(y_test)}')
-        print(f'[Report only]: Accuracy per class:')
-        for label in classes:
-            print(f'  {test_accuracy_per_class[label] * 100:.1f}% {label:10s}')
-        torch.cuda.empty_cache()
-        print(f'{test_accuracy * 100:.1f}% Overall test accuracy')
+    return total_loss, total_acc, pbar
+
+
+# Training loop
+for model_name, (model, transform) in models.items():
+    optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
+    print(model.summary())
+    print(f'Fit {len(train_dataset)} training samples in model: {model}')
+
+    # Training
+    for epoch in range(EPOCHS):
+        loss, acc, pbar = train(model, train_loader, transform)
+        val_loss, val_acc = evaluate(model, val_loader, transform)
+        pbar.desc = f'Epoch {epoch + 1}/{EPOCHS}';
+        pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}');
+        pbar.close()
+
+    test_loss, test_acc = evaluate(model, test_loader, transform)
+    print(f'[Report only]: Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')
+    print(f'[Report only]: Failed on {int((1-test_acc)*len(test_loader))} samples out of {len(test_loader)}')
+
 
     # Plot some predictions
     N = 6
+    X_sample, y_sample = next(iter(test_loader))
+    X_sample = transform(X_sample)[:N]
     with torch.no_grad():
-        out = net.forward(adapt(X_test[:N].to(DEVICE))).detach().cpu()
+        out = model.forward(X_sample.to(DEVICE)).cpu()
     probs = softmax(out)
-    images = img_unnormalize(adapt(X_test[:N]))
-    plots.img_topk(images, probs, classes, k=5, title=model_name)
+    images = img_unnormalize(X_sample)
+    plots.img_topk(images, probs, test_dataset.classes, k=5, title=model_name)
+
