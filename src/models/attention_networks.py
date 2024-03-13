@@ -16,29 +16,28 @@ class RecurrentAttention(Module):
     https://arxiv.org/pdf/1406.6247.pdf
     """
 
-    def __init__(self, steps=6, focus_size=8, k_focus_patches=3, n_classes=10, device='cpu'):
+    def __init__(self, steps=6, focus_size=8, k_focus_patches=3, n_classes=10):
         self.focus_size = focus_size
         self.k = k_focus_patches
         self.steps = steps
-        self.device = device
 
         # Glimpse Network
-        self.gnet_img = Linear(self.k * self.focus_size * self.focus_size, 128, device=device)
-        self.gnet_loc = Linear(2, 128, device=device)
-        self.gnet_combine = Linear(128*2, 256, device=device)
+        self.gnet_img = Linear(self.k * self.focus_size * self.focus_size, 128)
+        self.gnet_loc = Linear(2, 128)
+        self.gnet_combine = Linear(128*2, 256)
 
         # Core network
-        self.rnn = RNN_cell(256, 512, use_relu=True, device=device)
+        self.rnn = RNN_cell(256, 512, use_relu=True)
 
         # Heads
-        self.head_action = Linear(512, n_classes, device=device)
-        self.head_loc = Linear(512, 2, device=device)
+        self.head_action = Linear(512, n_classes)
+        self.head_loc = Linear(512, 2)
 
     def forward(self, x, loc=None):
         B, C, W, H = x.shape
 
         if loc is None:  # start in random location by default
-            loc = torch.Tensor(B, 2).uniform_(-1, 1).to(self.device)
+            loc = torch.Tensor(B, 2).uniform_(-1, 1).to(x.device)
 
         locs = []
         a, state = None, (None, None)
@@ -124,9 +123,8 @@ class SpatialTransformer(Module):
     https://arxiv.org/pdf/1506.02025.pdf
     """
 
-    def __init__(self, transformation_mode='affine', localisation_net=None, device='cpu'):
+    def __init__(self, transformation_mode='affine', localisation_net=None):
         self.mode = transformation_mode
-        self.device = device
         if self.mode == 'affine':       # [[a b t1], [c d t2]]
             n_params = 6
         elif self.mode == 'attention':  # [[s 0 t1], [0 s t2]]
@@ -135,16 +133,16 @@ class SpatialTransformer(Module):
             raise NotImplemented
 
         if localisation_net is None:
-            self.localisation = Sequential(                                                       # in:  1, 28, 28
-                Conv2d(in_channels=1, out_channels=8, kernel_size=5, device=device),              # ->   8, 24, 24
-                BatchNorm2d(8, device=device), ReLU(),
-                MaxPool2d(kernel_size=2, stride=2),                                               # ->   8, 12, 12
-                Conv2d(in_channels=8, out_channels=16, kernel_size=5, device=device),             # ->  1616,  8,  8
-                BatchNorm2d(16, device=device), ReLU(),
-                MaxPool2d(kernel_size=2, stride=2),                                               # ->  1616,  4,  4
-                Flatten(),                                                                        # -> 256
-                Linear(input_size=16*4*4, output_size=64, device=device), ReLU(),                 # ->  64
-                Linear(input_size=64, output_size=n_params, device=device)                        # -> n_params
+            self.localisation = Sequential(                                        # in:  1, 28, 28
+                Conv2d(in_channels=1, out_channels=8, kernel_size=5),              # ->   8, 24, 24
+                BatchNorm2d(8), ReLU(),
+                MaxPool2d(kernel_size=2, stride=2),                                # ->   8, 12, 12
+                Conv2d(in_channels=8, out_channels=16, kernel_size=5),             # ->  16,  8,  8
+                BatchNorm2d(16), ReLU(),
+                MaxPool2d(kernel_size=2, stride=2),                                # ->  16,  4,  4
+                Flatten(),                                                         # -> 256
+                Linear(input_size=16*4*4, output_size=64), ReLU(),                 # ->  64
+                Linear(input_size=64, output_size=n_params)                        # -> n_params
             )
         else:
             self.localisation = localisation_net
@@ -187,7 +185,7 @@ class SpatialTransformer(Module):
     def visualize(self, X, y, samples_per_digit=6, title=''):
         N = samples_per_digit
         X = torch.cat([X[y == i][:N] for i in range(10)], dim=0)  # filter and sort by digit
-        X_transformed = self.forward(X.to(self.device))
+        X_transformed = self.forward(X)
 
         img_grid = make_grid(X.cpu(), padding=1, pad_value=.5, nrow=N).permute(1, 2, 0)
         img_grid_transformed = make_grid(X_transformed.cpu(), padding=1, pad_value=.5, nrow=N).permute(1, 2, 0)
@@ -200,24 +198,23 @@ class SpatialTransformer(Module):
 
 class SpatialTransformerNet(Module):
 
-    def __init__(self, n_classes=10, transformation_mode='affine', device='cpu'):
-        self.spatial_transform = SpatialTransformer(transformation_mode, device=device)
+    def __init__(self, n_classes=10, transformation_mode='affine'):
+        self.spatial_transform = SpatialTransformer(transformation_mode)
 
-        self.body = Sequential(                                                               # in:   1, 28, 28
-            Conv2d(in_channels=1, out_channels=8, kernel_size=5, device=device),              # ->    8, 24, 24
-            BatchNorm2d(8, device=device), ReLU(),
-            MaxPool2d(kernel_size=2, stride=2),                                               # ->    8, 12, 12
-            Conv2d(in_channels=8, out_channels=16, kernel_size=5, device=device),             # ->   16,  8,  8
-            BatchNorm2d(16, device=device), ReLU(),
-            MaxPool2d(kernel_size=2, stride=2),                                               # ->   16,  4,  4
+        self.body = Sequential(                                                # in:   1, 28, 28
+            Conv2d(in_channels=1, out_channels=8, kernel_size=5),              # ->    8, 24, 24
+            BatchNorm2d(8), ReLU(),
+            MaxPool2d(kernel_size=2, stride=2),                                # ->    8, 12, 12
+            Conv2d(in_channels=8, out_channels=16, kernel_size=5),             # ->   16,  8,  8
+            BatchNorm2d(16), ReLU(),
+            MaxPool2d(kernel_size=2, stride=2),                                # ->   16,  4,  4
         )
         self.head = Sequential(
-            Flatten(),                                                                        # ->  256
-            # Dropout(.5),                                                                    # ->  64
-            Linear(input_size=16*4*4, output_size=64, device=device), ReLU(),                 # ->  64
-            Linear(input_size=64, output_size=n_classes, device=device)                       # ->  n_classes
+            Flatten(),                                                         # ->  256
+            # Dropout(.5),                                                     # ->  64
+            Linear(input_size=16*4*4, output_size=64), ReLU(),                 # ->  64
+            Linear(input_size=64, output_size=n_classes)                       # ->  n_classes
         )
-        self.device = device
 
     def forward(self, x):
         x = self.spatial_transform.forward(x)

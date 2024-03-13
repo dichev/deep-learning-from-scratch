@@ -8,9 +8,9 @@ class GCN(Module):  # Graph Convolutional Network
     Paper: Semi-Supervised Classification with Graph Convolutional Networks
     https://arxiv.org/pdf/1609.02907.pdf
     """
-    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1, device='cpu'):
+    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1):
         self.layers = ModuleList([
-            GCN_cell(in_channels if i == 0 else hidden_size, hidden_size, device)
+            GCN_cell(in_channels if i == 0 else hidden_size, hidden_size)
             for i in range(k_iterations)]
         )
         self.project = n_classes is not None
@@ -32,9 +32,9 @@ class GraphSAGE(Module):
     Paper: Inductive Representation Learning on Large Graphs
     https://arxiv.org/pdf/1706.02216.pdf
     """
-    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1, aggregation='maxpool', device='cpu'):
+    def __init__(self, in_channels, hidden_size, n_classes=None, k_iterations=1, aggregation='maxpool'):
         self.layers = ModuleList([
-            GraphSAGE_cell(in_channels if i == 0 else hidden_size * 2, hidden_size, aggregation, device)
+            GraphSAGE_cell(in_channels if i == 0 else hidden_size * 2, hidden_size, aggregation)
             for i in range(k_iterations)]
         )
         self.project = n_classes is not None
@@ -58,14 +58,14 @@ class GIN(Module):  # Graph Isomorphism Network
     https://arxiv.org/pdf/1810.00826v3.pdf
     """
 
-    def __init__(self, in_channels, hidden_size, n_classes, k_iterations=5, eps=0., device='cpu'):
+    def __init__(self, in_channels, hidden_size, n_classes, k_iterations=5, eps=0.):
         self.layers = ModuleList([
             Sequential(  # that is the MLP
-                Linear(in_channels if i == 0 else hidden_size, hidden_size, device=device),
-                BatchNorm(hidden_size, batch_dims=(0, 1), device=device),
+                Linear(in_channels if i == 0 else hidden_size, hidden_size),
+                BatchNorm(hidden_size, batch_dims=(0, 1)),
                 ReLU(),
-                Linear(hidden_size, hidden_size, device=device),
-                BatchNorm(hidden_size, batch_dims=(0, 1), device=device),
+                Linear(hidden_size, hidden_size),
+                BatchNorm(hidden_size, batch_dims=(0, 1)),
                 ReLU(),
             )
             for i in range(k_iterations)
@@ -73,10 +73,10 @@ class GIN(Module):  # Graph Isomorphism Network
         self.add_pool = BatchAddPool()  # shared across layers, no parameters
 
         self.head = Sequential(  # note in the paper they use a separate linear+dropbox for each graph layer output
-            Linear(hidden_size * k_iterations, hidden_size * k_iterations, device=device),
+            Linear(hidden_size * k_iterations, hidden_size * k_iterations),
             ReLU(),
             Dropout(.5),
-            Linear(hidden_size * k_iterations, n_classes, device=device),
+            Linear(hidden_size * k_iterations, n_classes),
         )
 
         self.eps = eps
@@ -113,24 +113,24 @@ class DiffPoolNet(Module):
     Paper: Hierarchical Graph Representation Learning with Differentiable Pooling
     https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf
     """
-    def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1, device='cpu'):
+    def __init__(self, in_channels, embed_size, n_clusters=(None, None), n_classes=1):
         self.n_clusters = n_clusters
 
-        self.gcn1_embed = GraphSAGE(in_channels, embed_size // 2, k_iterations=2, aggregation='mean', device=device)  # note graphSage output is concatenated, thus the out_size will be embed_size
-        self.gcn1_assign = GraphSAGE(in_channels, n_clusters[0], k_iterations=2, aggregation='mean', device=device)   # [paper] they used BatchNorm, but here simple normalization is performed across the channels
+        self.gcn1_embed = GraphSAGE(in_channels, embed_size // 2, k_iterations=2, aggregation='mean')  # note graphSage output is concatenated, thus the out_size will be embed_size
+        self.gcn1_assign = GraphSAGE(in_channels, n_clusters[0], k_iterations=2, aggregation='mean')   # [paper] they used BatchNorm, but here simple normalization is performed across the channels
         self.pool1 = DiffPool()
 
-        self.gcn2_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean', device=device)
-        self.gcn2_assign = GraphSAGE(embed_size, n_clusters[1], k_iterations=3, aggregation='mean', device=device)
+        self.gcn2_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean')
+        self.gcn2_assign = GraphSAGE(embed_size, n_clusters[1], k_iterations=3, aggregation='mean')
         self.pool2 = DiffPool()
 
-        self.gcn3_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean', device=device)
+        self.gcn3_embed = GraphSAGE(embed_size, embed_size // 2, k_iterations=3, aggregation='mean')
         # self.pool_final = DiffPool()
 
         self.head = Sequential(
-            Linear(embed_size, embed_size, device=device),
+            Linear(embed_size, embed_size),
             ReLU(),
-            Linear(embed_size, n_classes, device=device)
+            Linear(embed_size, n_classes)
         )
 
     def forward(self, X, A):

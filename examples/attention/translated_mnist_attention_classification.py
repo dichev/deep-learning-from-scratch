@@ -33,7 +33,7 @@ loc_sample = torch.Tensor(5, 2).uniform_(-1, 1)
 
 # Model
 print('WARNING! REINFORCE learning is not implemented yet.')
-model = RecurrentAttention(focus_size=focus_size, steps=glimpses, k_focus_patches=k_focus_patches, device=DEVICE)
+model = RecurrentAttention(focus_size=focus_size, steps=glimpses, k_focus_patches=k_focus_patches).to(DEVICE)
 model.summary()
 model.visualize(X_sample[:5].to(DEVICE), loc=loc_sample.to(DEVICE))
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)

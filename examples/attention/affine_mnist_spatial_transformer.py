@@ -24,7 +24,7 @@ train_loader, val_loader, test_loader = MNIST(transforms=[
 X_sample, y_sample = next(iter(test_loader))  # non-varying sample used for visualizations
 
 # Model
-model = SpatialTransformerNet(n_classes=10, device=DEVICE, transformation_mode='affine')
+model = SpatialTransformerNet(n_classes=10, transformation_mode='affine').to(DEVICE)
 model.summary()
 optimizer = SGD_Momentum(model.parameters(), lr=LEARN_RATE)
 
@@ -66,12 +66,12 @@ def train(model, loader):
 
 
 # Training
-model.spatial_transform.visualize(X_sample, y_sample, title='Start')
+model.spatial_transform.visualize(X_sample.to(DEVICE), y_sample.to(DEVICE), title='Start')
 for epoch in range(EPOCHS):
     loss, acc, pbar = train(model, train_loader)
     val_loss, val_acc = evaluate(model, val_loader)
     pbar.desc = f'Epoch {epoch+1}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f} | {val_loss=:.3f}, {val_acc=:.3f}'); pbar.close()
-    model.spatial_transform.visualize(X_sample, y_sample, title=f'Epoch {epoch+1}/{EPOCHS}')
+    model.spatial_transform.visualize(X_sample.to(DEVICE), y_sample.to(DEVICE), title=f'Epoch {epoch+1}/{EPOCHS}')
 
 test_loss, test_acc = evaluate(model, test_loader)
 print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')

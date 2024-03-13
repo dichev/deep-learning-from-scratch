@@ -9,21 +9,21 @@ class Inception(Module):
     https://arxiv.org/pdf/1409.4842.pdf?
     """
 
-    def __init__(self, in_channels, out_channels, spec=(0, (0, 0), (0, 0), 0), device='cpu'):
+    def __init__(self, in_channels, out_channels, spec=(0, (0, 0), (0, 0), 0)):
         c1, (c2_reduce, c2), (c3_reduce, c3), c4 = spec
         assert out_channels == c1 + c2 + c3 + c4, f'Wrong channel spec: expected {out_channels} total output channels, but got {c1}+{c2}+{c3}+{c4}={c1 + c2 + c3 + c4}'
 
         self.branch1 = Sequential(
-            Conv2d(in_channels, c1, kernel_size=1, device=device))
+            Conv2d(in_channels, c1, kernel_size=1))
         self.branch2 = Sequential(
-            Conv2d(in_channels, c2_reduce, kernel_size=1, device=device), ReLU(),
-            Conv2d(c2_reduce, c2, kernel_size=3, padding='same', device=device))
+            Conv2d(in_channels, c2_reduce, kernel_size=1), ReLU(),
+            Conv2d(c2_reduce, c2, kernel_size=3, padding='same'))
         self.branch3 = Sequential(
-            Conv2d(in_channels, c3_reduce, kernel_size=1, device=device), ReLU(),
-            Conv2d(c3_reduce, c3, kernel_size=5, padding='same', device=device))
+            Conv2d(in_channels, c3_reduce, kernel_size=1), ReLU(),
+            Conv2d(c3_reduce, c3, kernel_size=5, padding='same'))
         self.branch4 = Sequential(
             MaxPool2d(kernel_size=3, padding='same'),
-            Conv2d(in_channels, c4, kernel_size=1, device=device))
+            Conv2d(in_channels, c4, kernel_size=1))
 
     def forward(self, x):
         features = [
@@ -43,20 +43,20 @@ class ResBlock(Module):
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, in_channels, out_channels, stride=1, attention=False, device='cpu'):
+    def __init__(self, in_channels, out_channels, stride=1, attention=False):
         self.downsampled = stride != 1 or in_channels != out_channels
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', device=device, stride=stride),
-            BatchNorm2d(out_channels, device=device), ReLU(),
-            Conv2d(out_channels, out_channels, kernel_size=3, padding='same', device=device),
-            BatchNorm2d(out_channels, device=device),  # no ReLU
+            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', stride=stride),
+            BatchNorm2d(out_channels), ReLU(),
+            Conv2d(out_channels, out_channels, kernel_size=3, padding='same'),
+            BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
-            self.se_gate = SEGate(out_channels, reduction=16, device=device)
+            self.se_gate = SEGate(out_channels, reduction=16)
         if self.downsampled:
-            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
+            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -81,24 +81,24 @@ class ResBottleneckBlock(Module):
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, in_channels, mid_channels, out_channels, stride=1, attention=False, device='cpu'):
+    def __init__(self, in_channels, mid_channels, out_channels, stride=1, attention=False):
         assert mid_channels == out_channels // 4  # just following the models in the paper
         self.downsampled = stride != 1 or in_channels != out_channels
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', device=device, stride=stride),   # 1x1 conv (reduce channels)
-            BatchNorm2d(mid_channels, device=device), ReLU(),
-            Conv2d(mid_channels, mid_channels, kernel_size=3, padding='same', device=device),                  # 3x3 conv
-            BatchNorm2d(mid_channels, device=device), ReLU(),
-            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', device=device),                  # 1x1 conv (expand channels)
-            BatchNorm2d(out_channels, device=device),  # no ReLU
+            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride),   # 1x1 conv (reduce channels)
+            BatchNorm2d(mid_channels), ReLU(),
+            Conv2d(mid_channels, mid_channels, kernel_size=3, padding='same'),                  # 3x3 conv
+            BatchNorm2d(mid_channels), ReLU(),
+            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same'),                  # 1x1 conv (expand channels)
+            BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
-            self.se_gate = SEGate(out_channels, reduction=16, device=device)
+            self.se_gate = SEGate(out_channels, reduction=16)
 
         if self.downsampled:
-            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
+            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
 
         self.in_channels = in_channels
         self.mid_channels = mid_channels
@@ -124,23 +124,23 @@ class ResNeXtBlock(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, mid_channels, out_channels, groups, stride=1, attention=False, device='cpu'):
+    def __init__(self, in_channels, mid_channels, out_channels, groups, stride=1, attention=False):
         assert mid_channels == out_channels // 2  # just following the models in the paper
         self.downsampled = stride != 1 or in_channels != out_channels
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', device=device, stride=stride),        # 1x1 conv (reduce channels)
-            BatchNorm2d(mid_channels, device=device), ReLU(),
-            Conv2dGroups(mid_channels, mid_channels, kernel_size=3, padding='same', device=device, groups=groups),  # groups x 3x3 conv with channels/groups
-            BatchNorm2d(mid_channels, device=device), ReLU(),
-            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', device=device),                       # 1x1 conv (expand channels)
-            BatchNorm2d(out_channels, device=device),  # no ReLU
+            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride),        # 1x1 conv (reduce channels)
+            BatchNorm2d(mid_channels), ReLU(),
+            Conv2dGroups(mid_channels, mid_channels, kernel_size=3, padding='same', groups=groups),  # groups x 3x3 conv with channels/groups
+            BatchNorm2d(mid_channels), ReLU(),
+            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same'),                       # 1x1 conv (expand channels)
+            BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
-            self.se_gate = SEGate(out_channels, reduction=16, device=device)
+            self.se_gate = SEGate(out_channels, reduction=16)
         if self.downsampled:
-            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, device=device)
+            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
 
         self.in_channels = in_channels
         self.mid_channels = mid_channels
@@ -167,14 +167,14 @@ class DenseLayer(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, out_channels, bottleneck_channels_mplr=4, dropout_rate=0., bias=False, device='cpu'):
+    def __init__(self, in_channels, out_channels, bottleneck_channels_mplr=4, dropout_rate=0., bias=False):
         bottle_channels = out_channels * bottleneck_channels_mplr
         self.layer = Sequential(
-            BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
-            Conv2d(in_channels, bottle_channels, kernel_size=1, bias=bias, device=device),                   # 1x1 bottleneck
+            BatchNorm2d(in_channels), ReLU(),  # notice the batch norm is applied before the activation
+            Conv2d(in_channels, bottle_channels, kernel_size=1, bias=bias),                   # 1x1 bottleneck
             Dropout(dropout_rate) if dropout_rate else None,
-            BatchNorm2d(bottle_channels, device=device), ReLU(),
-            Conv2d(bottle_channels, out_channels, kernel_size=3, padding='same', bias=bias, device=device),  # 3x3 conv
+            BatchNorm2d(bottle_channels), ReLU(),
+            Conv2d(bottle_channels, out_channels, kernel_size=3, padding='same', bias=bias),  # 3x3 conv
             Dropout(dropout_rate) if dropout_rate else None,
         )
         self.in_channels = in_channels
@@ -196,9 +196,9 @@ class DenseBlock(Module):  # with bottleneck
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, growth_rate, n_convs, bottleneck_channels_mplr=4, dropout=0., bias=False, device='cpu'):
+    def __init__(self, in_channels, growth_rate, n_convs, bottleneck_channels_mplr=4, dropout=0., bias=False):
         self.layers = ModuleList([
-            DenseLayer(in_channels + i * growth_rate, growth_rate, bottleneck_channels_mplr, dropout, bias, device)
+            DenseLayer(in_channels + i * growth_rate, growth_rate, bottleneck_channels_mplr, dropout, bias)
             for i in range(n_convs)
         ])
         self.in_channels = in_channels
@@ -220,11 +220,11 @@ class DenseTransition(Module):
     https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf
     """
 
-    def __init__(self, in_channels, out_channels, downsample_by=2, bias=False, device='cpu'):
+    def __init__(self, in_channels, out_channels, downsample_by=2, bias=False):
         self.downsample = Sequential(
-            BatchNorm2d(in_channels, device=device), ReLU(),  # notice the batch norm is applied before the activation
-            Conv2d(in_channels,  out_channels, kernel_size=1, padding='same', bias=bias, device=device),   # 1x1 conv (reduce channels)
-            AvgPool2d(kernel_size=2, stride=downsample_by, device=device),                                 # pool /2
+            BatchNorm2d(in_channels), ReLU(),  # notice the batch norm is applied before the activation
+            Conv2d(in_channels,  out_channels, kernel_size=1, padding='same', bias=bias),   # 1x1 conv (reduce channels)
+            AvgPool2d(kernel_size=2, stride=downsample_by),                                 # pool /2
         )
         self.compression_factor = out_channels / in_channels
         self.downsampling = downsample_by

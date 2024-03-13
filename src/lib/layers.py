@@ -11,9 +11,9 @@ from collections import namedtuple
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
 
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, weights_init=None, device='cpu'):
-        self.weight = Param((input_size, output_size), device=device)  # (D, C)
-        self.bias = Param((1, output_size), device=device)  # (D, C)
+    def __init__(self, input_size, output_size=1, weights_init=None):
+        self.weight = Param((input_size, output_size))  # (D, C)
+        self.bias = Param((1, output_size))  # (D, C)
         self.input_size, self.output_size = input_size, output_size
         self.weights_initializer = weights_init
         self.reset_parameters()
@@ -38,8 +38,8 @@ class Linear(Module):
 
 
 class Embedding(Module):  # aka lookup table
-    def __init__(self, vocab_size, output_size, padding_idx=None, device='cpu'):
-        self.weight = Param((vocab_size, output_size), device=device)
+    def __init__(self, vocab_size, output_size, padding_idx=None):
+        self.weight = Param((vocab_size, output_size))
         if padding_idx is not None:
             with torch.no_grad():
                 self.weight[padding_idx] = 0.
@@ -66,13 +66,13 @@ class BatchNorm(Module):
     https://proceedings.mlr.press/v37/ioffe15.pdf
     """
 
-    def __init__(self, size, batch_dims=(), device='cpu'):
+    def __init__(self, size, batch_dims=()):
         shape = tuple(size if d not in batch_dims else 1 for d in range(len(batch_dims) + 1))  # necessary to maintain proper broadcasting
-        self.beta = Param(shape, device=device)
-        self.gamma = Param(shape, device=device)
+        self.beta = Param(shape)
+        self.gamma = Param(shape)
 
-        self.running_mean = torch.zeros(shape, device=device)
-        self.running_var = torch.ones(shape, device=device)
+        self.running_mean = torch.zeros(shape)
+        self.running_var = torch.ones(shape)
         self.decay = 0.9
         self.size = size
         self.dims = batch_dims
@@ -84,6 +84,11 @@ class BatchNorm(Module):
         self.gamma.fill_(1)
         self.running_mean.fill_(0)
         self.running_var.fill_(1)
+
+    def to(self, device):
+        super().to(device)
+        self.running_mean.data = self.running_mean.to(device)
+        self.running_var.data = self.running_mean.to(device)
 
     def forward(self, x):
         assert len(x.shape) == len(self.dims) + 1, f'Expect tensor with {len(self.dims) + 1} axis, but got {x.shape}'
@@ -108,8 +113,8 @@ class BatchNorm(Module):
 
 class BatchNorm1d(BatchNorm):
 
-    def __init__(self, size, device='cpu'):
-        super().__init__(size, batch_dims=(0,), device=device)
+    def __init__(self, size):
+        super().__init__(size, batch_dims=(0,))
 
     def forward(self, x):
         assert len(x.shape) == 2, f'Linear layer expect 2d tensor (batch, features), but got {x.shape}'
@@ -119,8 +124,8 @@ class BatchNorm1d(BatchNorm):
 
 class BatchNorm2d(BatchNorm):
 
-    def __init__(self, size, device='cpu'):
-        super().__init__(size, batch_dims=(0, 2, 3), device=device)  # note here N, W, H are all considered to be from the batch dim
+    def __init__(self, size):
+        super().__init__(size, batch_dims=(0, 2, 3))  # note here N, W, H are all considered to be from the batch dim
 
     def forward(self, x):
         assert len(x.shape) == 4, f'BatchNorm2d layer requires 4D input, but got: {x.shape}'
@@ -136,9 +141,9 @@ class LayerNorm(Module):
     https://arxiv.org/pdf/1607.06450.pdf
     """
 
-    def __init__(self, size, device='cpu'):
-        self.shift = Param((1, size), device=device)
-        self.scale = Param((1, size), device=device)
+    def __init__(self, size):
+        self.shift = Param((1, size))
+        self.scale = Param((1, size))
         self.size = size
         self.reset_parameters()
 
@@ -209,16 +214,15 @@ class Dropout(Module):
 
 class RNN_cell(Module):
 
-    def __init__(self, input_size, hidden_size, layer_norm=False, use_relu=False, device='cpu'):
-        self.weight = Param((input_size + hidden_size, hidden_size), device=device)  # (I+H, H)
-        self.bias = Param((1, hidden_size), device=device)  # (1, H)
+    def __init__(self, input_size, hidden_size, layer_norm=False, use_relu=False):
+        self.weight = Param((input_size + hidden_size, hidden_size))  # (I+H, H)
+        self.bias = Param((1, hidden_size))  # (1, H)
         if layer_norm:
-            self.norm = LayerNorm(hidden_size, device=device)
+            self.norm = LayerNorm(hidden_size)
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.layer_norm = layer_norm
-        self.device = device
         self.use_relu = use_relu
         self.reset_parameters()
 
@@ -236,7 +240,7 @@ class RNN_cell(Module):
         N, F = x.shape
         h, _ = state
         if h is None:
-            h = torch.zeros(N, self.hidden_size, device=self.device)
+            h = torch.zeros(N, self.hidden_size, device=x.device)
 
         # Compute the hidden state
         xh = torch.concat((x, h), dim=-1)      # (N, I+H)
@@ -258,9 +262,9 @@ class LSTM_cell(Module):
     Paper: Generating Sequences With Recurrent Neural Networks
     https://arxiv.org/pdf/1308.0850.pdf
     """
-    def __init__(self, input_size, hidden_size, device='cpu'):
-        self.weight = Param((input_size + hidden_size, 4 * hidden_size), device=device)  # (I+H, 4H)
-        self.bias = Param((1, 4 * hidden_size), device=device)  # (1, 4H)
+    def __init__(self, input_size, hidden_size):
+        self.weight = Param((input_size + hidden_size, 4 * hidden_size))  # (I+H, 4H)
+        self.bias = Param((1, 4 * hidden_size))  # (1, 4H)
 
         self._slice_i = slice(hidden_size * 0, hidden_size * 1)
         self._slice_f = slice(hidden_size * 1, hidden_size * 2)
@@ -272,7 +276,6 @@ class LSTM_cell(Module):
 
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.device = device
         self.reset_parameters()
 
     @torch.no_grad()
@@ -285,9 +288,9 @@ class LSTM_cell(Module):
         N, F = x.shape
         h, mem = state
         if h is None:
-            h = torch.zeros(N, self.hidden_size, device=self.device)    # fast state
+            h = torch.zeros(N, self.hidden_size, device=x.device)    # fast state
         if mem is None:
-            mem = torch.zeros(N, self.hidden_size, device=self.device)  # slow state
+            mem = torch.zeros(N, self.hidden_size, device=x.device)  # slow state
 
         # Compute the gates
         xh = torch.concat((x, h), dim=-1)    # (N, I), (N, H)  -> (N, I+H)
@@ -308,9 +311,9 @@ class LSTM_cell(Module):
 
 
 class GRU_cell(Module):
-    def __init__(self, input_size, hidden_size, device='cpu'):
-        self.weight = Param((input_size + hidden_size, 3 * hidden_size), device=device)  # (I+H, 3H)
-        self.bias = Param((1, 3 * hidden_size), device=device)  # (1, 3H)
+    def __init__(self, input_size, hidden_size):
+        self.weight = Param((input_size + hidden_size, 3 * hidden_size))  # (I+H, 3H)
+        self.bias = Param((1, 3 * hidden_size))  # (1, 3H)
 
         self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
         self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
@@ -318,7 +321,6 @@ class GRU_cell(Module):
 
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.device = device
         self.reset_parameters()
 
     @torch.no_grad()
@@ -331,7 +333,7 @@ class GRU_cell(Module):
         N, F = x.shape
         h, _ = state
         if h is None:
-            h = torch.zeros(N, self.hidden_size, device=self.device)
+            h = torch.zeros(N, self.hidden_size, device=x.device)
 
         # Just references
         W_xr, W_xz, W_xn = (self.weight[:, _slice] for _slice in [self._slice_r, self._slice_z, self._slice_n])
@@ -356,20 +358,19 @@ class GRU_cell(Module):
 
 class RNN(Module):
 
-    def __init__(self, input_size, hidden_size, cell='rnn', backward=False, layer_norm=False, device='cpu'):
+    def __init__(self, input_size, hidden_size, cell='rnn', backward=False, layer_norm=False):
         if cell == 'rnn':
-            self.cell = RNN_cell(input_size, hidden_size, layer_norm, device=device)
+            self.cell = RNN_cell(input_size, hidden_size, layer_norm)
         elif cell == 'lstm':
             assert not layer_norm, 'LayerNorm is not supported for LSTM'
-            self.cell = LSTM_cell(input_size, hidden_size, device=device)
+            self.cell = LSTM_cell(input_size, hidden_size)
         elif cell == 'gru':
             assert not layer_norm, 'LayerNorm is not supported for GRU'
-            self.cell = GRU_cell(input_size, hidden_size, device=device)
+            self.cell = GRU_cell(input_size, hidden_size)
         else:
             raise ValueError(f'Unknown cell type {cell}')
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.device = device
         self.backward = backward
         self.layer_norm = layer_norm
         self.reset_parameters()
@@ -383,7 +384,7 @@ class RNN(Module):
         N, T, F = x.shape
 
         direction = reversed(range(T)) if self.backward else range(T)
-        z = torch.zeros(N, T, self.hidden_size, device=self.device)
+        z = torch.zeros(N, T, self.hidden_size, device=x.device)
         for t in direction:
             state = self.cell.forward(x[:, t], state)
             h, _ = state
@@ -402,17 +403,16 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True, device='cpu'):
-        self.weight = Param((out_channels, in_channels, kernel_size, kernel_size), device=device)  # (C_out, C_in, K, K)
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True):
+        self.weight = Param((out_channels, in_channels, kernel_size, kernel_size))  # (C_out, C_in, K, K)
         if bias:
-            self.bias = Param((out_channels,), device=device)  # (C)
+            self.bias = Param((out_channels,))  # (C)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.stride = stride
-        self.device = device
         self.padding = padding
         self.has_bias = bias
         if isinstance(padding, str):  # e.g. valid, same, full
@@ -432,7 +432,7 @@ class Conv2d(Module):
         """
         # cross-correlation between batch images and filters:
         k = self.kernel_size
-        Y = torch.zeros((N, self.out_channels, out_size, out_size), device=self.device)  # (N, C_out, W_out, H_out)
+        Y = torch.zeros((N, self.out_channels, out_size, out_size), device=X.device)  # (N, C_out, W_out, H_out)
         for h in range(out_size):
             for w in range(out_size):
                 for c in range(self.out_channels):
@@ -457,10 +457,10 @@ class Conv2d(Module):
 
 
 class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, device='cpu'):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         assert in_channels % groups == 0 and out_channels % groups == 0, f'the channels must be divisible by the groups, but got: {in_channels=}, {out_channels=} for {groups=}'
         self.convs = ModuleList(
-            Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, bias, device)
+            Conv2d(in_channels//groups, out_channels//groups, kernel_size, stride, padding, dilation, bias)
             for g in range(groups)
         )
         self.in_channels = in_channels
@@ -468,7 +468,6 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.stride = stride
-        self.device = device
         self.padding = padding
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
@@ -478,7 +477,7 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
         N, C, H, W = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
-        Y = torch.zeros(N, self.out_channels, W_out, H_out, device=self.device)
+        Y = torch.zeros(N, self.out_channels, W_out, H_out, device=X.device)
         for g in range(self.groups):
             Y[:, self.slice_out(g)] = self.convs[g].forward(X[:, self.slice_in(g)])
         return Y
@@ -496,11 +495,10 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
 
 class Pool2d(Module):
 
-    def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu', padding_fill_value=0.):
+    def __init__(self, kernel_size, stride=1, padding=0, dilation=1, padding_fill_value=0.):
         self.kernel_size = kernel_size
         self.dilation = dilation
         self.stride = stride
-        self.device = device
         self.padding_fill_value = padding_fill_value
 
         if padding in ('valid', 'same', 'full'):
@@ -538,8 +536,8 @@ class Pool2d(Module):
 
 
 class MaxPool2d(Pool2d):
-    def __init__(self, kernel_size, stride=1, padding=0, dilation=1, device='cpu'):
-        super().__init__(kernel_size, stride, padding, dilation, device, padding_fill_value=-torch.inf)  # use padding with inf negatives for correct max pooling of negative inputs
+    def __init__(self, kernel_size, stride=1, padding=0, dilation=1):
+        super().__init__(kernel_size, stride, padding, dilation, padding_fill_value=-torch.inf)  # use padding with inf negatives for correct max pooling of negative inputs
 
     def pool(self, patches):
         max_pooled, _ = patches.max(dim=2)  # (N, C, k*k, patches) -> (N, C, patches)
@@ -578,8 +576,8 @@ class SEGate(Module):
     https://arxiv.org/pdf/1709.01507.pdf
     """
 
-    def __init__(self, channels, reduction=16, device='cpu'):
-        self.weight  = Param((2, channels, channels//reduction), device=device)  # concatenated weights of the two linear layers
+    def __init__(self, channels, reduction=16):
+        self.weight  = Param((2, channels, channels//reduction))  # concatenated weights of the two linear layers
         self.channels = channels
         self.reduction = reduction
         self.reset_parameters()
@@ -609,10 +607,10 @@ class SEGate(Module):
 
 
 class Graph_cell(Module):  # graph layer with node-wise neighborhood function
-    def __init__(self, in_channels, out_channels, device='cpu'):
-        self.weight_neighbors = Param((in_channels, out_channels), device=device)  # (c_in, c_out)
-        self.weight_self = Param((in_channels, out_channels), device=device)        # (c_in, c_out)
-        self.bias = Param((1, out_channels), device=device)
+    def __init__(self, in_channels, out_channels):
+        self.weight_neighbors = Param((in_channels, out_channels))  # (c_in, c_out)
+        self.weight_self = Param((in_channels, out_channels))        # (c_in, c_out)
+        self.bias = Param((1, out_channels))
         self.in_channels, self.out_channels = in_channels, out_channels
         self.reset_parameters()
 
@@ -637,9 +635,9 @@ class GCN_cell(Module):
     Paper: Semi-Supervised Classification with Graph Convolutional Networks
     https://arxiv.org/pdf/1609.02907.pdf
     """
-    def __init__(self, in_channels, out_channels, device='cpu'):
-        self.weight = Param((in_channels, out_channels), device=device)  # (c_in, c_out) - shared for self and neighbors connections
-        self.bias = Param((1, out_channels), device=device)
+    def __init__(self, in_channels, out_channels):
+        self.weight = Param((in_channels, out_channels))  # (c_in, c_out) - shared for self and neighbors connections
+        self.bias = Param((1, out_channels))
         self.in_channels, self.out_channels = in_channels, out_channels
         self.reset_parameters()
         self._cache = {'adjacency': None, 'adjacency_normalized': None}
@@ -679,18 +677,18 @@ class GraphSAGE_cell(Module):  # SAGE = SAmple and aggreGatE
     Paper: Inductive Representation Learning on Large Graphs
     https://arxiv.org/pdf/1706.02216.pdf
     """
-    def __init__(self, in_channels, hidden_channels, aggregation='maxpool', device='cpu'):
+    def __init__(self, in_channels, hidden_channels, aggregation='maxpool'):
         assert aggregation in ('neighbor', 'maxpool', 'meanpool', 'mean'), f'Invalid aggregation operator: {aggregation}'
 
-        self.weight_self = Param((in_channels, hidden_channels), device=device)       # self (c_in, c_out)
-        self.weight_neighbors = Param((in_channels, hidden_channels), device=device)  # neighbors (c_in, c_out)
-        self.bias_self = Param((1, hidden_channels), device=device)
-        self.bias_neighbors = Param((1, hidden_channels), device=device)
+        self.weight_self = Param((in_channels, hidden_channels))       # self (c_in, c_out)
+        self.weight_neighbors = Param((in_channels, hidden_channels))  # neighbors (c_in, c_out)
+        self.bias_self = Param((1, hidden_channels))
+        self.bias_neighbors = Param((1, hidden_channels))
         if aggregation in ('maxpool', 'meanpool'):
-            self.weight_pool = Param((in_channels, in_channels), device=device)
-            self.bias_pool = Param((1, in_channels), device=device)
+            self.weight_pool = Param((in_channels, in_channels))
+            self.bias_pool = Param((1, in_channels))
 
-        self.in_channels, self.hidden_channels, self.device = in_channels, hidden_channels, device
+        self.in_channels, self.hidden_channels = in_channels, hidden_channels
         self.out_channels = self.hidden_channels * 2
         self.aggregate_operator = aggregation
         self.reset_parameters()

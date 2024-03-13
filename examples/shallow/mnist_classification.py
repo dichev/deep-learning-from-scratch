@@ -53,13 +53,13 @@ X_test  = normalizeMinMax(X_test, x_min, x_max)
 class Net(Module):
     def __init__(self, input_size, output_size):  # over-parameterized model for testing purposes
         self.drop0 = Dropout(0.2)
-        self.l1 = Linear(input_size, 300, device=DEVICE)
+        self.l1 = Linear(input_size, 300)
         self.drop1 = Dropout(0.5)
-        # self.bn1 = BatchNorm(300, device=DEVICE)
-        self.l2 = Linear(300, 200, device=DEVICE)
+        # self.bn1 = BatchNorm(300)
+        self.l2 = Linear(300, 200)
         self.drop2 = Dropout(0.5)
-        # self.bn2 = BatchNorm(200, device=DEVICE)
-        self.l3 = Linear(200, output_size, device=DEVICE)
+        # self.bn2 = BatchNorm(200)
+        self.l3 = Linear(200, output_size)
         self.input_size, self.output_size = input_size, output_size
 
     def forward(self, x):
@@ -77,7 +77,7 @@ class Net(Module):
         return x
 
 
-net = Net(n_features, n_classes)
+net = Net(n_features, n_classes).to(DEVICE)
 net.summary()
 # net.export('../deeper/data/model.json')
 optimizer = optimizers.SGD(net.parameters(), lr=LEARN_RATE)

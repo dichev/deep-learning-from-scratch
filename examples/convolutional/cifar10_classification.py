@@ -37,12 +37,12 @@ test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 # Models
 models = {
-    'SimpleCNN': (SimpleCNN(n_classes=10, device=DEVICE), lambda x: x),
-    'LeNet-5':   (LeNet5(n_classes=10, device=DEVICE), T.Grayscale(num_output_channels=1)),
-    'AlexNet':   (AlexNet(n_classes=10, device=DEVICE), T.Resize((227, 227), antialias=True)),  # well, yeah..
-    'NetworkInNetwork':   (NetworkInNetwork(n_classes=10, device=DEVICE), T.Resize((227, 227), antialias=True)),
-    'VGG-16':   (VGG16(n_classes=10, device=DEVICE), T.Resize((224, 224))),
-    'GoogLeNet': (GoogLeNet(n_classes=10, device=DEVICE), T.Resize((224, 224))),
+    'SimpleCNN': (SimpleCNN(n_classes=10), lambda x: x),
+    'LeNet-5':   (LeNet5(n_classes=10), T.Grayscale(num_output_channels=1)),
+    'AlexNet':   (AlexNet(n_classes=10), T.Resize((227, 227), antialias=True)),  # well, yeah..
+    'NetworkInNetwork':   (NetworkInNetwork(n_classes=10), T.Resize((227, 227), antialias=True)),
+    'VGG-16':   (VGG16(n_classes=10), T.Resize((224, 224))),
+    'GoogLeNet': (GoogLeNet(n_classes=10), T.Resize((224, 224))),
 }
 
 
@@ -84,6 +84,7 @@ def train(model, loader, transform):
 
 # Training loop
 for model_name, (model, transform) in models.items():
+    model.to(DEVICE)
     optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
     print(model.summary())
     print(f'Fit {len(train_dataset)} training samples in model: {model}')

@@ -27,7 +27,7 @@ N = df.shape[0]
 
 
 # Model
-model = MatrixFactorization(n_users=len(user_to_idx), n_animes=len(anime_to_idx), rank=MATRIX_RANK, device=DEVICE)
+model = MatrixFactorization(n_users=len(user_to_idx), n_animes=len(anime_to_idx), rank=MATRIX_RANK).to(DEVICE)
 optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
 
 # Fit the data

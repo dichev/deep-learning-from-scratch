@@ -6,20 +6,19 @@ from preprocessing.integer import one_hot
 
 class RNN_factory(Module):
 
-    def __init__(self, input_size, hidden_size, output_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False, device='cpu'):
+    def __init__(self, input_size, hidden_size, output_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False):
         assert direction in ('forward', 'backward', 'bidirectional'), "direction must be one of ('forward', 'backward', 'bidirectional')"
         self.hidden_size = hidden_size if direction != 'bidirectional' else hidden_size * 2
         self.n_layers = n_layers
         self.input_size = input_size
         self.direction = direction
-        self.device = device
         self.cell_type = cell
 
-        self.rnn_layers = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm, device=device) for _ in range(n_layers)])
+        self.rnn_layers = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm) for _ in range(n_layers)])
         if direction == 'bidirectional':
-            self.rnn_layers_reverse = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm, device=device) for _ in range(n_layers)])
+            self.rnn_layers_reverse = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm) for _ in range(n_layers)])
 
-        self.out = Linear(self.hidden_size, output_size, device=device, weights_init=init.xavier_normal_)
+        self.out = Linear(self.hidden_size, output_size, weights_init=init.xavier_normal_)
 
     def forward(self, x, states=None, logits=False):
         if len(x.shape) == 2:  # when x is indices
@@ -53,9 +52,9 @@ class RNN_factory(Module):
     @torch.no_grad()
     def sample(self, n_samples=1, temperature=1., seed_seq=None):
         if seed_seq is None:
-            x = torch.randint(0, self.input_size, size=(1,), device=self.device)
+            x = torch.randint(0, self.input_size, size=(1,), device=self.out.weight.device)
         else:
-            x = torch.tensor(seed_seq, device=self.device)
+            x = torch.tensor(seed_seq, device=self.out.weight.device)
 
         states = None
         seq = []
@@ -70,30 +69,30 @@ class RNN_factory(Module):
 
 
 class SimpleRNN(RNN_factory):
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False, device='cpu'):
-        super().__init__(input_size, hidden_size, output_size, cell='rnn', n_layers=n_layers, direction=direction, layer_norm=layer_norm, device=device)
+    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, output_size, cell='rnn', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
 
 class LSTM(RNN_factory):
     """
     Paper: Generating Sequences With Recurrent Neural Networks
     https://arxiv.org/pdf/1308.0850.pdf
     """
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False, device='cpu'):
-        super().__init__(input_size, hidden_size, output_size, cell='lstm', n_layers=n_layers, direction=direction, layer_norm=layer_norm, device=device)
+    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, output_size, cell='lstm', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
 
 class GRU(RNN_factory):
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False, device='cpu'):
-        super().__init__(input_size, hidden_size, output_size, cell='gru', n_layers=n_layers, direction=direction, layer_norm=layer_norm, device=device)
+    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, output_size, cell='gru', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+
 
 class EchoStateNetwork(Module):
 
-    def __init__(self, input_size, hidden_size, output_size, spectral_radius=2., sparsity=.90, device='cpu'):
+    def __init__(self, input_size, hidden_size, output_size, spectral_radius=2., sparsity=.90):
         self.hidden_size = hidden_size
         self.input_size = input_size
-        self.device = device
 
-        self.rnn = RNN(input_size, hidden_size, device=device)
-        self.out = Linear(hidden_size, output_size, device=device, weights_init=init.xavier_normal_)
+        self.rnn = RNN(input_size, hidden_size)
+        self.out = Linear(hidden_size, output_size, weights_init=init.xavier_normal_)
 
         # make all input-hidden and hidden-hidden parameters fixed, to be used as a reservoir
         for param in self.rnn.parameters(named=False):
@@ -105,7 +104,7 @@ class EchoStateNetwork(Module):
         Whh /= torch.linalg.eigvals(Whh).abs().max()    # set the spectral radius of the hidden-hidden weights to 1
         Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation
 
-    def forward(self, x, h=None, logits=False):
+    def forward(self, x, h=(None, None), logits=False):
         if len(x.shape) == 2:  # when x is indices
             x = one_hot(x, self.input_size)
 
@@ -116,3 +115,8 @@ class EchoStateNetwork(Module):
 
         return y, h
 
+    def to(self, device):
+        super().to(device)
+        # those parameters aren't moved because aren't trainable (required_grad=False)
+        self.rnn.cell.weight.data = self.rnn.cell.weight.data.to(device)
+        self.rnn.cell.bias.data = self.rnn.cell.bias.data.to(device)

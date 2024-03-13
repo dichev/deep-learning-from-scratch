@@ -68,12 +68,13 @@ def train(model, loader):
 
 # Model
 models = {
-    'GIN': GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=3, eps=0., device=DEVICE),
-    'DiffPool': DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes, device=DEVICE)
+    'GIN': GIN(in_channels=dataset.num_features, hidden_size=HIDDEN_CHANNELS, n_classes=dataset.num_classes, k_iterations=3, eps=0.),
+    'DiffPool': DiffPoolNet(in_channels=dataset.num_features, embed_size=HIDDEN_CHANNELS, n_clusters=(ceil(max_nodes*.25), ceil(max_nodes*.25*.25)), n_classes=dataset.num_classes)
 }
 
 # Training
 for name, model in models.items():
+    model.to(DEVICE)
     model.summary()
     optimizer = Adam(model.parameters(), lr=LEARN_RATE)
     for epoch in range(1, EPOCHS+1):

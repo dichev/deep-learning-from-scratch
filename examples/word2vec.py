@@ -94,7 +94,7 @@ print('\ntargets:', targets.shape, '\ncontexts:', contexts.shape, '\nlabels:', l
 assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data contains paddings or unknown words'
 
 # Train a Word2Vec model
-word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM, device=DEVICE)
+word2vec = Word2Vec(vocab.size, WORD_EMBEDDINGS_DIM).to(DEVICE)
 optimizer = SGD(word2vec.parameters(), lr=LEARN_RATE)
 
 N = len(targets)

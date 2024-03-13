@@ -5,9 +5,9 @@ from lib.base import Param
 
 
 class MatrixFactorization(Module):
-    def __init__(self, n_users, n_animes, rank, device='cpu'):
-        self.U = Param((n_users, rank), device=device)   # (user, k)
-        self.V = Param((n_animes, rank), device=device)  # (anime, k)
+    def __init__(self, n_users, n_animes, rank):
+        self.U = Param((n_users, rank))   # (user, k)
+        self.V = Param((n_animes, rank))  # (anime, k)
         self.reset_parameters()
 
     @torch.no_grad()
@@ -27,9 +27,9 @@ class MatrixFactorization(Module):
 
 
 class AutoencoderLinear(Module):
-    def __init__(self, input_size, hidden_size, output_size, device='cpu'):
-        self.encoder = Linear(input_size, hidden_size, device)
-        self.decoder = Linear(hidden_size, output_size, device)
+    def __init__(self, input_size, hidden_size, output_size):
+        self.encoder = Linear(input_size, hidden_size)
+        self.decoder = Linear(hidden_size, output_size)
 
     def forward(self, X):
         U = self.encoder.forward(X)
@@ -42,9 +42,9 @@ class Word2Vec(Module):
     Paper: Efficient Estimation of Word Representations in Vector Space
     https://arxiv.org/pdf/1301.3781.pdf
     """
-    def __init__(self, vocab_size, embedding_size, device='cpu'):
-        self.target = Embedding(vocab_size, embedding_size, device=device)
-        self.context = Embedding(vocab_size, embedding_size, device=device)
+    def __init__(self, vocab_size, embedding_size):
+        self.target = Embedding(vocab_size, embedding_size)
+        self.context = Embedding(vocab_size, embedding_size)
 
     def forward(self, targets, contexts):
         target_vectors = self.target.forward(targets)       # (B, 1) -> (B, embed)

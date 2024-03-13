@@ -42,6 +42,20 @@ class Module:
                 yield (prefix + key, val) if named else val
                 yield from val.modules(named, prefix=f'\t{prefix + key}.')
 
+    def to(self, device):
+        print('module:', self)
+        for name, param in self.parameters(deep=False): # todo: test the loop against parameters(deep=True)
+            param.data = param.data.to(device)  # careful here
+            print(' -> param', name, param.device)
+            if param.grad is not None:
+                raise NotImplementedError
+        for name, module in self.modules():
+            module.to(device)
+        return self
+
+    def device_of_first_parameter(self):  # caution: a module can contain parameters on different devices
+        return next(iter(self.parameters(named=False))).device
+
     def summary(self, params=False):
         print(self)
         for i, (name, module) in enumerate(self.modules()):
@@ -98,6 +112,7 @@ class ModuleList(list, Module):
 
     def __repr__(self):
         return f'{self.__class__.__name__}({len(self)}): {self.n_params} parameters'
+
 
 class Sequential(ModuleList):
 

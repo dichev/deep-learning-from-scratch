@@ -37,23 +37,24 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {  # todo: compare with similar size of parameters
-    'RNN_1L':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False, device=DEVICE),
-    'RNN_1L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True, device=DEVICE),
-    'RNN_3L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True, device=DEVICE),
-    'BiRNN_1L LayerNorm': SimpleRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True, device=DEVICE),
+    'RNN_1L':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False),
+    'RNN_1L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True),
+    'RNN_3L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True),
+    'BiRNN_1L LayerNorm': SimpleRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True),
 
-    'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size, device=DEVICE),
+    'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size),
 
-    'LSTM_1L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
-    'LSTM_3L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', device=DEVICE),
-    'BiLSTM_1L': LSTM(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', device=DEVICE),
+    'LSTM_1L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward'),
+    'LSTM_3L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward'),
+    'BiLSTM_1L': LSTM(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional'),
 
-    'GRU_1L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', device=DEVICE),
-    'GRU_3L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', device=DEVICE),
-    'BiGRU_1L': GRU(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', device=DEVICE),
+    'GRU_1L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward'),
+    'GRU_3L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward'),
+    'BiGRU_1L': GRU(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional'),
 }
 
 for model_name, net in models.items():
+    net.to(DEVICE)
     print(net.summary())
     # plots.LaTeX(RNN, net.expression())
     optimizer = Adam(net.parameters(), lr=LEARN_RATE)
