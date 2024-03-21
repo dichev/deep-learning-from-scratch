@@ -9,11 +9,12 @@ _patterns = (
     (re.compile(r'\s+'), ' '),               # normalize spaces
 )
 
-def word_tokenizer(doc, split=True):
+
+def clean_text(doc):
     doc = doc.lower()
     for pattern, repl in _patterns:
         doc = pattern.sub(repl, doc)
-    return doc.split() if split else doc
+    return doc
 
 
 def n_grams(doc, n=3):

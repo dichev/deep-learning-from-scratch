@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import trange, tqdm as progress
 
-from preprocessing.text import word_tokenizer, TextVocabulary
+from preprocessing.text import clean_text, TextVocabulary
 import preprocessing.text as text
 from utils.rng import sample_from
 from lib.functions.losses import cross_entropy
@@ -82,7 +82,7 @@ with open('./data/shakespeare.txt', 'r') as f:
     docs = [line.strip() for line in f if line.strip()]
 
 # Tokenize and index
-text_tokenized = [word_tokenizer(line) for line in docs]
+text_tokenized = [clean_text(line).split() for line in docs]
 vocab = TextVocabulary(text_tokenized, max_vocab_size=max_vocab_size)
 text_encoded = vocab.encode_batch(text_tokenized, seq_length=sequence_length)
 vocab.print_human(text_encoded[:5])

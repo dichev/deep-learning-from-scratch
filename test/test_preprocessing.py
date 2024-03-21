@@ -5,7 +5,7 @@ import pandas as pd
 
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import index_encoder
-from preprocessing.text import word_tokenizer, n_grams, skip_grams, TextVocabulary
+from preprocessing.text import clean_text, n_grams, skip_grams, TextVocabulary
 
 def test_normalizeMinMax():
     # Test with a tensor of positive integers
@@ -43,8 +43,8 @@ def test_index_encoder_with_pandas_series():
     assert vocab == {'x': 0, 'y': 1, 'z': 2}
     assert vocab_inverse == {0: 'x', 1: 'y', 2: 'z'}
 
-def test_word_tokenizer():
-    assert word_tokenizer("Hello- @$#A?I    w%%orld \n!") == ['hello', 'ai', 'world']
+def test_clean_text():
+    assert clean_text("Hello- @$#A?I    w%%orld \n!").split() == ['hello', 'ai', 'world']
 
 def test_n_grams():
     doc = 'the wide road shimmered in the hot sun'
@@ -74,10 +74,10 @@ def test_text_vocabulary():
         'Welcome to the AI world!',
         'The wide road shimmered in the hot hot hot hot sun.',
     ]
-    docs_tokenized = [word_tokenizer(doc) for doc in docs]
+    docs_tokenized = [clean_text(doc).split() for doc in docs]
     vocab = TextVocabulary(docs_tokenized, max_vocab_size=100)
 
-    assert np.all(vocab.encode_batch([word_tokenizer('Welcome to the AI world!')], seq_length=10) == np.array([[4, 5, 3, 6, 7, 0, 0, 0, 0, 0]]))
+    assert np.all(vocab.encode_batch([clean_text('Welcome to the AI world!').split()], seq_length=10) == np.array([[4, 5, 3, 6, 7, 0, 0, 0, 0, 0]]))
     assert vocab.decode([4, 5, 3, 6, 7, 0, 0]) == 'welcome to the ai world'
 
     sequences = vocab.encode_batch(docs_tokenized, seq_length=10)
