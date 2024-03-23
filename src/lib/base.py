@@ -46,7 +46,7 @@ class Module:
         print('module:', self)
         for name, param in self.parameters(deep=False): # todo: test the loop against parameters(deep=True)
             param.data = param.data.to(device)  # careful here
-            print(' -> param', name, param.device)
+            # print(' -> param', name, param.device)
             if param.grad is not None:
                 raise NotImplementedError
         for name, module in self.modules():

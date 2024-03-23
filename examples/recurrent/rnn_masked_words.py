@@ -4,7 +4,7 @@ from tqdm import trange
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
-from models.recurrent_networks import SimpleRNN, LSTM, GRU, EchoStateNetwork
+from models.recurrent_networks import SimpleRNN, LSTM, GRU, EchoStateNetwork, LangModel
 from preprocessing.text import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
@@ -37,25 +37,25 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {  # todo: compare with similar size of parameters
-    'RNN_1L':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=False),
-    'RNN_1L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward', layer_norm=True),
-    'RNN_3L LayerNorm':   SimpleRNN(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward', layer_norm=True),
-    'BiRNN_1L LayerNorm': SimpleRNN(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional', layer_norm=True),
+    'RNN_1L':    LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=False)),
+    'RNN_1L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=True)),
+    'RNN_3L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward', layer_norm=True)),
+    'BiRNN_1L LayerNorm': LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional', layer_norm=True)),
 
     'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size),
 
-    'LSTM_1L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward'),
-    'LSTM_3L':   LSTM(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward'),
-    'BiLSTM_1L': LSTM(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional'),
+    'LSTM_1L':   LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
+    'LSTM_3L':   LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward')),
+    'BiLSTM_1L': LangModel(LSTM(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional')),
 
-    'GRU_1L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=1, direction='forward'),
-    'GRU_3L':   GRU(vocab.size, HIDDEN_SIZE, vocab.size, n_layers=3, direction='forward'),
-    'BiGRU_1L': GRU(vocab.size, HIDDEN_SIZE//2, vocab.size, n_layers=1, direction='bidirectional'),
+    'GRU_1L':   LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
+    'GRU_3L':   LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward')),
+    'BiGRU_1L': LangModel(GRU(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional')),
 }
 
 for model_name, net in models.items():
     net.to(DEVICE)
-    print(net.summary())
+    net.summary()
     # plots.LaTeX(RNN, net.expression())
     optimizer = Adam(net.parameters(), lr=LEARN_RATE)
 
@@ -65,7 +65,7 @@ for model_name, net in models.items():
 
     # Training loop
     N = len(X)
-    print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into the model: {net}')
+    print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into the model: {model_name}')
     pbar = trange(1, EPOCHS+1, desc='EPOCH')
     for epoch in pbar:
         loss = accuracy = grad_norm = 0
@@ -76,7 +76,7 @@ for model_name, net in models.items():
 
             # Update
             optimizer.zero_grad()
-            y_hat, _ = net.forward(x, logits=True)
+            y_hat, _ = net.forward(x)
             y_hat = y_hat[torch.arange(len(batch)), mask.ravel(), :].unsqueeze(1)
             cost = cross_entropy(y_hat, y, logits=True)
             cost.backward()

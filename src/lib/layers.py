@@ -38,13 +38,13 @@ class Linear(Module):
 
 
 class Embedding(Module):  # aka lookup table
-    def __init__(self, vocab_size, output_size, padding_idx=None):
-        self.weight = Param((vocab_size, output_size))
+    def __init__(self, vocab_size, embed_size, padding_idx=None):
+        self.weight = Param((vocab_size, embed_size))
         if padding_idx is not None:
             with torch.no_grad():
                 self.weight[padding_idx] = 0.
 
-        self.input_size, self.output_size = vocab_size, output_size
+        self.input_size, self.output_size = vocab_size, embed_size
         self.reset_parameters()
 
     @torch.no_grad()

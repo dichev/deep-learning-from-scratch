@@ -4,9 +4,10 @@ from lib.functions import init
 from lib.functions.activations import softmax
 from preprocessing.integer import one_hot
 
+
 class RNN_factory(Module):
 
-    def __init__(self, input_size, hidden_size, output_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False):
+    def __init__(self, input_size, hidden_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False):
         assert direction in ('forward', 'backward', 'bidirectional'), "direction must be one of ('forward', 'backward', 'bidirectional')"
         self.hidden_size = hidden_size if direction != 'bidirectional' else hidden_size * 2
         self.n_layers = n_layers
@@ -18,9 +19,7 @@ class RNN_factory(Module):
         if direction == 'bidirectional':
             self.rnn_layers_reverse = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm) for _ in range(n_layers)])
 
-        self.out = Linear(self.hidden_size, output_size, weights_init=init.xavier_normal_)
-
-    def forward(self, x, states=None, logits=False):
+    def forward(self, x, states=None):
         if len(x.shape) == 2:  # when x is indices
             x = one_hot(x, self.input_size)
 
@@ -43,46 +42,57 @@ class RNN_factory(Module):
                 z = torch.concat((z_f, z_b), dim=-1)
                 h = [h_f, h_b]
 
-        y = self.out.forward(z)
-        if not logits:
-            y = softmax(y)
+        return z, (h, C)
 
-        return y, (h, C)
-
-    @torch.no_grad()
-    def sample(self, n_samples=1, temperature=1., seed_seq=None):
-        if seed_seq is None:
-            x = torch.randint(0, self.input_size, size=(1,), device=self.out.weight.device)
-        else:
-            x = torch.tensor(seed_seq, device=self.out.weight.device)
-
-        states = None
-        seq = []
-        for n in range(n_samples):
-            z, states = self.forward(x.view(1, len(x)), states, logits=True)
-            p = softmax(z[0][-1] / temperature)
-            token = torch.multinomial(p, num_samples=1)  # sample single token
-            seq.append(token.item())
-            x = token
-
-        return seq
 
 
 class SimpleRNN(RNN_factory):
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
-        super().__init__(input_size, hidden_size, output_size, cell='rnn', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+    def __init__(self, input_size, hidden_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, cell='rnn', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+
 
 class LSTM(RNN_factory):
     """
     Paper: Generating Sequences With Recurrent Neural Networks
     https://arxiv.org/pdf/1308.0850.pdf
     """
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
-        super().__init__(input_size, hidden_size, output_size, cell='lstm', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+    def __init__(self, input_size, hidden_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, cell='lstm', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+
 
 class GRU(RNN_factory):
-    def __init__(self, input_size, hidden_size, output_size, n_layers=1, direction='forward', layer_norm=False):
-        super().__init__(input_size, hidden_size, output_size, cell='gru', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+    def __init__(self, input_size, hidden_size, n_layers=1, direction='forward', layer_norm=False):
+        super().__init__(input_size, hidden_size, cell='gru', n_layers=n_layers, direction=direction, layer_norm=layer_norm)
+
+
+class LangModel(Module):
+    def __init__(self, rnn: RNN_factory):
+        self.vocab_size = rnn.input_size
+        self.rnn = rnn
+        self.head = Linear(self.rnn.hidden_size, self.vocab_size, weights_init=init.xavier_normal_)
+
+    def forward(self, x, states=None):
+        h, states = self.rnn.forward(x, states)
+        z = self.head.forward(h)
+        return z, states
+
+    @torch.no_grad()
+    def sample(self, n_samples=1, temperature=1., seed_seq=None):
+        if seed_seq is None:
+            x = torch.randint(0, self.vocab_size, size=(1,), device=self.head.weight.device)
+        else:
+            x = torch.tensor(seed_seq, device=self.head.weight.device)
+
+        states = None
+        seq = []
+        for n in range(n_samples):
+            z, states = self.forward(x.view(1, len(x)), states)
+            p = softmax(z[0][-1] / temperature)
+            token = torch.multinomial(p, num_samples=1)  # sample single token
+            seq.append(token.item())
+            x = token
+
+        return seq
 
 
 class EchoStateNetwork(Module):
@@ -104,15 +114,12 @@ class EchoStateNetwork(Module):
         Whh /= torch.linalg.eigvals(Whh).abs().max()    # set the spectral radius of the hidden-hidden weights to 1
         Whh *= spectral_radius                          # scale up the spectral radius to 2, because the tanh saturation
 
-    def forward(self, x, h=(None, None), logits=False):
+    def forward(self, x, h=(None, None)):
         if len(x.shape) == 2:  # when x is indices
             x = one_hot(x, self.input_size)
 
         z, h = self.rnn.forward(x, h)
         y = self.out.forward(z)
-        if not logits:
-            y = softmax(y)
-
         return y, h
 
     def to(self, device):
