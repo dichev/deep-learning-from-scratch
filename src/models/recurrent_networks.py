@@ -9,41 +9,43 @@ class RNN_factory(Module):
 
     def __init__(self, input_size, hidden_size, cell='rnn', n_layers=1, direction='forward', layer_norm=False):
         assert direction in ('forward', 'backward', 'bidirectional'), "direction must be one of ('forward', 'backward', 'bidirectional')"
-        self.hidden_size = hidden_size if direction != 'bidirectional' else hidden_size * 2
         self.n_layers = n_layers
         self.input_size = input_size
         self.direction = direction
         self.cell_type = cell
 
-        self.rnn_layers = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm) for _ in range(n_layers)])
-        if direction == 'bidirectional':
-            self.rnn_layers_reverse = ModuleList([RNN(input_size, hidden_size, cell=cell, backward=True, layer_norm=layer_norm) for _ in range(n_layers)])
+        if direction != 'bidirectional':
+            self.hidden_size = hidden_size
+            self.rnn_layers = ModuleList([RNN(input_size if i == 0 else self.hidden_size, self.hidden_size, cell=cell, backward=(direction == 'backward'), layer_norm=layer_norm) for i in range(n_layers)])
+        else:
+            self.hidden_size = hidden_size * 2
+            self.rnn_layers_f = ModuleList([RNN(input_size if i == 0 else self.hidden_size, self.hidden_size//2, cell=cell, backward=False, layer_norm=layer_norm) for i in range(n_layers)])
+            self.rnn_layers_b = ModuleList([RNN(input_size if i == 0 else self.hidden_size, self.hidden_size//2, cell=cell, backward=True, layer_norm=layer_norm) for i in range(n_layers)])
+
+    def init_state(self):
+        if self.direction != 'bidirectional':
+            return [(None, None)] * self.n_layers                  # states[i] = [(h, C)]
+        else:
+            return [[(None, None), (None, None)]] * self.n_layers  # states[i] = [(h_f, C_f), (h_b, C_b)]
 
     def forward(self, x, states=None):
         if len(x.shape) == 2:  # when x is indices
             x = one_hot(x, self.input_size)
 
         if states is None:
-            if self.direction != 'bidirectional':
-                h, C = None, [None for _ in range(self.n_layers)]
-            else:
-                h, C = [None, None], [[None, None] for _ in range(self.n_layers)]
-        else:
-            assert len(states) == 2 and len(states[1]) == self.n_layers, f'Expected states to be a tuple of (h, C)'
-            h, C = states
+            states = self.init_state()
 
         for i in range(self.n_layers):
             if self.direction != 'bidirectional':
-                z, (h, C[i]) = self.rnn_layers[i].forward(x, (h, C[i]))
+                z, states[i] = self.rnn_layers[i].forward(x, states[i])
             else:
-                h_f, h_b = h
-                z_f, (h_f, C[i][0]) = self.rnn_layers[i].forward(x, (h_f, C[i][0]))
-                z_b, (h_b, C[i][1]) = self.rnn_layers_reverse[i].forward(x, (h_b, C[i][1]))
+                z_f, states[i][0] = self.rnn_layers_f[i].forward(x, states[i][0])
+                z_b, states[i][1] = self.rnn_layers_b[i].forward(x, states[i][1])
                 z = torch.concat((z_f, z_b), dim=-1)
-                h = [h_f, h_b]
 
-        return z, (h, C)
+            x = z  # feed next layers with the output of the previous layer
 
+        return z, states
 
 
 class SimpleRNN(RNN_factory):

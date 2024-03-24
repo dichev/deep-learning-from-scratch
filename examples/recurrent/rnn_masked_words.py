@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import torch
 import math
 from tqdm import trange
@@ -10,12 +11,12 @@ from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
 from lib.training import batches
 from utils import rng
-from lib.regularizers import grad_clip_norm_
+from lib.regularizers import grad_clip_norm_, L2_regularizer
 
 
 # training settings
 rng.seed_global(1)
-EPOCHS = 100
+EPOCHS = 500
 BATCH_SIZE = 32
 LEARN_RATE = 0.1
 DEVICE = 'cuda'
@@ -23,7 +24,7 @@ DEVICE = 'cuda'
 # hyperparams
 TIME_STEPS = 15
 MAX_VOCAB_SIZE = 1000  # input/output size
-HIDDEN_SIZE = 100
+HIDDEN_SIZE = 128
 
 # Prepare text data
 print('Data preprocessing..')
@@ -39,18 +40,19 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 models = {  # todo: compare with similar size of parameters
     'RNN_1L':    LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=False)),
     'RNN_1L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=True)),
-    'RNN_3L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward', layer_norm=True)),
+    'RNN_2L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=2, direction='forward', layer_norm=True)),
     'BiRNN_1L LayerNorm': LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional', layer_norm=True)),
 
     'EchoState Sparse': EchoStateNetwork(vocab.size, HIDDEN_SIZE, vocab.size),
 
     'LSTM_1L':   LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
-    'LSTM_3L':   LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward')),
+    'LSTM_2L':   LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=2, direction='forward')),
     'BiLSTM_1L': LangModel(LSTM(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional')),
 
     'GRU_1L':   LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
-    'GRU_3L':   LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=3, direction='forward')),
+    'GRU_2L':   LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=2, direction='forward')),
     'BiGRU_1L': LangModel(GRU(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional')),
+    'BiGRU_2L': LangModel(GRU(vocab.size, HIDDEN_SIZE // 2, n_layers=2, direction='bidirectional')),
 }
 
 for model_name, net in models.items():
@@ -61,7 +63,7 @@ for model_name, net in models.items():
 
     # Tracker
     now = datetime.now().strftime('%b%d %H-%M-%S')
-    writer = SummaryWriter(f'runs/{model_name} T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
+    writer = SummaryWriter(f'runs/{model_name} GradClip T={TIME_STEPS} params={net.n_params} - {now}', flush_secs=2)
 
     # Training loop
     N = len(X)
@@ -80,7 +82,7 @@ for model_name, net in models.items():
             y_hat = y_hat[torch.arange(len(batch)), mask.ravel(), :].unsqueeze(1)
             cost = cross_entropy(y_hat, y, logits=True)
             cost.backward()
-            # grad_clip_norm_(net.parameters(), 1.)
+            grad_clip_norm_(net.parameters(), 1.)
             optimizer.step()
 
             # Metrics

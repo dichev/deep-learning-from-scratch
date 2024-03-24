@@ -43,7 +43,7 @@ class Module:
                 yield from val.modules(named, prefix=f'\t{prefix + key}.')
 
     def to(self, device):
-        print('module:', self)
+        # print('module:', self)
         for name, param in self.parameters(deep=False): # todo: test the loop against parameters(deep=True)
             param.data = param.data.to(device)  # careful here
             # print(' -> param', name, param.device)
