@@ -317,7 +317,7 @@ class GRU_cell(Module):
 
         self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
         self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
-        self._slice_n = slice(hidden_size * 1, hidden_size * 2)  # new cell candidate params
+        self._slice_n = slice(hidden_size * 2, hidden_size * 3)  # new cell candidate params
 
         self.input_size = input_size
         self.hidden_size = hidden_size
