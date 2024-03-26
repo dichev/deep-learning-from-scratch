@@ -40,16 +40,15 @@ class Linear(Module):
 class Embedding(Module):  # aka lookup table
     def __init__(self, vocab_size, embed_size, padding_idx=None):
         self.weight = Param((vocab_size, embed_size))
-        if padding_idx is not None:
-            with torch.no_grad():
-                self.weight[padding_idx] = 0.
-
+        self.padding_idx = padding_idx
         self.input_size, self.output_size = vocab_size, embed_size
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
         self.weight.normal_()
+        if self.padding_idx is not None:
+            self.weight[self.padding_idx] = 0.
 
     def forward(self, indices):
         assert torch.is_tensor(indices) and not torch.is_floating_point(indices), 'Use only tensor integer as indices, to avoid fancy indexing surprises'
