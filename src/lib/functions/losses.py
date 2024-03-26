@@ -11,7 +11,8 @@ def entropy(p, logits=True):
     losses = -(p * log_prob).sum(dim=-1)
     return losses.mean()
 
-def cross_entropy(y_hat, y, logits=True):
+
+def cross_entropy(y_hat, y, logits=True, ignore_idx=None):
     if logits:
         log_prob = log_softmax(y_hat)
     else:
@@ -21,6 +22,11 @@ def cross_entropy(y_hat, y, logits=True):
         losses = -(y * log_prob).sum(dim=-1)
     else:  # when y are indices, directly select the target class
         losses = -torch.gather(log_prob, dim=-1, index=y.unsqueeze(-1)).squeeze(-1)
+
+    if ignore_idx is not None:
+        mask = (y != ignore_idx)
+        losses *= mask
+        return losses.sum() / mask.sum()
 
     return losses.mean()
 
@@ -36,5 +42,11 @@ def evaluate_accuracy_per_class(y_hat, y, classes):
     accuracy_per_class = {classes[idx]: matched[idx] / all[idx] for idx in sorted(all.keys())}
     return overall_accuracy, accuracy_per_class
 
-def accuracy(y_hat, y):
-    return ((y_hat == y).sum() / y.numel()).item()
+def accuracy(y_hat, y, ignore_idx=None):
+    correct = (y_hat == y).float()
+
+    if ignore_idx is not None:
+        mask = (y != ignore_idx)
+        return ((correct * mask).sum() / mask.sum()).item()
+
+    return correct.mean().item()

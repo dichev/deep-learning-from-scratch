@@ -36,6 +36,7 @@ text_tokenized_fr = [clean_text(line, 'fr').split() + ['<EOS>'] for line in docs
 
 vocab_en = TextVocabulary(text_tokenized_en, min_freq=2, special_tokens=('<SOS>',))  #, special_tokens=('<SOS>', '<EOS>'))
 vocab_fr = TextVocabulary(text_tokenized_fr, min_freq=2, special_tokens=('<SOS>',))  #, special_tokens=('<SOS>', '<EOS>'))
+PAD_IDX = vocab_fr.to_idx['<PAD>']; assert vocab_en.to_idx['<PAD>'] == vocab_fr.to_idx['<PAD>']
 
 text_encoded_en = torch.tensor(vocab_en.encode_batch(text_tokenized_en, seq_length=IN_SEQ_LEN), dtype=torch.long)
 text_encoded_fr = torch.tensor(vocab_fr.encode_batch(text_tokenized_fr, seq_length=OUT_SEQ_LEN), dtype=torch.long)
@@ -67,8 +68,8 @@ diagnostics()
 
 # Model
 model = Seq2Seq(
-    encoder=Encoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='backward', padding_idx=vocab_fr.to_idx['<PAD>']),
-    decoder=Decoder(vocab_fr.size, DECODER_EMBED_SIZE, DECODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='forward', padding_idx=vocab_en.to_idx['<PAD>']),
+    encoder=Encoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='backward', padding_idx=PAD_IDX),
+    decoder=Decoder(vocab_fr.size, DECODER_EMBED_SIZE, DECODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='forward', padding_idx=PAD_IDX),
     sos_token=vocab_fr.to_idx['<SOS>'],
 )
 
@@ -83,12 +84,12 @@ def train(model, loader):
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
         Z = model.forward(X, out_steps=OUT_SEQ_LEN, targets=Y)
-        cost = cross_entropy(Z, Y, logits=True)  # todo mask padding
+        cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX)
         cost.backward()
         grad_clip_norm_(model.parameters(), 1.)
         optimizer.step()
 
-        loss, acc = cost.item(), accuracy(Z.argmax(dim=-1), Y)  # todo: acc should ignore the padding
+        loss, acc = cost.item(), accuracy(Z.argmax(dim=-1), Y, ignore_idx=PAD_IDX)
         total_loss += loss * batch_frac
         total_acc += acc * batch_frac
 
