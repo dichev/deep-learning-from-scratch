@@ -85,7 +85,11 @@ I agree.
 - SimpleRNN
 - LSTM <sup>[*[Generating Sequences With Recurrent Neural Networks]*](https://arxiv.org/pdf/1308.0850.pdf)</sup>
 - GRU
+- LangModel
 - EchoStateNetwork
+- Encoder
+- Decoder
+- Seq2Seq <sup>[*[Sequence to Sequence Learning with Neural Networks]*](https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf)</sup>
 
 `models.convolutional_networks` [➜](src/models/convolutional_networks.py)
 - SimpleCNN

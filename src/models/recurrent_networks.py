@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Linear, RNN, LayerNorm, ModuleList
+from lib.layers import Module, Linear, RNN, LayerNorm, ModuleList, Embedding
 from lib.functions import init
 from lib.functions.activations import softmax
 from preprocessing.integer import one_hot
@@ -129,3 +129,62 @@ class EchoStateNetwork(Module):
         # those parameters aren't moved because aren't trainable (required_grad=False)
         self.rnn.cell.weight.data = self.rnn.cell.weight.data.to(device)
         self.rnn.cell.bias.data = self.rnn.cell.bias.data.to(device)
+
+
+class Encoder(Module):
+    def __init__(self, vocab_size, embed_size, hidden_size, cell='lstm', n_layers=4, direction='backward', layer_norm=False, padding_idx=None):
+        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        # note the input direction is in backward: [paper] "we found that reversing the order of the words in all source sentences (but not target sentences) improved the LSTM’s performance markedly"
+        self.rnn = RNN_factory(embed_size, hidden_size, cell, n_layers, direction, layer_norm)
+
+    def forward(self, x):
+        x = self.emb.forward(x)                     # (B, T) -> (B, T, embed_size)
+        output, context = self.rnn.forward(x)       # (B, T, embed_size)) -> (B, T, hidden_size), [(h, C)]
+        return output, context
+
+
+class Decoder(Module):
+    def __init__(self, vocab_size, embed_size, hidden_size, cell='lstm', n_layers=4, direction='forward', layer_norm=False, padding_idx=None):
+        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.rnn = RNN_factory(embed_size, hidden_size, cell, n_layers, direction, layer_norm)
+        self.out = Linear(hidden_size, vocab_size, weights_init=init.xavier_normal_)
+
+    def forward(self, x, context):
+        x = self.emb.forward(x)                               # (B, T) -> (B, T, embed_size)
+        output, states = self.rnn.forward(x, states=context)  # (B, T, embed_size)) -> (B, T, hidden_size), [(h, C)]
+        y = self.out.forward(output)
+        return y, states
+
+
+class Seq2Seq(Module):
+    """
+    Paper: Sequence to Sequence Learning with Neural Networks
+    https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf
+    """
+
+    def __init__(self, encoder, decoder, sos_token):
+        self.encoder = encoder
+        self.decoder = decoder
+        self.sos_token = sos_token
+
+    def forward(self, x, out_steps,  targets=None):
+        batch_size, seq_len = x.shape
+
+        # Encode all tokens into single fixed-size context
+        z, context = self.encoder.forward(x)
+        token = torch.empty((batch_size, 1), dtype=torch.long, device=x.device).fill_(self.sos_token)
+
+        # Decode the context into sequence of tokens one by one
+        outputs = []
+        states = context
+        for i in range(out_steps):
+            z, states = self.decoder.forward(token, states)
+            outputs.append(z)
+
+            if targets is None:
+                token = z.detach().argmax(dim=-1)  # important: detach it from the computation graph
+            else:  # teacher forcing
+                token = targets[:, i].view(batch_size, 1)
+
+        outputs = torch.cat(outputs, dim=1)  # (batch_size, out_seq_len, out_vocab_size)
+        return outputs

@@ -77,15 +77,15 @@ def test_text_vocabulary():
     docs_tokenized = [clean_text(doc).split() for doc in docs]
     vocab = TextVocabulary(docs_tokenized, max_vocab_size=100)
 
-    assert np.all(vocab.encode_batch([clean_text('Welcome to the AI world!').split()], seq_length=10) == np.array([[4, 5, 3, 6, 7, 0, 0, 0, 0, 0]]))
+    assert np.all(vocab.encode_batch([clean_text('Welcome to the AI world!').split()], seq_length=10) == np.array([[4, 5, 3, 6, 7, 8, 0, 0, 0, 0]]))
     assert vocab.decode([4, 5, 3, 6, 7, 0, 0]) == 'welcome to the ai world'
 
     sequences = vocab.encode_batch(docs_tokenized, seq_length=10)
     vocab.print_human(sequences)
 
-    assert np.all(sequences == np.array([[ 4,  5,  3,  6,  7,  0,  0,  0,  0,  0], [ 3,  8,  9, 10, 11,  3,  2,  2,  2,  2]]))
-    assert vocab.to_token == {0: '<PAD>', 1: '<UNK>', 2: 'hot', 3: 'the', 4: 'welcome', 5: 'to', 6: 'ai', 7: 'world', 8: 'wide', 9: 'road', 10: 'shimmered', 11: 'in', 12: 'sun'}
-    assert vocab.to_idx == {'<PAD>': 0, '<UNK>': 1, 'hot': 2, 'the': 3, 'welcome': 4, 'to': 5, 'ai': 6, 'world': 7, 'wide': 8, 'road': 9, 'shimmered': 10, 'in': 11, 'sun': 12}
+    assert np.all(sequences == np.array([[ 4,  5,  3,  6,  7,  8,  0,  0,  0,  0], [ 3,  9, 10, 11, 12,  3,  2,  2,  2,  2]]))
+    assert vocab.to_token == {0: '<PAD>', 1: '<UNK>', 2: 'hot', 3: 'the', 4: 'welcome', 5: 'to', 6: 'ai', 7: 'world', 8: '!', 9: 'wide', 10: 'road', 11: 'shimmered', 12: 'in', 13: 'sun', 14: '.'}
+    assert vocab.to_idx == {'<PAD>': 0, '<UNK>': 1, 'hot': 2, 'the': 3, 'welcome': 4, 'to': 5, 'ai': 6, 'world': 7, '!': 8, 'wide': 9, 'road': 10, 'shimmered': 11, 'in': 12, 'sun': 13, '.': 14}
 
 
 

@@ -5,3 +5,4 @@
 /data/MNIST
 /data/cifar-10-*
 /data/proteins*
+/data/text/*
