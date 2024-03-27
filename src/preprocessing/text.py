@@ -21,9 +21,8 @@ def clean_text(doc, lang='en'):
     return doc
 
 
-def n_grams(doc, n=3):
-    words = doc.split()
-    grams = [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
+def n_grams(seq, n=3):
+    grams = [' '.join(seq[i:i+n]) for i in range(len(seq)-n+1)]
     return grams
 
 
@@ -70,8 +69,9 @@ class TextVocabulary:
             encoded[i, :len(seq)] = self.encode(seq[:seq_length])
         return encoded
 
-    def decode(self, tokens, sep=' '):
-        return sep.join([self.to_token[idx] for idx in tokens if 0 < idx < self.size])
+    def decode(self, tokens, remove_tokens=('<PAD>',), sep=' '):
+        remove_tokens_idx = [self.to_idx[token] for token in remove_tokens]
+        return sep.join([self.to_token[idx] for idx in tokens if idx not in remove_tokens_idx])
 
     def print_human(self, sequences):
         for seq in sequences:

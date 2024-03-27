@@ -49,7 +49,7 @@ def test_clean_text():
 def test_n_grams():
     doc = 'the wide road shimmered in the hot sun'
     expected = ['the wide', 'wide road', 'road shimmered', 'shimmered in', 'in the', 'the hot', 'hot sun']
-    assert n_grams(doc, n=2) == expected
+    assert n_grams(doc.split(), n=2) == expected
 
 def test_skip_grams_with_tokens():
     seq = 'the wide road shimmered'.split()
