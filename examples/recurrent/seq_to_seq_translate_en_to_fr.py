@@ -6,8 +6,8 @@ import re
 
 from models.recurrent_networks import Seq2Seq, Encoder, Decoder
 from lib.optimizers import Adam
-from lib.functions.losses import cross_entropy, accuracy
-from lib.functions.metrics import BLEU
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import BLEU, accuracy
 from lib.regularizers import grad_clip_norm_
 from lib.training import batches
 from preprocessing.text import clean_text, TextVocabulary

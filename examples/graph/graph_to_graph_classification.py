@@ -6,7 +6,8 @@ import torch_geometric.transforms as T
 
 from utils import plots
 from models.graph_networks import GIN, DiffPoolNet
-from lib.functions.losses import cross_entropy, accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib.optimizers import Adam
 from utils.graph import edge_index_to_adj_list as to_adj_list
 

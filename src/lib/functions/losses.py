@@ -1,6 +1,6 @@
 import torch
 from lib.functions.activations import log_softmax
-from collections import Counter
+
 
 def entropy(p, logits=True):
     if logits:
@@ -29,24 +29,3 @@ def cross_entropy(y_hat, y, logits=True, ignore_idx=None):
         return losses.sum() / mask.sum()
 
     return losses.mean()
-
-
-def evaluate_accuracy_per_class(y_hat, y, classes):
-    predicted, actual = y_hat.argmax(1), y
-    correct = (predicted == actual)
-    overall_accuracy = correct.float().mean().item()
-
-    all = Counter(actual.tolist())
-    matched = Counter(actual[predicted != actual].tolist())
-
-    accuracy_per_class = {classes[idx]: matched[idx] / all[idx] for idx in sorted(all.keys())}
-    return overall_accuracy, accuracy_per_class
-
-def accuracy(y_hat, y, ignore_idx=None):
-    correct = (y_hat == y).float()
-
-    if ignore_idx is not None:
-        mask = (y != ignore_idx)
-        return ((correct * mask).sum() / mask.sum()).item()
-
-    return correct.mean().item()

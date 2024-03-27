@@ -7,7 +7,8 @@ from datetime import datetime
 
 from lib.functions import init
 from lib.functions.activations import relu
-from lib.functions.losses import cross_entropy, accuracy as evaluate_accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy as evaluate_accuracy
 from lib.layers import Module, Linear, Dropout
 from lib import optimizers
 from lib.regularizers import grad_clip_norm_, max_norm_constraint_

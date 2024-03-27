@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader, random_split
 from tqdm import trange
 
 from preprocessing.floats import img_unnormalize
-from lib.functions.losses import cross_entropy, accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib import optimizers
 from lib.functions.activations import softmax
 from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet

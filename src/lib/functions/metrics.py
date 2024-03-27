@@ -4,6 +4,29 @@ import torch
 from preprocessing.text import n_grams
 
 
+def accuracy(y_hat, y, ignore_idx=None):
+    correct = (y_hat == y).float()
+
+    if ignore_idx is not None:
+        mask = (y != ignore_idx)
+        return ((correct * mask).sum() / mask.sum()).item()
+
+    return correct.mean().item()
+
+
+def evaluate_accuracy_per_class(y_hat, y, classes):
+    predicted, actual = y_hat.argmax(1), y
+    correct = (predicted == actual)
+    overall_accuracy = correct.float().mean().item()
+
+    all = Counter(actual.tolist())
+    matched = Counter(actual[predicted != actual].tolist())
+
+    accuracy_per_class = {classes[idx]: matched[idx] / all[idx] for idx in sorted(all.keys())}
+    return overall_accuracy, accuracy_per_class
+
+
+
 def BLEU(y_hat, y, max_n=4):
     if len(y_hat) == 0:
         return 0.
@@ -31,3 +54,4 @@ def BLEU(y_hat, y, max_n=4):
     # compute the BLEU scores (on log scale)
     score = penalty * torch.exp((weights * torch.log(p)).sum(dim=-1))
     return score.item()
+

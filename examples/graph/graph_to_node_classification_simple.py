@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from lib.layers import Module, Linear, Graph_cell
 from models.graph_networks import GCN, GraphSAGE
 from lib.functions.activations import relu
-from lib.functions.losses import cross_entropy, accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib.optimizers import Adam
 from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
 

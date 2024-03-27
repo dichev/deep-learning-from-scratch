@@ -2,7 +2,8 @@ import torch
 from tqdm import trange
 
 from models.attention_networks import RecurrentAttention
-from lib.functions.losses import cross_entropy, accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib.optimizers import Adam
 from data.mnist import MNIST
 from torchvision.transforms import v2 as T

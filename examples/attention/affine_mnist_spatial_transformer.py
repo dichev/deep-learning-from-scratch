@@ -2,7 +2,8 @@ import torch
 from tqdm import trange
 
 from models.attention_networks import SpatialTransformerNet
-from lib.functions.losses import cross_entropy, accuracy
+from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib.optimizers import SGD_Momentum
 from torchvision.transforms import v2 as T
 from data.mnist import MNIST
