@@ -71,7 +71,7 @@ diagnostics()
 model = Seq2Seq(
     encoder=Encoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='backward', padding_idx=PAD_IDX),
     decoder=Decoder(vocab_fr.size, DECODER_EMBED_SIZE, DECODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='forward', padding_idx=PAD_IDX),
-    sos_token=vocab_fr.to_idx['<SOS>'],
+    sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 
 model.to(DEVICE)
@@ -84,7 +84,7 @@ def train(model, loader):
     pbar = trange(N, desc=f'Epoch (batch_size={BATCH_SIZE})')
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
-        Z = model.forward(X, out_steps=OUT_SEQ_LEN, targets=Y)
+        Z = model.forward(X, targets=Y)
         cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX)
         cost.backward()
         grad_clip_norm_(model.parameters(), 1.)
@@ -110,10 +110,12 @@ for epoch in range(EPOCHS):
     with torch.no_grad():
         n, offset = 5, N//2
         X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
-        Z = model.forward(X.to(DEVICE), out_steps=OUT_SEQ_LEN, targets=None)
-        Y_hat = Z.argmax(dim=-1).cpu()
 
-        for x, y, y_hat in zip(X.numpy(), Y.numpy(), Y_hat.numpy()):
-            source, target, predicted = vocab_en.decode(x), vocab_fr.decode(y), vocab_fr.decode(y_hat)
-            source, target, predicted = [re.sub(r'<EOS>.*', '', seq) for seq in (source, target, predicted)]  # ignore everything after <EOS>
-            print(f'BLEU(3): {BLEU(target.split(), predicted.split(), max_n=3):.3f} | {source} ({target}) -> {predicted}')
+        for i in range(n):
+            source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
+            print(f'{source} (expected: {target})')
+            for beam_width in (1, 2, 3):
+                Y_hat, score = model.predict(X[i:i+1], max_steps=OUT_SEQ_LEN, beam_width=beam_width)
+                predicted = vocab_fr.decode(Y_hat.squeeze().numpy(), trim_after='<EOS>')
+                print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
+            print('------------------------------------------')

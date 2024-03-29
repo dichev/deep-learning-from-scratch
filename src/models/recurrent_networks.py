@@ -1,8 +1,9 @@
 import torch
-from lib.layers import Module, Linear, RNN, LayerNorm, ModuleList, Embedding
+from lib.layers import Module, Linear, RNN, ModuleList, Embedding
 from lib.functions import init
 from lib.functions.activations import softmax
 from preprocessing.integer import one_hot
+from utils.search import beam_search, greedy_search
 
 
 class RNN_factory(Module):
@@ -162,29 +163,39 @@ class Seq2Seq(Module):
     https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf
     """
 
-    def __init__(self, encoder, decoder, sos_token):
+    def __init__(self, encoder, decoder, sos_token, eos_token):
         self.encoder = encoder
         self.decoder = decoder
         self.sos_token = sos_token
+        self.eos_token = eos_token
 
-    def forward(self, x, out_steps,  targets=None):
+    def forward(self, x, targets=None):
         batch_size, seq_len = x.shape
 
         # Encode all tokens into single fixed-size context
         z, context = self.encoder.forward(x)
-        token = torch.empty((batch_size, 1), dtype=torch.long, device=x.device).fill_(self.sos_token)
+
+        # Decode the context using Teacher forcing
+        start_token = torch.full((batch_size, 1), self.sos_token).long().to(x.device)
+        targets = torch.cat([start_token, targets[:, :-1]], dim=1)
+        outputs, states = self.decoder.forward(targets, context)
+
+        return outputs  # (batch_size, out_seq_len, out_vocab_size)
+
+    @torch.no_grad()
+    def predict(self, x, max_steps, beam_width=1):
+        batch_size, seq_len = x.shape
+        assert batch_size == 1, f'batched predictions aren\'t supported'
+
+        # Encode all tokens into single fixed-size context
+        _, context = self.encoder.forward(x)
 
         # Decode the context into sequence of tokens one by one
-        outputs = []
-        states = context
-        for i in range(out_steps):
-            z, states = self.decoder.forward(token, states)
-            outputs.append(z)
+        if beam_width == 1:  # greedy search
+            seq, score = greedy_search(self.decoder, context, self.sos_token, self.eos_token, max_steps), None
+        else:
+            seq, score = beam_search(self.decoder, context, self.sos_token, self.eos_token, max_steps, k=beam_width)
 
-            if targets is None:
-                token = z.detach().argmax(dim=-1)  # important: detach it from the computation graph
-            else:  # teacher forcing
-                token = targets[:, i].view(batch_size, 1)
+        return torch.tensor(seq).view(1, -1), score
 
-        outputs = torch.cat(outputs, dim=1)  # (batch_size, out_seq_len, out_vocab_size)
-        return outputs
+

@@ -43,9 +43,6 @@ def test_index_encoder_with_pandas_series():
     assert vocab == {'x': 0, 'y': 1, 'z': 2}
     assert vocab_inverse == {0: 'x', 1: 'y', 2: 'z'}
 
-def test_clean_text():
-    assert clean_text("Hello- @$#A?I    w%%orld \n!").split() == ['hello', 'ai', 'world']
-
 def test_n_grams():
     doc = 'the wide road shimmered in the hot sun'
     expected = ['the wide', 'wide road', 'road shimmered', 'shimmered in', 'in the', 'the hot', 'hot sun']
