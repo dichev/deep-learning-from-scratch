@@ -35,17 +35,20 @@ class RNN_factory(Module):
         if states is None:
             states = self.init_state()
 
+        states_new = []
         for i in range(self.n_layers):
             if self.direction != 'bidirectional':
-                z, states[i] = self.rnn_layers[i].forward(x, states[i])
+                z, state = self.rnn_layers[i].forward(x, states[i])
             else:
-                z_f, states[i][0] = self.rnn_layers_f[i].forward(x, states[i][0])
-                z_b, states[i][1] = self.rnn_layers_b[i].forward(x, states[i][1])
+                z_f, state_f = self.rnn_layers_f[i].forward(x, states[i][0])
+                z_b, state_b = self.rnn_layers_b[i].forward(x, states[i][1])
                 z = torch.concat((z_f, z_b), dim=-1)
+                state = (state_f, state_b)
 
             x = z  # feed next layers with the output of the previous layer
+            states_new.append(state)  # note the input states list is  kept immutable
 
-        return z, states
+        return z, states_new
 
 
 class SimpleRNN(RNN_factory):
