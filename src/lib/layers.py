@@ -195,7 +195,7 @@ class Dropout(Module):
     """
 
     def __init__(self, p=.5):  # as prob to be zeroed
-        assert 0 <= p < 1, f'Dropout probability must be in [0, 1], but got {p}'
+        assert 0 <= p < 1, f'Dropout probability must be in [0, 1), but got {p}'
         self.p = p
 
     def forward(self, x):  # note that each sample in the mini-batch is zeroed independently
@@ -777,3 +777,61 @@ class Flatten(Module):
         return x.flatten(self.start_dim)
 
 
+class DotProductAttention(Module):
+    def __init__(self, scaled=True, dropout=0.):
+        self.scaled = scaled
+        self.dropout = Dropout(dropout) if dropout > 0 else None
+
+    def forward(self, query, key, value, attn_mask=None):
+        (b, q, emb), (b, k, emb), (b, k, emb_v) = query.shape, key.shape, value.shape
+        assert emb == query.shape[-1] == key.shape[-1], f'Expected same vector length for query {query.shape} and key {key.shape}'
+        assert k == key.shape[1] == value.shape[1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
+
+        Q, K_T, V = query, key.permute(0, 2, 1), value
+        scale = sqrt(emb) if self.scaled else 1.
+
+        # Compute attention weights
+        z = Q @ K_T / scale                      # (b, q, k)  <- (b, q, emb) @ (b, emb, k)
+        a = softmax(z, dim=-1, mask=attn_mask)
+        if self.dropout:
+            a = self.dropout.forward(a)
+
+        # Weighted sum of values for each query
+        v = a @ V                                # (b, q, emb_v)  <- (b, q, v) @ (b, k, emb_v)
+        return v, a
+
+
+class AdditiveAttention(Module):
+    def __init__(self, query_size, key_size, hidden_size, dropout=0.):
+        self.weight_query = Param((query_size, hidden_size))  # (emb_q, h)
+        self.weight_key   = Param((key_size, hidden_size))    # (emb_k, h)
+        self.weight_value = Param((hidden_size,))                    # (h)
+        self.dropout = Dropout(dropout)
+
+        self.hidden_size = hidden_size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.weight_query.normal_()
+        self.weight_key.normal_()
+        self.weight_value.normal_()
+
+    def forward(self, query, key, value, attn_mask=None):
+        (b, q, emb_q), (b, k, emb_k), (b, k, emb_v), h = query.shape, key.shape, value.shape, self.hidden_size
+        assert k == key.shape[1] == value.shape[1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
+
+        # Compute additive scores
+        Hq = query @ self.weight_query                  # (b, q, h)
+        Hk = key @ self.weight_key                      # (b, k, h)
+        H = tanh(Hq.unsqueeze(2) + Hk.unsqueeze(1))     # (b, q, k, h)  <- broadcasted sum
+        z = H @ self.weight_value                       # (b, q, k)  <- (b, q, k, h) @ (h)   scores of each key for each query
+
+        # Compute attention weights
+        a = softmax(z, dim=-1, mask=attn_mask)
+        if self.dropout:
+            a = self.dropout.forward(a)
+
+        # Weighted sum of values for each query
+        v = a @ value                                   # (b, q, emb_v)  <- (b, q, v) @ (b, k, emb_v)
+        return v, a
