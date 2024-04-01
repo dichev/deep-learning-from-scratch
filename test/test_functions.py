@@ -1,8 +1,28 @@
 import pytest
 import torch
 from lib.functions.metrics import BLEU
+from lib.functions.activations import softmax, log_softmax
+from utils.other import paddings_mask
 from torchtext.data.metrics import bleu_score
 import math
+
+
+@pytest.mark.parametrize('z_shape',  [(2, 8), (2, 4, 6), (1024, 16, 32)])
+def test_masked_softmax(z_shape):
+    max_len = z_shape[-1]
+    z = torch.randn(*z_shape)
+    lengths = torch.randint(1, max_len, z_shape[:-1])
+
+    mask = paddings_mask(lengths, max_len)
+    p1 = softmax(z)
+    p2 = softmax(z, mask=mask)
+    p3 = log_softmax(z, mask=mask).exp()
+    valid_probs = torch.ones(z.shape[:-1])
+
+    assert torch.allclose(p1.sum(dim=-1), valid_probs)
+    assert torch.allclose(p2.sum(dim=-1), valid_probs) and torch.all(p2[~mask] == 0.)
+    assert torch.allclose(p3.sum(dim=-1), valid_probs) and torch.all(p3[~mask] == 0.)
+    assert torch.allclose(p2, p3)
 
 
 @pytest.mark.parametrize('max_n', [2, 3, 4])

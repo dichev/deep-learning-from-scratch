@@ -16,14 +16,22 @@ def tanh(x):
 def relu(x):
     return torch.clip(x, 0)
 
-def softmax(z, dim=-1):
+def softmax(z, dim=-1, mask=None):
+    if mask is not None:
+        assert z.ndim == mask.ndim, f'Expecting mask with the same dimension as {z.shape} but got {mask.shape}'
+        z = z.masked_fill(~mask, -torch.inf)  # exclude the masked scores (i.e. right paddings) from the gradients, by making their softmax probability essentially zero (e^-inf -> 0)
+
     """ Shift with the max value to avoid numerical overflows:
     ->  softmax(z) =  e^{z_i} / sum e^z  * e^{-c}/e^{-c} = e^{z_i-c} / sum e^{z-c} = softmax(z-c)
     """
     e = torch.exp(z - z.max(dim, keepdim=True)[0])
     return e / e.sum(dim, keepdim=True)
 
-def log_softmax(z, dim=-1):
+def log_softmax(z, dim=-1, mask=None):
+    if mask is not None:
+        assert z.ndim == mask.ndim, f'Expecting mask with the same dimension as {z.shape} but got {mask.shape}'
+        z = z.masked_fill(~mask, -torch.inf)  # exclude the masked scores (i.e. right paddings) from the gradients, by making their softmax probability essentially zero (e^-inf -> 0)
+
     """ Division to subtraction & LogSumExp trick:
     ->  ln(softmax(z)) = ln( e^{z_i} / sum e^z) = z_i - ln(sum e^z)
     """
@@ -37,5 +45,6 @@ def log_sum_exp(z, dim=-1):
     """
     c = z.max(dim, keepdim=True)[0]
     return c + torch.log(torch.exp(z-c).sum(dim, keepdim=True))
+
 
 
