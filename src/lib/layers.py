@@ -11,23 +11,17 @@ from collections import namedtuple
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
 
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, weights_init=None):
-        self.weight = Param((input_size, output_size))  # (D, C)
-        self.bias = Param((1, output_size))  # (D, C)
+    def __init__(self, input_size, output_size=1, weights_init=init.linear_uniform_):
+        self.weight = Param((input_size, output_size))
+        self.bias = Param((1, output_size))
         self.input_size, self.output_size = input_size, output_size
         self.weights_initializer = weights_init
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
-        if self.weights_initializer is not None:
-            self.weights_initializer(self.weight, self.input_size, self.output_size)  # kaiming_uniform_relu_ by default
-            self.weights_initializer(self.bias, self.input_size, self.output_size)
-        else:
-            # using pytorch's default initialization for Linear layers:
-            bound = 1 / sqrt(self.input_size)
-            self.weight.uniform_(-bound, bound)
-            self.bias.uniform_(-bound, bound)
+        self.weights_initializer(self.weight, self.input_size, self.output_size)
+        self.weights_initializer(self.bias, self.input_size, self.output_size)
 
     def forward(self, X):
         z = X @ self.weight + self.bias    # (N, D)x(D, C) + (1, C)  --> (N, C)
@@ -808,14 +802,14 @@ class AdditiveAttention(Module):
         self.weight_value = Param((hidden_size,))                    # (h)
         self.dropout = Dropout(dropout)
 
-        self.hidden_size = hidden_size
+        self.query_size, self.key_size, self.hidden_size = query_size, key_size, hidden_size
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
-        self.weight_query.normal_()
-        self.weight_key.normal_()
-        self.weight_value.normal_()
+        init.linear_uniform_(self.weight_query, in_size=self.query_size)
+        init.linear_uniform_(self.weight_key, in_size=self.key_size)
+        init.linear_uniform_(self.weight_value, in_size=self.hidden_size)
 
     def forward(self, query, key, value, attn_mask=None):
         (b, q, emb_q), (b, k, emb_k), (b, k, emb_v), h = query.shape, key.shape, value.shape, self.hidden_size

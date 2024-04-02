@@ -27,3 +27,8 @@ def kaiming_uniform_relu_(tensor, in_size, out_size=None):
     tensor.uniform_(-bound, bound)
     return tensor
 
+
+def linear_uniform_(tensor, in_size, out_size=None):  # That is pytorch's default initialization for Linear layers
+    bound = 1 / sqrt(in_size)
+    tensor.uniform_(-bound, bound)
+    return tensor
