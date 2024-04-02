@@ -32,7 +32,8 @@ class RNN_factory(Module):
             x = one_hot(x, self.input_size)
         B, T, _ = x.shape
 
-        h0, c0 = states if states is not None else (self.empty_state(), self.empty_state())
+        h0 = self.empty_state() if (states is None or states[0] is None) else states[0]
+        c0 = self.empty_state() if (states is None or states[1] is None) else states[1]
         h = torch.zeros(self.n_layers * self.is_doubled, B, self.hidden_size // self.is_doubled, device=x.device)
         c = torch.zeros(self.n_layers * self.is_doubled, B, self.hidden_size // self.is_doubled, device=x.device) if self.cell_type == 'lstm' else self.empty_state()
         for i in range(self.n_layers):
