@@ -3,9 +3,12 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 from torchvision.utils import make_grid
 from torchvision.transforms import functional as TF
+from collections import namedtuple
 
-from lib.layers import Module, Linear, RNN_cell, Conv2d, MaxPool2d, ReLU, Sequential, Dropout, Flatten, BatchNorm2d
+from models.recurrent_networks import Seq2Seq, RNN_factory
+from lib.layers import Module, Linear, Embedding, RNN_cell, Conv2d, MaxPool2d, ReLU, Sequential, Dropout, Flatten, BatchNorm2d, AdditiveAttention, DotProductAttention
 from lib.functions.activations import relu
+from lib.functions import init
 from preprocessing.transforms import batched_crop_on_different_positions
 from utils import images as I
 
@@ -221,3 +224,66 @@ class SpatialTransformerNet(Module):
         x = self.body.forward(x)
         x = self.head.forward(x)
         return x
+
+
+Context = namedtuple('Context', ['state', 'enc_outputs', 'attn_pad_mask'])
+
+
+class AttentionEncoder(Module):
+    """
+    Paper: Neural Machine Translation by Jointly Learning to Align and Translate
+    https://arxiv.org/pdf/1409.0473.pdf
+    """
+
+    def __init__(self, vocab_size, embed_size, hidden_size, cell='gru', n_layers=4, layer_norm=False, padding_idx=0):
+        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.rnn = RNN_factory(embed_size, hidden_size, cell, n_layers, direction='forward', layer_norm=layer_norm)
+        self.hidden_size = hidden_size
+        self.padding_idx = padding_idx
+
+    def forward(self, x):
+        batch_size, seq_len = x.shape
+        pad_mask = (x != self.padding_idx)
+
+        x = self.emb.forward(x)                     # (B, T) -> (B, T, embed_size)
+        enc_out, enc_states = self.rnn.forward(x)   # (B, T, embed_size)) -> (B, T, hidden_size), [h, C]
+
+        return enc_out, Context(enc_states, enc_out, pad_mask)
+
+
+
+class AdditiveAttentionDecoder(Module):
+    """
+    Paper: Neural Machine Translation by Jointly Learning to Align and Translate
+    https://arxiv.org/pdf/1409.0473.pdf
+    """
+
+    def __init__(self, vocab_size, embed_size, hidden_size, enc_hidden_size, attn_hidden_size, attn_dropout=0., cell='gru', n_layers=4, padding_idx=0):
+        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.attn_additive = AdditiveAttention(query_size=enc_hidden_size, key_size=enc_hidden_size, hidden_size=attn_hidden_size, dropout=attn_dropout)
+        self.rnn = RNN_factory(embed_size + hidden_size, hidden_size, cell, n_layers, direction='forward', layer_norm=False)
+        self.out = Linear(hidden_size, vocab_size, weights_init=init.xavier_normal_)
+        self.hidden_size = hidden_size
+
+    def forward(self, x, context: Context):
+        B, T = x.shape
+        x = self.emb.forward(x)                                       # (B, T) -> (B, T, emb_dec)
+
+        output = []
+        states, enc_outputs, attn_pad_mask = context
+        for t in range(T):
+            # Collect attention features
+            h = states[0][-1]                                         # (B, emb_h)     <-  [h=(n_layers, B, emb_h), cell]  using only the hidden state from the !LAST! layer of the encoder
+            query = h.unsqueeze(1)                                    # (B, 1, emb_h)  <-  that is a single query for each batch item
+            attn_features, attn_weights = self.attn_additive.forward(query, key=enc_outputs, value=enc_outputs, attn_mask=attn_pad_mask.unsqueeze(1))
+
+            # Decode from the combined input and attention features
+            x_t = x[:, t:t+1]
+            x_cat = torch.cat((attn_features, x_t), dim=-1)   # (B, 1, emb_dec + emb_val)
+            out, states = self.rnn.forward(x_cat, states)             # (B, t, hidden_size), [h, C]
+            output.append(out)
+
+        output = torch.concat(output, dim=1)
+        y = self.out.forward(output)
+
+        return y, Context(states, context.enc_outputs, context.attn_pad_mask)
