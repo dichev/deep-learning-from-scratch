@@ -1,7 +1,7 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm
-from utils.rng import seed_global
+from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention
+from utils.other import paddings_mask
 
 
 @torch.no_grad()
@@ -115,3 +115,21 @@ def test_batch_norm2d(size):
     assert torch.allclose(bn1.running_var.flatten(), bn2.running_var.flatten())
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
 
+
+
+def test_dot_product_attention():
+    b, q, emb, k, emb_v = 1024, 3, 2, 10, 4
+    queries = torch.randn(b, q, emb)
+    keys    = torch.randn(b, k, emb)
+    values  = torch.randn(b, k, emb_v)
+    valid_lens = torch.randint(1, k, (b, q))
+
+    attn = DotProductAttention(dropout=0., scaled=True)
+    v1, a1 = attn.forward(queries, keys, values)
+    v2 = torch.nn.functional.scaled_dot_product_attention(queries, keys, values)
+    assert torch.allclose(v1, v2, rtol=1e-4, atol=1e-6)
+
+    attn_mask = paddings_mask(valid_lens, max_len=k)
+    v1, a1 = attn.forward(queries, keys, values, attn_mask)
+    v2 = torch.nn.functional.scaled_dot_product_attention(queries, keys, values, attn_mask)
+    assert torch.allclose(v1, v2, rtol=1e-4, atol=1e-6)
