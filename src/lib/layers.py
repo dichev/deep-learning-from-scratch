@@ -796,6 +796,11 @@ class DotProductAttention(Module):
 
 
 class AdditiveAttention(Module):
+    """
+    Paper: Neural Machine Translation by Jointly Learning to Align and Translate
+    https://arxiv.org/pdf/1409.0473.pdf
+    - called Alignment model
+    """
     def __init__(self, query_size, key_size, hidden_size, dropout=0.):
         self.weight_query = Param((query_size, hidden_size))  # (emb_q, h)
         self.weight_key   = Param((key_size, hidden_size))    # (emb_k, h)
@@ -817,7 +822,7 @@ class AdditiveAttention(Module):
 
         # Compute additive scores
         Hq = query @ self.weight_query                  # (b, q, h)
-        Hk = key @ self.weight_key                      # (b, k, h)
+        Hk = key @ self.weight_key                      # (b, k, h)  <- can be precomputed for each t, because it doesn't depend on the query
         H = tanh(Hq.unsqueeze(2) + Hk.unsqueeze(1))     # (b, q, k, h)  <- broadcasted sum
         z = H @ self.weight_value                       # (b, q, k)  <- (b, q, k, h) @ (h)   scores of each key for each query
 

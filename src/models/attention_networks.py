@@ -235,9 +235,9 @@ class AttentionEncoder(Module):
     https://arxiv.org/pdf/1409.0473.pdf
     """
 
-    def __init__(self, vocab_size, embed_size, hidden_size, cell='gru', n_layers=4, layer_norm=False, padding_idx=0):
+    def __init__(self, vocab_size, embed_size, hidden_size, cell='gru', n_layers=1, layer_norm=False, padding_idx=0):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
-        self.rnn = RNN_factory(embed_size, hidden_size, cell, n_layers, direction='forward', layer_norm=layer_norm)
+        self.rnn = RNN_factory(embed_size, hidden_size, cell, n_layers, direction='bidirectional', layer_norm=layer_norm)
         self.hidden_size = hidden_size
         self.padding_idx = padding_idx
 
@@ -256,12 +256,13 @@ class AdditiveAttentionDecoder(Module):
     """
     Paper: Neural Machine Translation by Jointly Learning to Align and Translate
     https://arxiv.org/pdf/1409.0473.pdf
+    - without maxout units
     """
 
     def __init__(self, vocab_size, embed_size, hidden_size, enc_hidden_size, attn_hidden_size, attn_dropout=0., cell='gru', n_layers=4, padding_idx=0):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
-        self.attn_additive = AdditiveAttention(query_size=enc_hidden_size, key_size=enc_hidden_size, hidden_size=attn_hidden_size, dropout=attn_dropout)
-        self.rnn = RNN_factory(embed_size + hidden_size, hidden_size, cell, n_layers, direction='forward', layer_norm=False)
+        self.attn_additive = AdditiveAttention(query_size=enc_hidden_size, key_size=enc_hidden_size*2, hidden_size=attn_hidden_size, dropout=attn_dropout)  # called Alignment model
+        self.rnn = RNN_factory(embed_size + hidden_size*2, hidden_size, cell, n_layers, direction='forward', layer_norm=False)
         self.out = Linear(hidden_size, vocab_size, weights_init=init.xavier_normal_)
         self.hidden_size = hidden_size
 
@@ -273,8 +274,8 @@ class AdditiveAttentionDecoder(Module):
         states, enc_outputs, attn_pad_mask = context
         for t in range(T):
             # Collect attention features
-            h = states[0][-1]                                         # (B, emb_h)     <-  [h=(n_layers, B, emb_h), cell]  using only the hidden state from the !LAST! layer of the encoder
-            query = h.unsqueeze(1)                                    # (B, 1, emb_h)  <-  that is a single query for each batch item
+            h_last = states[0][-1]                                    # (B, emb_h)     <-  on t=0 using only the hidden state from the LAST layer of the bidirectional encoder (paper: omitted W @ h_last)
+            query = h_last.unsqueeze(1)                               # (B, 1, emb_h)  <-  that is a single query for each batch item
             attn_features, attn_weights = self.attn_additive.forward(query, key=enc_outputs, value=enc_outputs, attn_mask=attn_pad_mask.unsqueeze(1))
 
             # Decode from the combined input and attention features
