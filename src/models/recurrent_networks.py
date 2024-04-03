@@ -1,10 +1,12 @@
 import torch
+from collections import namedtuple
 from lib.layers import Module, Linear, RNN, ModuleList, Embedding
 from lib.functions import init
 from lib.functions.activations import softmax
 from preprocessing.integer import one_hot
 from utils.search import beam_search, greedy_search
 
+State = namedtuple('State', ['hidden', 'cell'])
 
 class RNN_factory(Module):
 
@@ -47,7 +49,7 @@ class RNN_factory(Module):
 
             x = z  # feed next layers with the output of the previous layer
 
-        return z, (h, c)
+        return z, State(h, c)
 
 
 class SimpleRNN(RNN_factory):
@@ -174,7 +176,7 @@ class Seq2Seq(Module):
         batch_size, seq_len = x.shape
 
         # Encode all tokens into single fixed-size context
-        z, context = self.encoder.forward(x)
+        _, context = self.encoder.forward(x)
 
         # Decode the context using Teacher forcing
         start_token = torch.full((batch_size, 1), self.sos_token).long().to(x.device)

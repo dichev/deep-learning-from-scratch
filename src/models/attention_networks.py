@@ -273,7 +273,7 @@ class AttentionDecoder(Module):
         output = []
         states, enc_outputs, attn_pad_mask = context
         for t in range(T):
-            # Collect attention features
+            # Collect attention features (note Bahdanau's attenion is using as query the previous hidden state (t-1), while the Luong's is using the current hidden state (t)
             h_last = states[0][-1]                                    # (B, emb_h)     <-  at t=0 using only the hidden state from the LAST layer of the bidirectional encoder (paper: omitted W @ h_last)
             query = h_last.unsqueeze(1)                               # (B, 1, emb_h)  <-  that is a single query for each batch item
             attn_features, attn_weights = self.alignment.forward(query, key=enc_outputs, value=enc_outputs, attn_mask=attn_pad_mask.unsqueeze(1))

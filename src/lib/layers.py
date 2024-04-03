@@ -823,7 +823,7 @@ class AdditiveAttention(Module):
         # Compute additive scores
         Hq = query @ self.weight_query                  # (b, q, h)
         Hk = key @ self.weight_key                      # (b, k, h)  <- can be precomputed for each t, because it doesn't depend on the query
-        H = tanh(Hq.unsqueeze(2) + Hk.unsqueeze(1))     # (b, q, k, h)  <- broadcasted sum
+        H = tanh(Hq.unsqueeze(2) + Hk.unsqueeze(1))     # (b, q, k, h)  <- broadcasted sum to support multiple queries
         z = H @ self.weight_value                       # (b, q, k)  <- (b, q, k, h) @ (h)   scores of each key for each query
 
         # Compute attention weights
