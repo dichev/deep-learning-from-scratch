@@ -42,6 +42,8 @@ I agree.
 - DiffPool <sup>[*[Hierarchical Graph Representation Learning with Differentiable Pooling]*](https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf)</sup>
 - ReLU
 - Flatten
+- DotProductAttention
+- AdditiveAttention <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
@@ -119,6 +121,9 @@ I agree.
 - RecurrentAttention <sup>[*[Recurrent Models of Visual Attention]*](https://arxiv.org/pdf/1406.6247.pdf)</sup>
 - SpatialTransformer <sup>[*[Spatial Transformer Networks]*](https://arxiv.org/pdf/1506.02025.pdf)</sup>
 - SpatialTransformerNet
+- AttentionEncoder <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
+- AttentionDecoder <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
+- BahdanauAttention <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>

@@ -1,4 +1,5 @@
-from models.attention_networks import Seq2Seq, AdditiveAttentionDecoder, AttentionEncoder
+from models.attention_networks import BahdanauAttention, AttentionDecoder, AttentionEncoder
+from lib.layers import AdditiveAttention
 from lib.optimizers import Adam
 
 from examples.recurrent.reused.translate_en_to_fr import fit, diagnostics, vocab_en, vocab_fr, PAD_IDX
@@ -16,11 +17,13 @@ ENCODER_EMBED_SIZE = 128
 ENCODER_HIDDEN_SIZE = 256
 DECODER_EMBED_SIZE = 128
 DECODER_HIDDEN_SIZE = 256
+KEY_VAL_SIZE = ENCODER_HIDDEN_SIZE*2  # because the encoder is bidirectional
 
 # Model
-model = Seq2Seq(
-    encoder=AttentionEncoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='gru', n_layers=1, padding_idx=PAD_IDX),
-    decoder=AdditiveAttentionDecoder(vocab_fr.size, DECODER_EMBED_SIZE, DECODER_HIDDEN_SIZE, enc_hidden_size=ENCODER_HIDDEN_SIZE, attn_hidden_size=ENCODER_HIDDEN_SIZE//2, attn_dropout=0, cell='gru', n_layers=1, padding_idx=PAD_IDX),
+alignment_model = AdditiveAttention(query_size=DECODER_HIDDEN_SIZE, key_size=KEY_VAL_SIZE, hidden_size=ENCODER_HIDDEN_SIZE, dropout=0.)
+model = BahdanauAttention(
+    encoder=AttentionEncoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='gru', n_layers=1, direction='bidirectional', padding_idx=PAD_IDX),
+    decoder=AttentionDecoder(vocab_fr.size, DECODER_EMBED_SIZE, KEY_VAL_SIZE, DECODER_HIDDEN_SIZE, alignment_model, cell='gru', n_layers=1, padding_idx=PAD_IDX),
     sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 model.to(DEVICE)
