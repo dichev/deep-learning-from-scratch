@@ -2,29 +2,17 @@ import matplotlib.pyplot as plt
 import torch
 from torchvision.datasets.utils import download_and_extract_archive
 from tqdm import trange
-import re
 
-from models.recurrent_networks import Seq2Seq, Encoder, Decoder
-from lib.optimizers import Adam
 from lib.functions.losses import cross_entropy
 from lib.functions.metrics import BLEU, accuracy
 from lib.regularizers import grad_clip_norm_
 from lib.training import batches
 from preprocessing.text import clean_text, TextVocabulary
 
-# training settings
-EPOCHS = 100
-BATCH_SIZE = 1024
-LEARN_RATE = 0.02
-DEVICE = 'cuda'
 
 # hyperparams
-ENCODER_EMBED_SIZE = 256
-ENCODER_HIDDEN_SIZE = 256
-DECODER_EMBED_SIZE = 256
-DECODER_HIDDEN_SIZE = 256
 IN_SEQ_LEN = 15
-OUT_SEQ_LEN = 15
+OUT_SEQ_LEN = 16
 
 # Prepare text data
 download_and_extract_archive('https://www.manythings.org/anki/fra-eng.zip', './data/text')
@@ -43,6 +31,7 @@ PAD_IDX = vocab_fr.to_idx['<PAD>']; assert vocab_en.to_idx['<PAD>'] == vocab_fr.
 text_encoded_en = torch.tensor(vocab_en.encode_batch(text_tokenized_en, seq_length=IN_SEQ_LEN), dtype=torch.long)
 text_encoded_fr = torch.tensor(vocab_fr.encode_batch(text_tokenized_fr, seq_length=OUT_SEQ_LEN), dtype=torch.long)
 N = len(text_encoded_en)
+
 
 def diagnostics():
     print(vocab_en)
@@ -63,25 +52,12 @@ def diagnostics():
 
     vocab_en.print_human(text_encoded_en[:5].numpy())
     vocab_fr.print_human(text_encoded_fr[:5].numpy())
-diagnostics()
 
 
 
-# Model
-model = Seq2Seq(
-    encoder=Encoder(vocab_en.size, ENCODER_EMBED_SIZE, ENCODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='backward', padding_idx=PAD_IDX),
-    decoder=Decoder(vocab_fr.size, DECODER_EMBED_SIZE, DECODER_HIDDEN_SIZE, cell='lstm', n_layers=1, direction='forward', padding_idx=PAD_IDX),
-    sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
-)
-
-model.to(DEVICE)
-model.summary()
-optimizer = Adam(model.parameters(), lr=LEARN_RATE)
-
-
-def train(model, loader):
+def train(model, optimizer, loader, batch_size):
     total_loss = total_acc = 0
-    pbar = trange(N, desc=f'Epoch (batch_size={BATCH_SIZE})')
+    pbar = trange(N, desc=f'Epoch (batch_size={batch_size})')
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
         Z = model.forward(X, targets=Y)
@@ -94,28 +70,29 @@ def train(model, loader):
         total_loss += loss * batch_frac
         total_acc += acc * batch_frac
 
-        pbar.update(BATCH_SIZE)
+        pbar.update(batch_size)
         pbar.set_postfix_str(f'loss={loss:.3f}, acc={acc:.3f}')
 
     return total_loss, total_acc, pbar
 
 
-# Training
-for epoch in range(EPOCHS):
-    loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=BATCH_SIZE, shuffle=True, device=DEVICE)  # todo: migrate to DataLoader
-    loss, acc, pbar = train(model, loader)
-    pbar.desc = f'Epoch {epoch+1}/{EPOCHS}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
+def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda'):
+    for epoch in range(epochs):
+        loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=batch_size, shuffle=True, device=device)  # todo: migrate to DataLoader
+        loss, acc, pbar = train(model, optimizer, loader, batch_size)
+        pbar.desc = f'Epoch {epoch+1}/{epochs}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
 
-    # print some translations
-    with torch.no_grad():
-        n, offset = 5, N//2
-        X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
 
-        for i in range(n):
-            source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
-            print(f'{source} (expected: {target})')
-            for beam_width in (1, 2, 3):
-                Y_hat, score = model.predict(X[i:i+1], max_steps=OUT_SEQ_LEN, beam_width=beam_width)
-                predicted = vocab_fr.decode(Y_hat.squeeze().numpy(), trim_after='<EOS>')
-                print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
-            print('------------------------------------------')
+        # print some translations
+        with torch.no_grad():
+            n, offset = 5, N//2
+            X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
+
+            for i in range(n):
+                source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
+                print(f'{source} (expected: {target})')
+                for beam_width in (1, 2, 3):
+                    Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
+                    predicted = vocab_fr.decode(Y_hat.squeeze().numpy(), trim_after='<EOS>')
+                    print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
+                print('------------------------------------------')
