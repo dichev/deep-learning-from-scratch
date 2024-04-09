@@ -1,6 +1,6 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention
+from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention
 from utils.other import paddings_mask
 
 
@@ -133,3 +133,44 @@ def test_dot_product_attention():
     v1, a1 = attn.forward(queries, keys, values, attn_mask)
     v2 = torch.nn.functional.scaled_dot_product_attention(queries, keys, values, attn_mask)
     assert torch.allclose(v1, v2, rtol=1e-4, atol=1e-6)
+
+
+
+@pytest.mark.parametrize('emb_dim, k_dim, v_dim',  [(64, 64, 64), (64, 65, 66)])
+@pytest.mark.parametrize('num_heads',  [1, 4, 8])
+@pytest.mark.parametrize('t_source, t_target',  [(15, 15), (10, 12)])
+def test_multi_head_attention(emb_dim, k_dim, v_dim, num_heads, t_source, t_target):
+    b, vocab_size = 10, 1000
+    queries = torch.randn(b, t_target, emb_dim)
+    keys    = torch.randn(b, t_source, k_dim)
+    values  = torch.randn(b, t_source, v_dim)
+    # valid_lens = torch.randint(1, vocab_size, (b, t_source))
+    keys_pad_mask = torch.arange(t_source).expand(b, t_source) < torch.randint(1, t_source - 1, (b, 1))  # todo: fix padding_mask
+
+    attention1 = MultiHeadAttention(embed_dim=emb_dim, n_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
+    attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, kdim=k_dim, vdim=v_dim, batch_first=True, bias=False)
+
+    # use the same parameter values
+    if emb_dim == k_dim == v_dim:
+        attention1.weight_query.data[:] = attention2.in_proj_weight.data[0 * emb_dim:1 * emb_dim].T
+        attention1.weight_key.data[:]   = attention2.in_proj_weight.data[1 * emb_dim:2 * emb_dim].T
+        attention1.weight_value.data[:] = attention2.in_proj_weight.data[2 * emb_dim:3 * emb_dim].T
+        attention1.weight_out.data[:]   = attention2.out_proj.weight.data.T
+    else:
+        attention1.weight_query.data[:] = attention2.q_proj_weight.data.T
+        attention1.weight_key.data[:]   = attention2.k_proj_weight.data.T
+        attention1.weight_value.data[:] = attention2.v_proj_weight.data.T
+        attention1.weight_out.data[:]   = attention2.out_proj.weight.data.T
+
+    # compute attentions without keys padding mask
+    a1, a_weights1 = attention1.forward(queries, keys, values)
+    a2, a_weights2 = attention2.forward(queries, keys, values, average_attn_weights=False)
+    assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+    assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
+
+    # compute attentions with keys padding mask
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=keys_pad_mask.unsqueeze(1).unsqueeze(1))  # todo: unify mask
+    a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=~keys_pad_mask, average_attn_weights=False)
+    assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+    assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
+

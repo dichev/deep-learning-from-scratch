@@ -832,5 +832,62 @@ class AdditiveAttention(Module):
             a = self.dropout.forward(a)
 
         # Weighted sum of values for each query
-        v = a @ value                                   # (b, q, emb_v)  <- (b, q, v) @ (b, k, emb_v)
-        return v, a
+        out = a @ value                                 # (b, q, emb_v)  <- (b, q, v) @ (b, k, emb_v)
+        return out, a
+
+
+
+class MultiHeadAttention(Module):
+    """
+    Attention Is All You Need
+    https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
+    """
+
+    def __init__(self, embed_dim, n_heads, k_dim=None, v_dim=None, scaled=True, dropout=0.):
+        assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
+        self.embed_dim = embed_dim
+        self.k_dim = embed_dim if k_dim is None else k_dim
+        self.v_dim = embed_dim if v_dim is None else v_dim
+        self.n_heads = n_heads
+        self.scaled = scaled
+
+        self.weight_query = Param((embed_dim, embed_dim))
+        self.weight_key   = Param((self.k_dim, embed_dim))
+        self.weight_value = Param((self.v_dim, embed_dim))
+        self.weight_out   = Param((embed_dim, embed_dim))
+        self.dropout = Dropout(dropout) if dropout > 0 else None
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        for name, weight in self.parameters():
+            init.xavier_uniform_(weight, *weight.shape)
+
+    def forward(self, query, key, value, attn_mask=None):
+        (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
+        assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
+
+        # Project to smaller vectors
+        Q = query @ self.weight_query                                 # (b, t', emb)  <- (b, t',  emb) @ (emb, emb)
+        K = key @ self.weight_key                                     # (b, t,  emb)  <- (b, t, k_dim) @ (k_dim, emb)
+        V = value @ self.weight_value                                 # (b, t,  emb)  <- (b, k, v_dim) @ (v_dim, emb)
+
+        # Split projections into independent n_heads tensor
+        Q   = Q.view(b, t_, self.n_heads, -1).permute(0, 2, 1, 3)     # (b, heads, t', emb/heads)
+        K_T = K.view(b, t,  self.n_heads, -1).permute(0, 2, 3, 1)     # (b, heads, emb/heads, t)
+        V   = V.view(b, t,  self.n_heads, -1).permute(0, 2, 1, 3)     # (b, heads, t, emb/heads)
+
+        # Compute attention weights for each head
+        scale = sqrt(emb//self.n_heads) if self.scaled else 1.
+        Z = Q @ K_T / scale                                           # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
+        A = softmax(Z, dim=-1, mask=attn_mask)
+        if self.dropout:
+            A = self.dropout.forward(A)
+
+        # Weighted sum of values for each query
+        out = A @ V                                                   # (b, heads, t', emb/heads)  <- (b, heads, t', t) @ (b, heads, t, emb/heads)
+        out = out.permute(0, 2, 1, 3).reshape(b, t_, self.embed_dim)  # (b, t', emb)               <- concat the heads
+        out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
+
+        return out, A
+
