@@ -243,7 +243,7 @@ class AttentionEncoder(Module):
 
     def forward(self, x):
         batch_size, seq_len = x.shape
-        pad_mask = (x != self.padding_idx)
+        pad_mask = (x == self.padding_idx)
 
         x = self.emb.forward(x)                     # (B, T) -> (B, T, embed_size)
         enc_out, enc_states = self.rnn.forward(x)   # (B, T, embed_size)) -> (B, T, hidden_size), [h, C]

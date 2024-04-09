@@ -39,6 +39,6 @@ def conv2d_pad_string_to_int(padding, kernel_size):
 
 def paddings_mask(lengths, max_len):
     target_shape = (*lengths.shape, max_len)
-    mask = torch.arange(max_len).expand(target_shape) < lengths.unsqueeze(-1)
+    mask = torch.arange(max_len).expand(target_shape) >= lengths.unsqueeze(-1)
     return mask
 

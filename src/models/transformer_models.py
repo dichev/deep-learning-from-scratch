@@ -57,7 +57,7 @@ class TransformerEncoder(Module):
 
     def forward(self, x):
         B, T = x.shape
-        pad_mask = (x != self.padding_idx)
+        pad_mask = (x == self.padding_idx)
 
         x = self.emb.forward(x)
         for layer in self.layers:
@@ -70,7 +70,7 @@ class TransformerEncoder(Module):
 
 vocab_size, embed_size = 1000, 512  # todo embed_size=64
 B, T = 8, 15
-x_pad_mask = torch.arange(T).expand(B, T) < torch.randint(1, T-1, (B, 1))
+x_pad_mask = torch.arange(T).expand(B, T) >= torch.randint(1, T-1, (B, 1))
 x = torch.randint(1, 1000, (B, T)) * x_pad_mask
 encoder = TransformerEncoder(vocab_size, embed_size, padding_idx=0)
 encoder.summary()

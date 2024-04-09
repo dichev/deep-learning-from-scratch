@@ -131,7 +131,7 @@ def test_dot_product_attention():
 
     attn_mask = paddings_mask(valid_lens, max_len=k)
     v1, a1 = attn.forward(queries, keys, values, attn_mask)
-    v2 = torch.nn.functional.scaled_dot_product_attention(queries, keys, values, attn_mask)
+    v2 = torch.nn.functional.scaled_dot_product_attention(queries, keys, values, ~attn_mask)
     assert torch.allclose(v1, v2, rtol=1e-4, atol=1e-6)
 
 
@@ -144,8 +144,8 @@ def test_multi_head_attention(emb_dim, k_dim, v_dim, num_heads, t_source, t_targ
     queries = torch.randn(b, t_target, emb_dim)
     keys    = torch.randn(b, t_source, k_dim)
     values  = torch.randn(b, t_source, v_dim)
-    # valid_lens = torch.randint(1, vocab_size, (b, t_source))
-    keys_pad_mask = torch.arange(t_source).expand(b, t_source) < torch.randint(1, t_source - 1, (b, 1))  # todo: fix padding_mask
+    valid_lens = torch.randint(1, t_source - 1, (b,))
+    keys_pad_mask = paddings_mask(valid_lens, max_len=t_source)
 
     attention1 = MultiHeadAttention(embed_dim=emb_dim, n_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
     attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, kdim=k_dim, vdim=v_dim, batch_first=True, bias=False)
@@ -169,8 +169,8 @@ def test_multi_head_attention(emb_dim, k_dim, v_dim, num_heads, t_source, t_targ
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=keys_pad_mask.unsqueeze(1).unsqueeze(1))  # todo: unify mask
-    a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=~keys_pad_mask, average_attn_weights=False)
+    a1, a_weights1 = attention1.forward(queries, keys, values, key_pad_mask=keys_pad_mask)  # todo: unify mask
+    a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 

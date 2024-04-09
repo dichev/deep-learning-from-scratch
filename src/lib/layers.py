@@ -786,7 +786,7 @@ class DotProductAttention(Module):
 
         # Compute attention weights
         z = Q @ K_T / scale                      # (b, q, k)  <- (b, q, emb) @ (b, emb, k)
-        a = softmax(z, dim=-1, mask=attn_mask)
+        a = softmax(z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             a = self.dropout.forward(a)
 
@@ -827,7 +827,7 @@ class AdditiveAttention(Module):
         z = H @ self.weight_value                       # (b, q, k)  <- (b, q, k, h) @ (h)   scores of each key for each query
 
         # Compute attention weights
-        a = softmax(z, dim=-1, mask=attn_mask)
+        a = softmax(z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             a = self.dropout.forward(a)
 
@@ -863,9 +863,13 @@ class MultiHeadAttention(Module):
         for name, weight in self.parameters():
             init.xavier_uniform_(weight, *weight.shape)
 
-    def forward(self, query, key, value, attn_mask=None):
+    def forward(self, query, key, value, key_pad_mask=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
+        if key_pad_mask is not None:
+            assert key_pad_mask.shape == (b, t), f'Expected key_pad_mask of shape {b, t}, but got {key_pad_mask.shape}'
+            key_pad_mask = key_pad_mask.view(b, 1, 1, t)  # to be broadcasted
+
 
         # Project to smaller vectors
         Q = query @ self.weight_query                                 # (b, t', emb)  <- (b, t',  emb) @ (emb, emb)
@@ -880,7 +884,7 @@ class MultiHeadAttention(Module):
         # Compute attention weights for each head
         scale = sqrt(emb//self.n_heads) if self.scaled else 1.
         Z = Q @ K_T / scale                                           # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
-        A = softmax(Z, dim=-1, mask=attn_mask)
+        A = softmax(Z, dim=-1, ignore_mask=key_pad_mask)
         if self.dropout:
             A = self.dropout.forward(A)
 
