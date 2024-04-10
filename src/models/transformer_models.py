@@ -1,10 +1,8 @@
 import torch
-from lib.layers import Module, Linear, Embedding, DotProductAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList
 from lib.functions.activations import relu
 
 
-# todo: learnable self-attention
-# todo: multi-head attention
 # todo: positional encodings
 #       In addition, we apply dropout to the sums of the embeddings and the positional encodings in both the encoder and decoder stacks.
 # todo: shared embeddings
@@ -24,10 +22,10 @@ class Transformer(Module):
 
 class TransformerLayer(Module):
 
-    def __init__(self, input_size, hidden_size, dropout=0.):
-        self.attn = DotProductAttention(scaled=True, dropout=dropout)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0.):
+        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.norm1 = LayerNorm(input_size)
-        self.ff = Sequential(                        # Position-wise (per token)
+        self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size), ReLU(),
             Linear(hidden_size, input_size)
         )
@@ -38,7 +36,7 @@ class TransformerLayer(Module):
     def forward(self, x, pad_mask):
         B, T, E = x.shape
 
-        v, attn_weights = self.attn.forward(query=x, key=x, value=x, attn_mask=pad_mask.unsqueeze(1))
+        v, attn_weights = self.attn.forward(query=x, key=x, value=x, key_pad_mask=pad_mask)
         x = self.norm1.forward(x + v)
         x = self.norm2.forward(x + self.ff.forward(x))
 
@@ -47,10 +45,10 @@ class TransformerLayer(Module):
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, n_layers=6, padding_idx=0):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.layers = ModuleList([
-            TransformerLayer(input_size=512, hidden_size=2048, dropout=0.1) for _ in range(n_layers)
+            TransformerLayer(input_size=embed_size, hidden_size=hidden_size, attn_heads=8, dropout=0.1) for _ in range(n_layers)
         ])
         self.padding_idx = padding_idx
         pass
@@ -68,10 +66,10 @@ class TransformerEncoder(Module):
 
 
 
-vocab_size, embed_size = 1000, 512  # todo embed_size=64
+vocab_size, embed_size, hidden_size = 1000, 512, 2048
 B, T = 8, 15
 x_pad_mask = torch.arange(T).expand(B, T) >= torch.randint(1, T-1, (B, 1))
 x = torch.randint(1, 1000, (B, T)) * x_pad_mask
-encoder = TransformerEncoder(vocab_size, embed_size, padding_idx=0)
+encoder = TransformerEncoder(vocab_size, embed_size, hidden_size, padding_idx=0)
 encoder.summary()
 y = encoder.forward(x)

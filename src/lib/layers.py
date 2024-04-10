@@ -895,3 +895,5 @@ class MultiHeadAttention(Module):
 
         return out, A
 
+    def __repr__(self):
+        return f'MultiHeadAttention({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
