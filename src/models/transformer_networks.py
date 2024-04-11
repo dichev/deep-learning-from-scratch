@@ -1,6 +1,6 @@
 import torch
 from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList
-from utils.other import paddings_mask
+from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 
 
@@ -8,21 +8,10 @@ from collections import namedtuple
 #       In addition, we apply dropout to the sums of the embeddings and the positional encodings in both the encoder and decoder stacks.
 # todo: shared embeddings
 # todo: return all the attn weighs
+# todo: match param size to paper
 
 
 Context = namedtuple('Context', ['memory', 'memory_pad_mask', 'cached_targets'])
-
-
-class Transformer(Module):
-    """
-    Attention Is All You Need
-    https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
-    """
-    def __init__(self):
-        pass
-
-    def forward(self, x):
-        pass
 
 
 class TransformerEncoderLayer(Module):
@@ -50,10 +39,10 @@ class TransformerEncoderLayer(Module):
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.layers = ModuleList([
-            TransformerEncoderLayer(input_size=embed_size, hidden_size=hidden_size, attn_heads=8, dropout=0.1) for _ in range(n_layers)
+            TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
         ])
         self.padding_idx = padding_idx
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
@@ -66,7 +55,7 @@ class TransformerEncoder(Module):
         for layer in self.layers:
             x = layer.forward(x, pad_mask)
 
-        return Context(memory=x, memory_pad_mask=pad_mask, cached_targets=None)
+        return x, Context(memory=x, memory_pad_mask=pad_mask, cached_targets=None)
 
 
 
@@ -110,22 +99,25 @@ class TransformerDecoderLayer(Module):
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.layers = ModuleList([
-            TransformerDecoderLayer(input_size=embed_size, hidden_size=hidden_size, attn_heads=8, dropout=0.1) for _ in range(n_layers)
+            TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
         ])
+        self.out = Linear(embed_size, vocab_size)
+
         self.n_layers = n_layers
         self.padding_idx = padding_idx
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
 
 
     def forward(self, tgt, context: Context):
+        assert context.cached_targets is None, f'During training are expected no cached targets, use .predict() for inference'
         B, T = tgt.shape
 
         # Attention masks
-        pad_mask = (tgt == self.padding_idx)                             # restrict attention to padded targets
-        causal_mask = torch.triu(torch.ones(T, T), diagonal=1).bool()    # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        pad_mask = (tgt == self.padding_idx)                                          # restrict attention to padded targets
+        causal_mask = torch.triu(torch.ones(T, T), diagonal=1).bool().to(tgt.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
         attn_mask = pad_mask.unsqueeze(1) | causal_mask
 
         # Decode each layer
@@ -133,7 +125,10 @@ class TransformerDecoder(Module):
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
 
-        return tgt, Context(context.memory, context.memory_pad_mask, cached_targets=None)
+        # Finally transform to logits of size (B, T, vocab_size)
+        y = self.out.forward(tgt)
+
+        return y, Context(context.memory, context.memory_pad_mask, cached_targets=None)
 
     @torch.no_grad()
     def predict(self, x, context: Context):
@@ -150,43 +145,17 @@ class TransformerDecoder(Module):
             cache[i] = x if cache[i] is None else torch.cat((cache[i], x), dim=1)  # cache all the previous input tokens for each layer to avoid unnecessary computations
             x = layer.forward(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, tgt_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
 
-        return x, Context(context.memory, context.memory_pad_mask, cached_targets=cache)
+        # Finally transform to logits of size (B, T, vocab_size)
+        y = self.out.forward(x)
+
+        return y, Context(context.memory, context.memory_pad_mask, cached_targets=cache)
 
 
-
-
-
-pad_token = 0
-start_token = 1
-vocab_size, embed_size, hidden_size = 1000, 512, 2048
-B, T = 8, 15
-x_pad_mask = torch.arange(T).expand(B, T) >= torch.randint(1, T-1, (B, 1))
-x = torch.randint(2, 1000, (B, T)) * ~x_pad_mask
-y_shifted = torch.cat((
-    torch.full((B, 1), start_token),
-    x[:, :-6]  # skip last 6 tokens
-), dim=1)
-y_shifted_pad_mask = y_shifted == pad_token
-
-
-encoder = TransformerEncoder(vocab_size, embed_size, hidden_size, padding_idx=pad_token)
-decoder = TransformerDecoder(vocab_size, embed_size, hidden_size, padding_idx=pad_token)
-encoder.summary()
-decoder.summary()
-
-
-# Training step
-context = encoder.forward(x)
-y_hat = decoder.forward(y_shifted, context)
-
-
-# Autoregressive predictions
-with torch.no_grad():
-    context = encoder.forward(x)
-    token = torch.full((B, 1), start_token)
-    decoded_tokens = []
-    for n in range(10):
-        pred, context = decoder.predict(token, context)
-        token = pred.argmax(-1)
-        decoded_tokens.append(token)
+class Transformer(Seq2Seq):
+    """
+    Paper: Attention Is All You Need
+    https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
+    """
+    def __init__(self, encoder: TransformerEncoder, decoder: TransformerDecoder, sos_token, eos_token):
+        super().__init__(encoder, decoder, sos_token, eos_token)
 
