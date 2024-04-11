@@ -289,6 +289,11 @@ class AttentionDecoder(Module):
 
         return y, Context(states, context.enc_outputs, context.attn_pad_mask)
 
+    @torch.no_grad()
+    def predict(self, x, context: Context):
+        return self.forward(x, context)
+
+
 
 class BahdanauAttention(Seq2Seq):  # aka RNNencdec
     """

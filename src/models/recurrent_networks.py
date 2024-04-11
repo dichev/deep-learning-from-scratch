@@ -159,6 +159,11 @@ class Decoder(Module):
         y = self.out.forward(output)
         return y, states
 
+    @torch.no_grad()
+    def predict(self, x, context):
+        return self.forward(x, context)
+
+
 
 class Seq2Seq(Module):
     """
@@ -172,7 +177,7 @@ class Seq2Seq(Module):
         self.sos_token = sos_token
         self.eos_token = eos_token
 
-    def forward(self, x, targets=None):
+    def forward(self, x, targets):
         batch_size, seq_len = x.shape
 
         # Encode all tokens into single fixed-size context
@@ -195,9 +200,9 @@ class Seq2Seq(Module):
 
         # Decode the context into sequence of tokens one by one
         if beam_width == 1:  # greedy search
-            seq, score = greedy_search(self.decoder, context, self.sos_token, self.eos_token, max_steps), None
+            seq, score = greedy_search(self.decoder.predict, context, self.sos_token, self.eos_token, max_steps), None
         else:
-            seq, score = beam_search(self.decoder, context, self.sos_token, self.eos_token, max_steps, k=beam_width)
+            seq, score = beam_search(self.decoder.predict, context, self.sos_token, self.eos_token, max_steps, k=beam_width)
 
         return torch.tensor(seq).view(1, -1), score
 
