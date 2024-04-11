@@ -169,7 +169,7 @@ def test_multi_head_attention(emb_dim, k_dim, v_dim, num_heads, t_source, t_targ
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, key_pad_mask=keys_pad_mask)  # todo: unify mask
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=keys_pad_mask)
     a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)

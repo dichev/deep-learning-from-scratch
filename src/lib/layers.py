@@ -863,13 +863,17 @@ class MultiHeadAttention(Module):
         for name, weight in self.parameters():
             init.xavier_uniform_(weight, *weight.shape)
 
-    def forward(self, query, key, value, key_pad_mask=None):
+    def forward(self, query, key, value, attn_mask=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
+        assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
-        if key_pad_mask is not None:
-            assert key_pad_mask.shape == (b, t), f'Expected key_pad_mask of shape {b, t}, but got {key_pad_mask.shape}'
-            key_pad_mask = key_pad_mask.view(b, 1, 1, t)  # to be broadcasted
-
+        if attn_mask is not None:
+            if attn_mask.ndim == 2:
+                attn_mask = attn_mask.view(b, 1, 1, t)   # to be broadcasted to (b, heads, t', t)
+            elif attn_mask.ndim == 3:
+                attn_mask = attn_mask.view(b, 1, t_, t)  # to be broadcasted to (b, heads, t', t)
+            else:
+                raise Exception(f'Expected key_pad_mask of shape {b, t} or {b, t_, t}, but got {attn_mask.shape}')
 
         # Project to smaller vectors
         Q = query @ self.weight_query                                 # (b, t', emb)  <- (b, t',  emb) @ (emb, emb)
@@ -884,7 +888,7 @@ class MultiHeadAttention(Module):
         # Compute attention weights for each head
         scale = sqrt(emb//self.n_heads) if self.scaled else 1.
         Z = Q @ K_T / scale                                           # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
-        A = softmax(Z, dim=-1, ignore_mask=key_pad_mask)
+        A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
 
