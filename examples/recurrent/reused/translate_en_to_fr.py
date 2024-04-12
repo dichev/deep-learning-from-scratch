@@ -93,6 +93,6 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda'):
                 print(f'{source} (expected: {target})')
                 for beam_width in (1, 2, 3):
                     Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
-                    predicted = vocab_fr.decode(Y_hat.squeeze().numpy(), trim_after='<EOS>')
+                    predicted = vocab_fr.decode(Y_hat.squeeze(0).numpy(), trim_after='<EOS>')
                     print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
                 print('------------------------------------------')

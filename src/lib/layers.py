@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 from math import sqrt
+from matplotlib import pyplot as plt
 from lib.functions import init
 from lib.functions.activations import relu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
@@ -51,6 +52,7 @@ class Embedding(Module):  # aka lookup table
 
     def __repr__(self):
         return f'Embedding({self.input_size}, {self.output_size}, bias=false): {self.n_params} params'
+
 
 
 class BatchNorm(Module):
@@ -901,3 +903,53 @@ class MultiHeadAttention(Module):
 
     def __repr__(self):
         return f'MultiHeadAttention({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
+
+
+
+class PositionalEncoding(Module):
+    """
+    Paper: Attention Is All You Need
+    https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
+    """
+
+    def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False):
+        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed)
+        self.dropout = Dropout(dropout) if dropout else None
+        self.depth_size, self.max_seq_len = depth_size, max_seq_len
+
+    @staticmethod
+    def compute_encodings(depth_size, seq_len, mixed=False):
+        assert depth_size % 2 == 0, f'depth_size must be even, got {depth_size}'
+
+        pos = torch.arange(seq_len)
+        i = torch.arange(depth_size//2)
+        freq = 1 / 10_000 ** (2 * i / depth_size)
+        radians = pos.view(-1, 1) * freq                  # (P, D/2)  <-  (P, 1) * (D/2)
+        sin, cos = torch.sin(radians), torch.cos(radians)
+
+        if not mixed:  # Concatenation is equivalent to interleaving (i.e. mixed=True), because it is just a permutation of independent channels
+            embeddings = torch.cat((sin, cos), dim=-1)
+        else:
+            embeddings = torch.zeros(seq_len, depth_size)
+            embeddings[:, 0::2] = sin
+            embeddings[:, 1::2] = cos
+
+        return embeddings   # (P, D)
+
+    def forward(self, x):
+        B, T, E = x.shape
+        assert E == self.depth_size, f'Expected embedding size of {self.depth_size} but got {x.shape}'
+        assert T <= self.max_seq_len, f'Too long sequence {x.shape}, expected max length size to be {self.max_seq_len}'  # it can be lazy extended
+
+        x = x + self.fixed_embeddings[:T].view(1, T, E).to(x.device)
+        if self.dropout:
+            x = self.dropout.forward(x)
+        return x
+
+    def plot(self):
+        plt.pcolormesh(self.fixed_embeddings.T)
+        plt.xlabel('Position')
+        plt.ylabel('Depth')
+        plt.colorbar()
+        plt.show()
+

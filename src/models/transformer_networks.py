@@ -1,11 +1,9 @@
 import torch
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList, PositionalEncoding
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 
 
-# todo: positional encodings
-#       In addition, we apply dropout to the sums of the embeddings and the positional encodings in both the encoder and decoder stacks.
 # todo: shared embeddings
 # todo: return all the attn weighs
 # todo: match param size to paper
@@ -39,8 +37,9 @@ class TransformerEncoderLayer(Module):
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
             TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
         ])
@@ -52,6 +51,7 @@ class TransformerEncoder(Module):
         pad_mask = (x == self.padding_idx)
 
         x = self.emb.forward(x)
+        x = self.pos_emb.forward(x)
         for layer in self.layers:
             x = layer.forward(x, pad_mask)
 
@@ -99,8 +99,9 @@ class TransformerDecoderLayer(Module):
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
             TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
         ])
@@ -121,7 +122,8 @@ class TransformerDecoder(Module):
         attn_mask = pad_mask.unsqueeze(1) | causal_mask
 
         # Decode each layer
-        tgt = self.emb.forward(tgt)     # (B, T, emb)
+        tgt = self.emb.forward(tgt)      # (B, T, emb)
+        tgt = self.pos_emb.forward(tgt)  # (B, T, emb)
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
 

@@ -45,6 +45,7 @@ I agree.
 - DotProductAttention
 - AdditiveAttention <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
 - MultiHeadAttention <sup>[*[Attention Is All You Need]*](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)</sup>
+- PositionalEncoding <sup>[*[Attention Is All You Need]*](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)</sup>
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
