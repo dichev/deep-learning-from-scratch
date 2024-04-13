@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import torch
+import math
 from torchvision.datasets.utils import download_and_extract_archive
+from torch.utils.tensorboard import SummaryWriter
+from datetime import datetime
 from tqdm import trange
 
 from lib.functions.losses import cross_entropy
@@ -15,6 +18,7 @@ IN_SEQ_LEN = 15
 OUT_SEQ_LEN = 16
 
 # Prepare text data
+print('Data loading..')
 download_and_extract_archive('https://www.manythings.org/anki/fra-eng.zip', './data/text')
 print('Data preprocessing..')
 with open('./data/text/fra.txt', 'r', encoding='utf-8') as f: # tab-separated file
@@ -56,7 +60,7 @@ def diagnostics():
 
 
 def train(model, optimizer, loader, batch_size):
-    total_loss = total_acc = 0
+    total_loss = total_acc = total_grad_norm = 0
     pbar = trange(N, desc=f'Epoch (batch_size={batch_size})')
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
@@ -69,30 +73,45 @@ def train(model, optimizer, loader, batch_size):
         loss, acc = cost.item(), accuracy(Z.argmax(dim=-1), Y, ignore_idx=PAD_IDX)
         total_loss += loss * batch_frac
         total_acc += acc * batch_frac
+        total_grad_norm += model.grad_norm() * batch_frac
 
         pbar.update(batch_size)
         pbar.set_postfix_str(f'loss={loss:.3f}, acc={acc:.3f}')
 
-    return total_loss, total_acc, pbar
+    return total_loss, total_acc, total_grad_norm, pbar
 
 
-def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda'):
-    for epoch in range(epochs):
+def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title=''):
+    writer = SummaryWriter(f'runs/{title or model.__class__.__name__} params={model.n_params} - {datetime.now().strftime('%b%d %H-%M-%S')}', flush_secs=2)
+
+    for epoch in range(1, epochs+1):
         loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=batch_size, shuffle=True, device=device)  # todo: migrate to DataLoader
-        loss, acc, pbar = train(model, optimizer, loader, batch_size)
-        pbar.desc = f'Epoch {epoch+1}/{epochs}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
+        loss, acc, grad_norm, pbar = train(model, optimizer, loader, batch_size)
+        pbar.desc = f'Epoch {epoch}/{epochs}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
+
+        # Metrics
+        writer.add_scalar('t/Loss', loss, epoch)
+        writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
+        writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
+        writer.add_scalar('a/Weights Norm', model.weight_norm(), epoch)
+        for name, param in model.parameters():
+            if 'bias' not in name:
+                writer.add_histogram('params/' + name.replace('.', '/'), param, epoch)
+                writer.add_histogram('grad/' + name.replace('.', '/'), param.grad, epoch)  # note this is a sample from the last mini-batch
 
 
         # print some translations
-        with torch.no_grad():
-            n, offset = 5, N//2
-            X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
+        if epoch % 10 == 1:
+            with torch.no_grad():
+                n, offset = 5, N//2
+                X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
 
-            for i in range(n):
-                source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
-                print(f'{source} (expected: {target})')
-                for beam_width in (1, 2, 3):
-                    Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
-                    predicted = vocab_fr.decode(Y_hat.squeeze(0).numpy(), trim_after='<EOS>')
-                    print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
-                print('------------------------------------------')
+                for i in range(n):
+                    source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
+                    print(f'{source} (expected: {target})')
+                    for beam_width in (1, 2, 3):
+                        Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
+                        predicted = vocab_fr.decode(Y_hat.squeeze(0).numpy(), trim_after='<EOS>')
+                        print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
+                    print('------------------------------------------')
+
