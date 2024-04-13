@@ -15,7 +15,7 @@ DEVICE = 'cuda'
 # Model
 model = Transformer(
     encoder=TransformerEncoder(vocab_en.size, 512, 2048, n_layers=6, padding_idx=PAD_IDX, attn_heads=8, dropout=.1),
-    decoder=TransformerDecoder(vocab_fr.size, 512, 2048, n_layers=6, padding_idx=PAD_IDX, attn_heads=8, dropout=.1),
+    decoder=TransformerDecoder(vocab_fr.size, 512, 2048, n_layers=6, padding_idx=PAD_IDX, attn_heads=8, dropout=.1, tied_embeddings=True),
     sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 model.to(DEVICE)

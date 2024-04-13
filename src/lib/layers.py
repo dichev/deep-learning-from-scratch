@@ -50,6 +50,10 @@ class Embedding(Module):  # aka lookup table
         z = self.weight[indices]
         return z
 
+    def backward(self, x):  # used for tied embedding to output linear
+        z = x @ self.weight.T
+        return z
+
     def __repr__(self):
         return f'Embedding({self.input_size}, {self.output_size}, bias=false): {self.n_params} params'
 

@@ -2,9 +2,8 @@ import torch
 from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList, PositionalEncoding
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
+from math import sqrt
 
-
-# todo: shared embeddings
 # todo: return all the attn weighs
 # todo: match param size to paper
 
@@ -50,7 +49,7 @@ class TransformerEncoder(Module):
         B, T = x.shape
         pad_mask = (x == self.padding_idx)
 
-        x = self.emb.forward(x)
+        x = self.emb.forward(x) * sqrt(self.embed_size)
         x = self.pos_emb.forward(x)
         for layer in self.layers:
             x = layer.forward(x, pad_mask)
@@ -99,16 +98,18 @@ class TransformerDecoderLayer(Module):
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, tied_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
             TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
         ])
-        self.out = Linear(embed_size, vocab_size)
+        if not tied_embeddings:  # note in the paper they share the embeddings also with the encoder embeddings, but that's require single (union) source/target vocabulary
+            self.out = Linear(embed_size, vocab_size)
 
         self.n_layers = n_layers
         self.padding_idx = padding_idx
+        self.tied_embeddings = tied_embeddings
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
 
 
@@ -122,13 +123,16 @@ class TransformerDecoder(Module):
         attn_mask = pad_mask.unsqueeze(1) | causal_mask
 
         # Decode each layer
-        tgt = self.emb.forward(tgt)      # (B, T, emb)
-        tgt = self.pos_emb.forward(tgt)  # (B, T, emb)
+        tgt = self.emb.forward(tgt) * sqrt(self.embed_size)    # (B, T, emb)
+        tgt = self.pos_emb.forward(tgt)                        # (B, T, emb)
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
 
         # Finally transform to logits of size (B, T, vocab_size)
-        y = self.out.forward(tgt)
+        if self.tied_embeddings:
+            y = self.emb.backward(tgt)
+        else:
+            y = self.out.forward(tgt)
 
         return y, Context(context.memory, context.memory_pad_mask, cached_targets=None)
 
@@ -148,7 +152,10 @@ class TransformerDecoder(Module):
             x = layer.forward(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, tgt_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
 
         # Finally transform to logits of size (B, T, vocab_size)
-        y = self.out.forward(x)
+        if self.tied_embeddings:
+            y = self.emb.backward(x)
+        else:
+            y = self.out.forward(x)
 
         return y, Context(context.memory, context.memory_pad_mask, cached_targets=cache)
 
