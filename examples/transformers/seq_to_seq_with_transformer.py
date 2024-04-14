@@ -14,8 +14,8 @@ DEVICE = 'cuda'
 
 # Model
 model = Transformer(
-    encoder=TransformerEncoder(vocab_en.size, 512, 2048, n_layers=6, padding_idx=PAD_IDX, attn_heads=8, dropout=.1),
-    decoder=TransformerDecoder(vocab_fr.size, 512, 2048, n_layers=6, padding_idx=PAD_IDX, attn_heads=8, dropout=.1, tied_embeddings=True),
+    encoder=TransformerEncoder(vocab_en.size, 128, 256, n_layers=2, padding_idx=PAD_IDX, attn_heads=4, dropout=.1),
+    decoder=TransformerDecoder(vocab_fr.size, 128, 256, n_layers=2, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, tied_embeddings=False),
     sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 model.to(DEVICE)
@@ -24,4 +24,4 @@ optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 diagnostics()
 
 # Training
-fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE)
+fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer', visualize_fn=model.visualize_attn_weights)

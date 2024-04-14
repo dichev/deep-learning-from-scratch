@@ -81,13 +81,14 @@ def train(model, optimizer, loader, batch_size):
     return total_loss, total_acc, total_grad_norm, pbar
 
 
-def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title=''):
+def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', visualize_fn=None):
     writer = SummaryWriter(f'runs/{title or model.__class__.__name__} params={model.n_params} - {datetime.now().strftime('%b%d %H-%M-%S')}', flush_secs=2)
 
     for epoch in range(1, epochs+1):
         loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=batch_size, shuffle=True, device=device)  # todo: migrate to DataLoader
         loss, acc, grad_norm, pbar = train(model, optimizer, loader, batch_size)
         pbar.desc = f'Epoch {epoch}/{epochs}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
+
 
         # Metrics
         writer.add_scalar('t/Loss', loss, epoch)
@@ -100,12 +101,13 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title=''):
                 writer.add_histogram('grad/' + name.replace('.', '/'), param.grad, epoch)  # note this is a sample from the last mini-batch
 
 
+
         # print some translations
-        if epoch % 10 == 1:
-            with torch.no_grad():
+        with torch.no_grad():
+            if epoch == 1 or epoch % 10 == 0:
+                # # translate token by token
                 n, offset = 5, N//2
                 X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
-
                 for i in range(n):
                     source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
                     print(f'{source} (expected: {target})')
@@ -114,4 +116,15 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title=''):
                         predicted = vocab_fr.decode(Y_hat.squeeze(0).numpy(), trim_after='<EOS>')
                         print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
                     print('------------------------------------------')
+
+                # translate with teacher forcing
+                X, Y = text_encoded_en[N-N//4], text_encoded_fr[N-N//4]
+                source, target = vocab_en.decode(X.numpy()), vocab_fr.decode(Y.numpy())
+                Z = model.forward(X.view(1, -1).to(device), Y.view(1, -1).to(device))
+                Y_hat = Z.argmax(dim=-1).detach().cpu().numpy()
+                predicted = vocab_fr.decode(Y_hat.squeeze(0))
+                print(f'{source} (expected: {target})')
+                print(f'->  {predicted}')
+                if visualize_fn:
+                    visualize_fn(source.split(), target.split(), f'- epoch {epoch}/{epochs}')
 

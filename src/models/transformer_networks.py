@@ -3,9 +3,8 @@ from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm,
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 from math import sqrt
+from utils import plots
 
-# todo: return all the attn weighs
-# todo: match param size to paper
 
 
 Context = namedtuple('Context', ['memory', 'memory_pad_mask', 'cached_targets'])
@@ -24,11 +23,12 @@ class TransformerEncoderLayer(Module):
         self.norm2 = LayerNorm(input_size)
 
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
+        self.attn_weights = None  # keep record of the last attention weights for visualization
 
     def forward(self, x, pad_mask):
         B, T, E = x.shape
 
-        v, attn_weights = self.attn.forward(query=x, key=x, value=x, attn_mask=pad_mask)
+        v, self.attn_weights = self.attn.forward(query=x, key=x, value=x, attn_mask=pad_mask)
         x = self.norm1.forward(x + v)
         x = self.norm2.forward(x + self.ff.forward(x))
         return x
@@ -56,6 +56,11 @@ class TransformerEncoder(Module):
 
         return x, Context(memory=x, memory_pad_mask=pad_mask, cached_targets=None)
 
+    def get_last_attn_weights(self):
+        attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
+        return attn_weights  # (b, n_layers, n_heads, t, t)
+
+
 
 
 class TransformerDecoderLayer(Module):
@@ -75,6 +80,8 @@ class TransformerDecoderLayer(Module):
         self.norm3 = LayerNorm(input_size)
 
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
+        self.attn_weights = None      # keep record of the last attention weights for visualization
+        self.cross_attn_weights = None  #
 
     def forward(self, tgt, attn_mask, memory, memory_pad_mask=None, tgt_cached=None):
         B, T, E = tgt.shape
@@ -82,11 +89,11 @@ class TransformerDecoderLayer(Module):
         # Self-attention
         if tgt_cached is None:
             tgt_cached = tgt  # the cached targets are used only during autoregressive inference
-        v, attn_weights = self.attn.forward(query=tgt, key=tgt_cached, value=tgt_cached, attn_mask=attn_mask)
+        v, self.attn_weights = self.attn.forward(query=tgt, key=tgt_cached, value=tgt_cached, attn_mask=attn_mask)
         tgt = self.norm1.forward(tgt + v)
 
         # Cross-attention
-        v, attn_weights_mem = self.cross_attn.forward(query=tgt, key=memory, value=memory, attn_mask=memory_pad_mask)
+        v, self.cross_attn_weights = self.cross_attn.forward(query=tgt, key=memory, value=memory, attn_mask=memory_pad_mask)
         tgt = self.norm2.forward(tgt + v)
 
         # Feed forward
@@ -128,6 +135,7 @@ class TransformerDecoder(Module):
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
 
+
         # Finally transform to logits of size (B, T, vocab_size)
         if self.tied_embeddings:
             y = self.emb.backward(tgt)
@@ -159,6 +167,11 @@ class TransformerDecoder(Module):
 
         return y, Context(context.memory, context.memory_pad_mask, cached_targets=cache)
 
+    def get_last_attn_weights(self):
+        self_attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
+        cross_attn_weights = torch.stack([layer.cross_attn_weights for layer in self.layers], dim=1)
+        return self_attn_weights, cross_attn_weights  # (b, n_layers, n_heads, t', t'), (b, n_layers, n_heads, t', t)
+
 
 class Transformer(Seq2Seq):
     """
@@ -167,4 +180,15 @@ class Transformer(Seq2Seq):
     """
     def __init__(self, encoder: TransformerEncoder, decoder: TransformerDecoder, sos_token, eos_token):
         super().__init__(encoder, decoder, sos_token, eos_token)
+
+
+    def visualize_attn_weights(self, src_labels, tgt_labels, subtitle=''):
+        encoder_attn = self.encoder.get_last_attn_weights()
+        decoder_self_attn, decoder_cross_attn = self.decoder.get_last_attn_weights()
+        plots.attention_heads(encoder_attn[0].detach().cpu(), src_labels, src_labels, title=f'Encoder Self-Attention {subtitle}')
+        plots.attention_heads(decoder_self_attn[0].detach().cpu(), tgt_labels, tgt_labels, title=f'Decoder Self-Attention {subtitle}')
+        plots.attention_heads(decoder_cross_attn[0].detach().cpu(), tgt_labels, src_labels, title=f'Decoder Cross-Attention {subtitle}')
+
+
+
 
