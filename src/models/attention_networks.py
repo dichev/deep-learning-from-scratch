@@ -243,7 +243,7 @@ class AttentionEncoder(Module):
 
     def forward(self, x):
         batch_size, seq_len = x.shape
-        pad_mask = (x != self.padding_idx)
+        pad_mask = (x == self.padding_idx)
 
         x = self.emb.forward(x)                     # (B, T) -> (B, T, embed_size)
         enc_out, enc_states = self.rnn.forward(x)   # (B, T, embed_size)) -> (B, T, hidden_size), [h, C]
@@ -288,6 +288,11 @@ class AttentionDecoder(Module):
         y = self.out.forward(output)
 
         return y, Context(states, context.enc_outputs, context.attn_pad_mask)
+
+    @torch.no_grad()
+    def predict(self, x, context: Context):
+        return self.forward(x, context)
+
 
 
 class BahdanauAttention(Seq2Seq):  # aka RNNencdec

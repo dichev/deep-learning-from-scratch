@@ -44,6 +44,8 @@ I agree.
 - Flatten
 - DotProductAttention
 - AdditiveAttention <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
+- MultiHeadAttention <sup>[*[Attention Is All You Need]*](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)</sup>
+- PositionalEncoding <sup>[*[Attention Is All You Need]*](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)</sup>
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
@@ -125,6 +127,13 @@ I agree.
 - AttentionDecoder <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
 - BahdanauAttention <sup>[*[Neural Machine Translation by Jointly Learning to Align and Translate]*](https://arxiv.org/pdf/1409.0473.pdf)</sup>
 
+`models.transformer_networks` [➜](src/models/transformer_networks.py)
+- TransformerEncoderLayer
+- TransformerEncoder
+- TransformerDecoderLayer
+- TransformerDecoder
+- Transformer <sup>[*[Attention Is All You Need]*](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)</sup>
+
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[Going deeper with convolutions]*](https://arxiv.org/pdf/1409.4842.pdf?)</sup>
 - ResBlock <sup>[*[Deep Residual Learning for Image Recognition]*](https://arxiv.org/pdf/1512.03385.pdf)</sup>
@@ -142,6 +151,7 @@ I agree.
 - examples/graph [➜](examples/graph)
 - examples/recurrent [➜](examples/recurrent)
 - examples/attention [➜](examples/attention)
+- examples/transformer [➜](examples/transformer)
 - examples/shallow [➜](examples/shallow)
 
 <!-- auto-generated-end -->

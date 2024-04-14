@@ -14,13 +14,13 @@ class Path:
         return f"\n Path(seq={self.seq}, ended={self.ended})"
 
 
-def greedy_search(decoder, context, start_token: int, end_token: int, max_steps=10):
+def greedy_search(decoder_fn, context, start_token: int, end_token: int, max_steps=10):
     assert type(start_token) is int and type(end_token) is int, f'start_token/end_token should be an integer but got {start_token}/{end_token} (note there is no batch support)'
     seq = []
     token = torch.tensor(start_token)
     state = context
     for t in range(max_steps):
-        z, state = decoder.forward(token.view(1, 1), state)
+        z, state = decoder_fn(token.view(1, 1), state)
         token = z.squeeze().argmax()
         seq.append(token.item())
         if token == end_token:
@@ -28,7 +28,7 @@ def greedy_search(decoder, context, start_token: int, end_token: int, max_steps=
     return seq
 
 
-def beam_search(decoder, context, start_token: int, end_token: int, max_steps=10, k=2, alpha=.75):
+def beam_search(decoder_fn, context, start_token: int, end_token: int, max_steps=10, k=2, alpha=.75):
     assert type(start_token) is int and type(end_token) is int, f'start_token/end_token should be an integer but got {start_token}/{end_token} (note there is no batch support)'
 
     # Define the scoring function
@@ -47,7 +47,7 @@ def beam_search(decoder, context, start_token: int, end_token: int, max_steps=10
 
             # Decode and select top k tokens
             last_token = path.seq[-1] if len(path.seq) else start_token
-            z, state = decoder.forward(torch.tensor(last_token).view(1, 1), path.state)
+            z, state = decoder_fn(torch.tensor(last_token).view(1, 1), path.state)
             k_logp, k_tokens = log_softmax(z).squeeze().topk(k)
 
             # Collect top k candidate sequences

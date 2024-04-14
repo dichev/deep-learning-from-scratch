@@ -106,3 +106,28 @@ def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16), title=''):
             nx.draw_networkx(G, pos=nx.spring_layout(G, seed=0), arrows=False, with_labels=False, node_size=150, node_color=color, width=0.8, ax=ax)
     plt.tight_layout()
     plt.show()
+
+
+def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Attention'):
+    assert attn_weights.ndim == 4, f'Expected attention weights to be a tensor of shape (n_layers, n_heads, tgt_len, src_len), but got {attn_weights.shape}'
+    L, H, T_, T = attn_weights.shape
+    fig = plt.figure(figsize=(H*4, L*4))
+    for layer in range(L):
+        for head in range(H):
+            ax = fig.add_subplot(L, H, layer * H + head + 1)
+            ax.matshow(attn_weights[layer, head])
+            ax.set_xlabel(f'Head {head + 1}')
+            if head == 0:
+                ax.set_ylabel(f'Layer {layer + 1}', fontsize=15, fontweight='bold')
+            if query_labels:
+                ax.set_yticks(range(len(query_labels)))
+                ax.set_yticklabels(query_labels)
+            if key_labels:
+                ax.set_xticks(range(len(key_labels)))
+                ax.set_xticklabels(key_labels, rotation=90)
+            fig.text(0.02, 0.98, 'Keys ⟶', va='top', ha='left', fontsize=10)
+            fig.text(0.01, 0.97, '⟵ Queries ', va='top', ha='left', fontsize=10, rotation=90)
+
+    plt.suptitle(title, fontsize=20, fontweight='bold')
+    plt.tight_layout()
+    plt.show()

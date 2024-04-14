@@ -15,13 +15,13 @@ def test_masked_softmax(z_shape):
 
     mask = paddings_mask(lengths, max_len)
     p1 = softmax(z)
-    p2 = softmax(z, mask=mask)
-    p3 = log_softmax(z, mask=mask).exp()
+    p2 = softmax(z, ignore_mask=mask)
+    p3 = log_softmax(z, ignore_mask=mask).exp()
     valid_probs = torch.ones(z.shape[:-1])
 
     assert torch.allclose(p1.sum(dim=-1), valid_probs)
-    assert torch.allclose(p2.sum(dim=-1), valid_probs) and torch.all(p2[~mask] == 0.)
-    assert torch.allclose(p3.sum(dim=-1), valid_probs) and torch.all(p3[~mask] == 0.)
+    assert torch.allclose(p2.sum(dim=-1), valid_probs) and torch.all(p2[mask] == 0.)
+    assert torch.allclose(p3.sum(dim=-1), valid_probs) and torch.all(p3[mask] == 0.)
     assert torch.allclose(p2, p3)
 
 

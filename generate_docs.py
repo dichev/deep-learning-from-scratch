@@ -19,6 +19,7 @@ whitelist = {
         'src/models/residual_networks.py',
         'src/models/graph_networks.py',
         'src/models/attention_networks.py',
+        'src/models/transformer_networks.py',
         'src/models/blocks/convolutional_blocks.py',
     ],
     "Example usages": [
@@ -28,6 +29,7 @@ whitelist = {
         'examples/graph',
         'examples/recurrent',
         'examples/attention',
+        'examples/transformer',
         'examples/shallow',
     ]
 }
