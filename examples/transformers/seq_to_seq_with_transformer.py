@@ -14,14 +14,14 @@ DEVICE = 'cuda'
 
 # Model
 model = Transformer(
-    encoder=TransformerEncoder(vocab_en.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True),
-    decoder=TransformerDecoder(vocab_fr.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True, tied_embeddings=False),
+    encoder=TransformerEncoder(vocab_en.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True, scale_up_embeddings=False),
+    decoder=TransformerDecoder(vocab_fr.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True, scale_up_embeddings=False, tied_embeddings=False),
     sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 model.to(DEVICE)
 model.summary()
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)
-diagnostics()
+# diagnostics()
 
 # Training
 fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer (Norm First)', visualize_fn=model.visualize_attn_weights)

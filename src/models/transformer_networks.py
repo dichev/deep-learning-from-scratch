@@ -45,7 +45,7 @@ class TransformerEncoderLayer(Module):
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, scale_up_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
@@ -57,12 +57,13 @@ class TransformerEncoder(Module):
         self.norm_first = norm_first
         self.padding_idx = padding_idx
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
+        self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
 
     def forward(self, x):
         B, T = x.shape
         pad_mask = (x == self.padding_idx)
 
-        x = self.emb.forward(x) * sqrt(self.embed_size)
+        x = self.emb.forward(x) * self.emb_scale_factor
         x = self.pos_emb.forward(x)
         for i, layer in enumerate(self.layers):
             x = layer.forward(x, pad_mask)
@@ -127,7 +128,7 @@ class TransformerDecoderLayer(Module):
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False, scale_up_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
@@ -143,6 +144,7 @@ class TransformerDecoder(Module):
         self.padding_idx = padding_idx
         self.tied_embeddings = tied_embeddings
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
+        self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
 
 
     def forward(self, tgt, context: Context):
@@ -155,7 +157,7 @@ class TransformerDecoder(Module):
         attn_mask = pad_mask.unsqueeze(1) | causal_mask
 
         # Decode each layer
-        tgt = self.emb.forward(tgt) * sqrt(self.embed_size)    # (B, T, emb)
+        tgt = self.emb.forward(tgt) * self.emb_scale_factor    # (B, T, emb)
         tgt = self.pos_emb.forward(tgt)                        # (B, T, emb)
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
@@ -181,7 +183,7 @@ class TransformerDecoder(Module):
             cache = [None] * self.n_layers
 
         # Decode each layer
-        x = self.emb.forward(x)  # (B, T, emb)
+        x = self.emb.forward(x) * self.emb_scale_factor  # (B, T, emb)
         for i, layer in enumerate(self.layers):
             cache[i] = x if cache[i] is None else torch.cat((cache[i], x), dim=1)  # cache all the previous input tokens for each layer to avoid unnecessary computations
             x = layer.forward(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, x_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
