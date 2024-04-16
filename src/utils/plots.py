@@ -111,11 +111,11 @@ def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16), title=''):
 def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Attention'):
     assert attn_weights.ndim == 4, f'Expected attention weights to be a tensor of shape (n_layers, n_heads, tgt_len, src_len), but got {attn_weights.shape}'
     L, H, T_, T = attn_weights.shape
-    fig = plt.figure(figsize=(H*4, L*4))
+    fig = plt.figure(figsize=(H*4+2, L*4))
     for layer in range(L):
         for head in range(H):
             ax = fig.add_subplot(L, H, layer * H + head + 1)
-            ax.matshow(attn_weights[layer, head])
+            ax.matshow(attn_weights[layer, head], vmin=0, vmax=1)
             ax.set_xlabel(f'Head {head + 1}')
             if head == 0:
                 ax.set_ylabel(f'Layer {layer + 1}', fontsize=15, fontweight='bold')

@@ -6,7 +6,7 @@ from utils.rng import seed_global
 seed_global(1)
 
 # training settings
-EPOCHS = 100
+EPOCHS = 400
 BATCH_SIZE = 1024
 LEARN_RATE = 0.01
 DEVICE = 'cuda'
@@ -14,8 +14,8 @@ DEVICE = 'cuda'
 
 # Model
 model = Transformer(
-    encoder=TransformerEncoder(vocab_en.size, 128, 256, n_layers=2, padding_idx=PAD_IDX, attn_heads=4, dropout=.1),
-    decoder=TransformerDecoder(vocab_fr.size, 128, 256, n_layers=2, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, tied_embeddings=False),
+    encoder=TransformerEncoder(vocab_en.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True),
+    decoder=TransformerDecoder(vocab_fr.size, 256, 512, n_layers=4, padding_idx=PAD_IDX, attn_heads=4, dropout=.1, norm_first=True, tied_embeddings=False),
     sos_token=vocab_fr.to_idx['<SOS>'], eos_token=vocab_fr.to_idx['<EOS>']
 )
 model.to(DEVICE)
@@ -24,4 +24,4 @@ optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 diagnostics()
 
 # Training
-fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer', visualize_fn=model.visualize_attn_weights)
+fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer (Norm First)', visualize_fn=model.visualize_attn_weights)

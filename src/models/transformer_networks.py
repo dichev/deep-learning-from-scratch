@@ -12,36 +12,49 @@ Context = namedtuple('Context', ['memory', 'memory_pad_mask', 'cached_targets'])
 
 class TransformerEncoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0.):
-        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
+        self.norm2 = LayerNorm(input_size)
+        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size), ReLU(),
             Linear(hidden_size, input_size),
             Dropout(dropout)
         )
-        self.norm2 = LayerNorm(input_size)
 
+        self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
     def forward(self, x, pad_mask):
         B, T, E = x.shape
 
-        v, self.attn_weights = self.attn.forward(query=x, key=x, value=x, attn_mask=pad_mask)
-        x = self.norm1.forward(x + v)
-        x = self.norm2.forward(x + self.ff.forward(x))
+        if self.norm_first:
+            x = x + self._self_attention(self.norm1.forward(x), attn_mask=pad_mask)
+            x = x + self.norm2.forward(self.ff.forward(x))
+        else:
+            x = self.norm1.forward(x + self._self_attention(x, attn_mask=pad_mask))
+            x = self.norm2.forward(x + self.ff.forward(x))
+
         return x
+
+    def _self_attention(self, x, attn_mask):
+        v, self.attn_weights = self.attn.forward(query=x, key=x, value=x, attn_mask=attn_mask)
+        return v
 
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
-            TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
+            TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first) for _ in range(n_layers)
         ])
+        if norm_first:
+            self.final_norm = LayerNorm(embed_size)
+
+        self.norm_first = norm_first
         self.padding_idx = padding_idx
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
 
@@ -51,8 +64,11 @@ class TransformerEncoder(Module):
 
         x = self.emb.forward(x) * sqrt(self.embed_size)
         x = self.pos_emb.forward(x)
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             x = layer.forward(x, pad_mask)
+
+        if self.norm_first:
+            x = self.final_norm.forward(x)
 
         return x, Context(memory=x, memory_pad_mask=pad_mask, cached_targets=None)
 
@@ -65,55 +81,64 @@ class TransformerEncoder(Module):
 
 class TransformerDecoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0.):
-        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
-
-        self.cross_attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.norm2 = LayerNorm(input_size)
+        self.norm3 = LayerNorm(input_size)
 
+        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
+        self.cross_attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size), ReLU(),
             Linear(hidden_size, input_size),
             Dropout(dropout)
         )
-        self.norm3 = LayerNorm(input_size)
 
+        self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.attn_weights = None      # keep record of the last attention weights for visualization
         self.cross_attn_weights = None  #
 
-    def forward(self, tgt, attn_mask, memory, memory_pad_mask=None, tgt_cached=None):
-        B, T, E = tgt.shape
+    def forward(self, x, attn_mask, memory, memory_pad_mask=None, x_cached=None):
+        B, T, E = x.shape
 
-        # Self-attention
-        if tgt_cached is None:
-            tgt_cached = tgt  # the cached targets are used only during autoregressive inference
-        v, self.attn_weights = self.attn.forward(query=tgt, key=tgt_cached, value=tgt_cached, attn_mask=attn_mask)
-        tgt = self.norm1.forward(tgt + v)
+        if self.norm_first:
+            x = x + self._self_attention(self.norm1.forward(x), attn_mask, self.norm1.forward(x_cached) if x_cached is not None else None)  # apply normalization also to the cached targets during autoregressive inference
+            x = x + self._cross_attention(self.norm2.forward(x), memory, memory_pad_mask)
+            x = x + self.ff.forward(self.norm3.forward(x))
+        else:
+            x = self.norm1.forward(x + self._self_attention(x, attn_mask, x_cached))
+            x = self.norm2.forward(x + self._cross_attention(x, memory, memory_pad_mask))
+            x = self.norm3.forward(x + self.ff.forward(x))
 
-        # Cross-attention
-        v, self.cross_attn_weights = self.cross_attn.forward(query=tgt, key=memory, value=memory, attn_mask=memory_pad_mask)
-        tgt = self.norm2.forward(tgt + v)
+        return x
 
-        # Feed forward
-        tgt = self.norm3.forward(tgt + self.ff.forward(tgt))
+    def _self_attention(self, x, attn_mask, x_cached=None):
+        if x_cached is None:
+            x_cached = x  # the cached targets are used only during autoregressive inference
+        v, self.attn_weights = self.attn.forward(query=x, key=x_cached, value=x_cached, attn_mask=attn_mask)
+        return v
 
-        return tgt
+    def _cross_attention(self, x, memory, attn_mask):
+        v, self.cross_attn_weights = self.cross_attn.forward(query=x, key=memory, value=memory, attn_mask=attn_mask)
+        return v
 
 
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, tied_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
-            TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout) for _ in range(n_layers)
+            TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first) for _ in range(n_layers)
         ])
+        if norm_first:
+            self.final_norm = LayerNorm(embed_size)
         if not tied_embeddings:  # note in the paper they share the embeddings also with the encoder embeddings, but that's require single (union) source/target vocabulary
             self.out = Linear(embed_size, vocab_size)
 
+        self.norm_first = norm_first
         self.n_layers = n_layers
         self.padding_idx = padding_idx
         self.tied_embeddings = tied_embeddings
@@ -135,6 +160,8 @@ class TransformerDecoder(Module):
         for i, layer in enumerate(self.layers):
             tgt = layer.forward(tgt, attn_mask, context.memory, context.memory_pad_mask)
 
+        if self.norm_first:
+            tgt = self.final_norm.forward(tgt)
 
         # Finally transform to logits of size (B, T, vocab_size)
         if self.tied_embeddings:
@@ -157,7 +184,10 @@ class TransformerDecoder(Module):
         x = self.emb.forward(x)  # (B, T, emb)
         for i, layer in enumerate(self.layers):
             cache[i] = x if cache[i] is None else torch.cat((cache[i], x), dim=1)  # cache all the previous input tokens for each layer to avoid unnecessary computations
-            x = layer.forward(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, tgt_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
+            x = layer.forward(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, x_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
+
+        if self.norm_first:
+            x = self.final_norm.forward(x)
 
         # Finally transform to logits of size (B, T, vocab_size)
         if self.tied_embeddings:
