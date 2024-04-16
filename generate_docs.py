@@ -1,4 +1,6 @@
 import re
+from collections import namedtuple
+Citation = namedtuple('Citation', ('title', 'link', 'id'))
 
 readme_path = 'README.md'
 marker_start = '<!-- auto-generated-start -->'
@@ -44,6 +46,7 @@ with open(readme_path, 'r') as file:
 
 
 # Collect and format all the whitelisted classes and functions
+citations = {}
 for group, paths in whitelist.items():
     text += f'\n\n### {group}\n'
     for path in paths:
@@ -56,11 +59,17 @@ for group, paths in whitelist.items():
                 for cls, paper, link in info:
                     text += f'- {cls}'
                     if paper:
-                        text += f' <sup>[*[{paper}]*]({link})</sup>'
+                        if paper not in citations:
+                            citations[paper] = Citation(title=paper, link=link, id=len(citations)+1)
+                        text += f' <sup>[*[{citations[paper].id}]*](#ref{citations[paper].id} "{paper}")</sup>'
                     text += '\n'
         else:
             text += f'- {path} [➜]({path})\n'
 
+text += f'\n\n<hr/>\n\n'
+text += f'\n### References\n'
+for citation in citations.values():
+    text += f'{citation.id}. <a name="ref{citation.id}" href="{citation.link}">{citation.title}</a>\n'
 
 # Finally write the content
 with open(readme_path, 'w', encoding='utf-8') as readme:
