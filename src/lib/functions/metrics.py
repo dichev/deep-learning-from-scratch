@@ -5,13 +5,13 @@ from preprocessing.text import n_grams
 
 
 def accuracy(y_hat, y, ignore_idx=None):
-    correct = (y_hat == y).float()
+    correct = (y_hat == y)
 
     if ignore_idx is not None:
         mask = (y != ignore_idx)
-        return ((correct * mask).sum() / mask.sum()).item()
+        return (correct & mask).sum() / mask.sum()
 
-    return correct.mean().item()
+    return correct.float().mean()
 
 
 def evaluate_accuracy_per_class(y_hat, y, classes):

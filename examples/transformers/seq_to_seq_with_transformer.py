@@ -21,7 +21,7 @@ model = Transformer(
 model.to(DEVICE)
 model.summary()
 optimizer = Adam(model.parameters(), lr=LEARN_RATE)
-# diagnostics()
+diagnostics()
 
 # Training
 fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer (Norm First)', visualize_fn=model.visualize_attn_weights)
