@@ -16,6 +16,7 @@ from preprocessing.text import clean_text, TextVocabulary
 # hyperparams
 IN_SEQ_LEN = 15
 OUT_SEQ_LEN = 16
+LABEL_SMOOTHING = 0.01
 
 # Prepare text data
 print('Data loading..')
@@ -65,7 +66,7 @@ def train(model, optimizer, loader, batch_size):
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
         Z = model.forward(X, targets=Y)
-        cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX)
+        cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX, label_smoothing=LABEL_SMOOTHING)
         cost.backward()
         grad_clip_norm_(model.parameters(), 1.)
         optimizer.step()
@@ -92,6 +93,7 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', 
 
         # Metrics
         writer.add_scalar('t/Loss', loss, epoch)
+        writer.add_scalar('t/Accuracy', acc, epoch)
         writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
         writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
         writer.add_scalar('a/Weights Norm', model.weight_norm(), epoch)

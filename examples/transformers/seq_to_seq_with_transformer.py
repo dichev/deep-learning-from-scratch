@@ -24,4 +24,4 @@ optimizer = Adam(model.parameters(), lr=LEARN_RATE)
 diagnostics()
 
 # Training
-fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer (Norm First)', visualize_fn=model.visualize_attn_weights)
+fit(model, optimizer, epochs=EPOCHS, batch_size=BATCH_SIZE, device=DEVICE, title='Transformer (Norm First) Label Smooth 0.01', visualize_fn=model.visualize_attn_weights)

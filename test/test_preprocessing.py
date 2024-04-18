@@ -6,6 +6,8 @@ import pandas as pd
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import index_encoder
 from preprocessing.text import clean_text, n_grams, skip_grams, TextVocabulary
+from preprocessing.integer import one_hot, label_smooth
+
 
 def test_normalizeMinMax():
     # Test with a tensor of positive integers
@@ -84,5 +86,17 @@ def test_text_vocabulary():
     assert vocab.to_token == {0: '<PAD>', 1: '<UNK>', 2: 'hot', 3: 'the', 4: 'welcome', 5: 'to', 6: 'ai', 7: 'world', 8: '!', 9: 'wide', 10: 'road', 11: 'shimmered', 12: 'in', 13: 'sun', 14: '.'}
     assert vocab.to_idx == {'<PAD>': 0, '<UNK>': 1, 'hot': 2, 'the': 3, 'welcome': 4, 'to': 5, 'ai': 6, 'world': 7, '!': 8, 'wide': 9, 'road': 10, 'shimmered': 11, 'in': 12, 'sun': 13, '.': 14}
 
+
+def test_label_smoothing():
+    expected = torch.tensor([[0.025, 0.925, 0.025, 0.025]])
+    actual = label_smooth(torch.tensor([[0, 1, 0, 0]]), eps=0.1)
+    assert torch.allclose(expected, actual)
+
+    batch_size, num_classes = 20, 10
+    y = torch.randint(num_classes, (batch_size, 1))
+    y_hot = one_hot(y, num_classes)
+    y_soft = label_smooth(y_hot, eps=0.1)
+    assert not torch.any(y_soft == 0.) and not torch.any(y_soft == 1.)
+    assert torch.allclose(y_soft.sum(dim=-1), torch.ones(num_classes))
 
 

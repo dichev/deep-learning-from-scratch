@@ -22,4 +22,11 @@ def one_hot(x, num_classes=None):
     return I[x]
 
 
+def label_smooth(y_hot, eps=0.1):  # Reference: https://www.cv-foundation.org/openaccess/content_cvpr_2016/papers/Szegedy_Rethinking_the_Inception_CVPR_2016_paper.pdf
+    num_classes = y_hot.shape[-1]
+    U = 1 / num_classes  # uniform prior
+    return (1-eps)*y_hot + eps * U
+
+
+
 
