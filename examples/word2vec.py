@@ -3,7 +3,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import trange, tqdm as progress
 
-from preprocessing.text import clean_text, TextVocabulary
+from preprocessing.text import clean_text
+from preprocessing.vocab import TextVocabulary
 import preprocessing.text as text
 from utils.rng import sample_from
 from lib.functions.losses import cross_entropy
@@ -37,7 +38,7 @@ def generate_training_batch(sequences, word_counts, subsampling=True):
     targets_, contexts_, labels_ = [], [], []  # the first dimension  will vary
 
     # set counters UNK and PAD token counter to zero, to be not subsampled
-    word_counts = word_counts.copy()
+    word_counts = np.array(word_counts)
     word_counts[:2] = 0
 
     # Generate distribution for the negative sampling (the factor 3/4 is empirically recommended in the word2vec paper)
@@ -84,7 +85,7 @@ with open('./data/shakespeare.txt', 'r') as f:
 # Tokenize and index
 text_tokenized = [clean_text(line).split() for line in docs]
 vocab = TextVocabulary(text_tokenized, max_vocab_size=max_vocab_size)
-text_encoded = vocab.encode_batch(text_tokenized, seq_length=sequence_length)
+text_encoded = vocab.encode_batch(text_tokenized, seq_length=sequence_length).numpy()
 vocab.print_human(text_encoded[:5])
 
 # Prepare training batch

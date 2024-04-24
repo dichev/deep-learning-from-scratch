@@ -10,8 +10,8 @@ from lib.functions.losses import cross_entropy
 from lib.functions.metrics import BLEU, accuracy
 from lib.regularizers import grad_clip_norm_
 from lib.training import batches
-from preprocessing.text import clean_text, TextVocabulary
-
+from preprocessing.text import clean_text
+from preprocessing.vocab import TextVocabulary
 
 # hyperparams
 IN_SEQ_LEN = 15
@@ -33,8 +33,8 @@ vocab_en = TextVocabulary(text_tokenized_en, min_freq=2, special_tokens=('<SOS>'
 vocab_fr = TextVocabulary(text_tokenized_fr, min_freq=2, special_tokens=('<SOS>',))  #, special_tokens=('<SOS>', '<EOS>'))
 PAD_IDX = vocab_fr.to_idx['<PAD>']; assert vocab_en.to_idx['<PAD>'] == vocab_fr.to_idx['<PAD>']
 
-text_encoded_en = torch.tensor(vocab_en.encode_batch(text_tokenized_en, seq_length=IN_SEQ_LEN), dtype=torch.long)
-text_encoded_fr = torch.tensor(vocab_fr.encode_batch(text_tokenized_fr, seq_length=OUT_SEQ_LEN), dtype=torch.long)
+text_encoded_en = vocab_en.encode_batch(text_tokenized_en, seq_length=IN_SEQ_LEN)
+text_encoded_fr = vocab_fr.encode_batch(text_tokenized_fr, seq_length=OUT_SEQ_LEN)
 N = len(text_encoded_en)
 
 
@@ -111,20 +111,20 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', 
                 n, offset = 5, N//2
                 X, Y = text_encoded_en[offset-n:offset], text_encoded_fr[offset-n:offset]
                 for i in range(n):
-                    source, target = vocab_en.decode(X[i].numpy(), trim_after='<EOS>'), vocab_fr.decode(Y[i].numpy(), trim_after='<EOS>')
+                    source, target = vocab_en.decode(X[i].tolist(), trim_after='<EOS>'), vocab_fr.decode(Y[i].tolist(), trim_after='<EOS>')
                     print(f'{source} (expected: {target})')
                     for beam_width in (1, 2, 3):
                         Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
-                        predicted = vocab_fr.decode(Y_hat.squeeze(0).numpy(), trim_after='<EOS>')
+                        predicted = vocab_fr.decode(Y_hat.squeeze(0).tolist(), trim_after='<EOS>')
                         print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
                     print('------------------------------------------')
 
                 # translate with teacher forcing
                 X, Y = text_encoded_en[N-N//4], text_encoded_fr[N-N//4]
-                source, target = vocab_en.decode(X.numpy()), vocab_fr.decode(Y.numpy())
+                source, target = vocab_en.decode(X.tolist()), vocab_fr.decode(Y.tolist())
                 Z = model.forward(X.view(1, -1).to(device), Y.view(1, -1).to(device))
                 Y_hat = Z.argmax(dim=-1).detach().cpu().numpy()
-                predicted = vocab_fr.decode(Y_hat.squeeze(0))
+                predicted = vocab_fr.decode(Y_hat.squeeze(0).tolist())
                 print(f'{source} (expected: {target})')
                 print(f'->  {predicted}')
                 if visualize_fn:

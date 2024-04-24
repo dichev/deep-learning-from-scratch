@@ -1,7 +1,6 @@
 import re
 from itertools import combinations
-import numpy as np  # todo switch to torch
-from collections import Counter
+from collections import defaultdict
 import contractions
 
 
@@ -39,52 +38,38 @@ def skip_grams(sequence, half_window=2, n=2, padding_token=0):
     return grams, full_context
 
 
-class TextVocabulary:
+def merge_pairs(token, pair):
+    a, b = pair
+    token = ' '.join(token).replace(a + ' ' + b, a + b)
+    return tuple(token.split())
 
-    def __init__(self, sequences, max_vocab_size=None, min_freq=None, padding_token="<PAD>", unknown_token='<UNK>', special_tokens=()):
-        min_vocab_size = len(special_tokens) + 2  # including padding and unknown tokens
-        assert max_vocab_size is None or max_vocab_size > min_vocab_size, f'The vocabulary size cannot be less than {min_vocab_size}, because it must include the special tokens'
 
-        words = [token for seq in sequences for token in seq]
-        limit = (max_vocab_size - min_vocab_size) if max_vocab_size is not None else None
+def byte_pair_encoding(vocab, num_merges=100, end_of_word_token='·'):
+    """
+    Paper: Neural Machine Translation of Rare Words with Subword Units
+    https://arxiv.org/pdf/1508.07909.pdf
+    """
 
-        selected = Counter(words).most_common(limit)
-        if min_freq is not None:
-            selected = [(word, freq) for word, freq in selected if freq >= min_freq]
+    # Split all characters of the vocabulary words (and concat the end_of_word_token to the last char)
+    vocab = {tuple(word) + (end_of_word_token,): freq for word, freq in vocab.items()}
 
-        count_unknown = len(words) - sum(counts for word, counts in selected)
-        dictionary = [(padding_token, 0), (unknown_token, count_unknown)] + [(token, 0) for token in special_tokens] + selected
+    for m in range(num_merges):
+        # Count frequency of all "byte" pairs
+        pairs = defaultdict(int)
+        for subwords, freq in vocab.items():
+            if len(subwords) > 1:
+                for first, second in zip(subwords, subwords[1:]):
+                    pairs[(first, second)] += freq
 
-        self.size = len(dictionary)
-        self.counts = np.array([counts for word, counts in dictionary])
-        self.to_idx = {word: idx for idx, (word, counts) in enumerate(dictionary)}
-        self.to_token = {idx: word for word, idx in self.to_idx.items()}
+        if not pairs: break
 
-    def encode(self, sequence):
-        return np.array([self.to_idx[token] if token in self.to_idx else 1 for token in sequence], dtype=int)
+        # Get most frequent pair
+        best = max(pairs, key=pairs.get)
 
-    def encode_batch(self, sequences, seq_length=10):
-        encoded = np.zeros((len(sequences), seq_length), dtype=int)
-        for i, seq in enumerate(sequences):  # not vectorized for readability
-            encoded[i, :len(seq)] = self.encode(seq[:seq_length])
-        return encoded
+        # Merge byte pairs to a single symbol
+        vocab = {merge_pairs(token, best): freq for token, freq in vocab.items()}
+        # print(f'Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {''.join(best)}')
 
-    def decode(self, tokens, trim_after='<PAD>', sep=' '):
-        trim_idx = self.to_idx[trim_after] if trim_after in self.to_idx else -1
-        if trim_idx in tokens:
-            pos = list(tokens).index(trim_idx)
-            tokens = tokens[:pos]
+    return vocab
 
-        return sep.join([self.to_token[idx] for idx in tokens])
 
-    def print_human(self, sequences):
-        for seq in sequences:
-            print(f'{seq} -> ', ' '.join([self.to_token[idx] for idx in seq if idx>0]))
-
-    def __repr__(self):
-        n = min(self.size, 10)
-        tokens = f'\n Top {n} tokens:\n'
-        for i in range(n):
-            tokens += f' {i}: {self.to_token[i]} ({self.counts[i]})\n'
-
-        return f'TextVocabulary(size={self.size})' + tokens

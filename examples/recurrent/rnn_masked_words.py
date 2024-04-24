@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 from models.recurrent_networks import SimpleRNN, LSTM, GRU, EchoStateNetwork, LangModel
-from preprocessing.text import TextVocabulary
+from preprocessing.vocab import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
 from lib.training import batches
@@ -38,7 +38,6 @@ X = torch.tensor(text_encoded[:-cut] if cut > 0 else text_encoded, dtype=torch.i
 
 # Models
 models = {  # todo: compare with similar size of parameters
-    'RNN_1L':    LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=False)),
     'RNN_1L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward', layer_norm=True)),
     'RNN_2L LayerNorm':   LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE, n_layers=2, direction='forward', layer_norm=True)),
     'BiRNN_1L LayerNorm': LangModel(SimpleRNN(vocab.size, HIDDEN_SIZE // 2, n_layers=1, direction='bidirectional', layer_norm=True)),
@@ -101,7 +100,7 @@ for model_name, net in models.items():
         if epoch == 1 or epoch % 10 == 0:
             print('\n# Test 5 sequences --------------------------------------------')
             for i in range(5):
-                input, output, expected = [vocab.decode(v.detach().cpu().numpy()) for v in (x[i], y_hat[i][0].argmax(keepdims=True), y[i])]
+                input, output, expected = [vocab.decode(v.detach().cpu().tolist()) for v in (x[i], y_hat[i][0].argmax(keepdims=True), y[i])]
                 print(f"{'PASS' if expected==output else 'FAIL'} | " + input.replace('<MASK>', f'[{output}]'))
 
             for name, param in net.parameters():
