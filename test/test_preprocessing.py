@@ -1,12 +1,11 @@
 import pytest
 import torch
-import numpy as np
 import pandas as pd
 
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import index_encoder
-from preprocessing.text import clean_text, n_grams, skip_grams
-from preprocessing.vocab import TextVocabulary
+from preprocessing.text import clean_text, n_grams, skip_grams, byte_pair_encoding
+from preprocessing.vocab import TextVocabulary, BytePairVocabulary
 from preprocessing.integer import one_hot, label_smooth
 
 
@@ -86,6 +85,35 @@ def test_text_vocabulary():
     assert torch.all(sequences == torch.tensor([[ 4,  5,  3,  6,  7,  8,  0,  0,  0,  0], [ 3,  9, 10, 11, 12,  3,  2,  2,  2,  2]]))
     assert vocab.to_token == {0: '<PAD>', 1: '<UNK>', 2: 'hot', 3: 'the', 4: 'welcome', 5: 'to', 6: 'ai', 7: 'world', 8: '!', 9: 'wide', 10: 'road', 11: 'shimmered', 12: 'in', 13: 'sun', 14: '.'}
     assert vocab.to_idx == {'<PAD>': 0, '<UNK>': 1, 'hot': 2, 'the': 3, 'welcome': 4, 'to': 5, 'ai': 6, 'world': 7, '!': 8, 'wide': 9, 'road': 10, 'shimmered': 11, 'in': 12, 'sun': 13, '.': 14}
+
+
+def test_byte_pair_encoding():
+    # example from the original paper:
+    words = {'low': 5, 'lower': 2, 'newest': 6, 'widest': 3}
+    expected = {'low·': 5, 'low e r ·': 2, 'newest·': 6, 'wi d est·': 3}
+
+    vocab = byte_pair_encoding(words, num_merges=10, end_of_word_token='·')
+    actual = {' '.join(tokens): freq for tokens, freq in vocab.items()}
+    assert actual == expected
+
+
+def test_BytePairVocabulary():
+    text = ('Firstly, we initialize the symbol vocabulary with the character vocabulary, '
+            'and represent each word as a sequence of characters, plus a special end-of-word symbol, '
+            'which allows us to restore the original tokenization after translation. '
+            'We iteratively count all symbol pairs and replace each occurrence of the most frequent pair (‘A’, ‘B’) with a new symbol ‘AB’. '
+            'Each merge operation produces a new symbol which represents a character n-gram. '
+            'Frequent character n-grams (or whole words) are eventually merged into a single symbol, thus BPE requires no shortlist. '
+            'The final symbol vocabulary size is equal to the size of the initial vocabulary, '
+            'plus the number of merge operations – the latter is the only hyperparameter of the algorithm.'
+            'For efficiency, we do not consider pairs that cross word boundaries. '
+            'The algorithm can thus be run on the dictionary extracted from a text, with each word being weighted by its frequency.')
+
+    vocab = BytePairVocabulary([text.split()], num_merges=100, end_of_word_token='<EOW>')
+    assert vocab.decode(vocab.encode(text)) == text
+    assert vocab.decode(vocab.encode('Firstly')) == 'Firstly'
+    assert vocab.decode(vocab.encode('unseen words')) == 'unseen words'
+    assert vocab.decode(vocab.encode('unknown token Ю')) == f'unknown token {vocab.unknown_token}'
 
 
 def test_label_smoothing():

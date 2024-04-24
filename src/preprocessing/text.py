@@ -1,5 +1,6 @@
 import re
 from itertools import combinations
+from collections import defaultdict
 import contractions
 
 
@@ -35,5 +36,40 @@ def skip_grams(sequence, half_window=2, n=2, padding_token=0):
                 full_context.append(neighbors)
 
     return grams, full_context
+
+
+def merge_pairs(token, pair):
+    a, b = pair
+    token = ' '.join(token).replace(a + ' ' + b, a + b)
+    return tuple(token.split())
+
+
+def byte_pair_encoding(vocab, num_merges=100, end_of_word_token='·'):
+    """
+    Paper: Neural Machine Translation of Rare Words with Subword Units
+    https://arxiv.org/pdf/1508.07909.pdf
+    """
+
+    # Split all characters of the vocabulary words (and concat the end_of_word_token to the last char)
+    vocab = {tuple(word) + (end_of_word_token,): freq for word, freq in vocab.items()}
+
+    for m in range(num_merges):
+        # Count frequency of all "byte" pairs
+        pairs = defaultdict(int)
+        for subwords, freq in vocab.items():
+            if len(subwords) > 1:
+                for first, second in zip(subwords, subwords[1:]):
+                    pairs[(first, second)] += freq
+
+        if not pairs: break
+
+        # Get most frequent pair
+        best = max(pairs, key=pairs.get)
+
+        # Merge byte pairs to a single symbol
+        vocab = {merge_pairs(token, best): freq for token, freq in vocab.items()}
+        # print(f'Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {''.join(best)}')
+
+    return vocab
 
 
