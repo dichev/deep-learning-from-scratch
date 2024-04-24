@@ -1,6 +1,6 @@
 import re
+import torch
 from itertools import combinations
-import numpy as np  # todo switch to torch
 from collections import Counter
 import contractions
 
@@ -56,28 +56,29 @@ class TextVocabulary:
         dictionary = [(padding_token, 0), (unknown_token, count_unknown)] + [(token, 0) for token in special_tokens] + selected
 
         self.size = len(dictionary)
-        self.counts = np.array([counts for word, counts in dictionary])
+        self.counts = [counts for word, counts in dictionary]
         self.to_idx = {word: idx for idx, (word, counts) in enumerate(dictionary)}
         self.to_token = {idx: word for word, idx in self.to_idx.items()}
 
-    def encode(self, sequence):
-        return np.array([self.to_idx[token] if token in self.to_idx else 1 for token in sequence], dtype=int)
+    def encode(self, sequence: list) -> list:
+        return [self.to_idx[token] if token in self.to_idx else 1 for token in sequence]
 
-    def encode_batch(self, sequences, seq_length=10):
-        encoded = np.zeros((len(sequences), seq_length), dtype=int)
+    def encode_batch(self, sequences: list[list[str]], seq_length=10):
+        encoded = torch.zeros(len(sequences), seq_length, dtype=torch.long)
         for i, seq in enumerate(sequences):  # not vectorized for readability
-            encoded[i, :len(seq)] = self.encode(seq[:seq_length])
+            encoded[i, :len(seq)] = torch.tensor(self.encode(seq[:seq_length]))
         return encoded
 
-    def decode(self, tokens, trim_after='<PAD>', sep=' '):
+    def decode(self, tokens: list, trim_after='<PAD>', sep=' ') -> str:
         trim_idx = self.to_idx[trim_after] if trim_after in self.to_idx else -1
         if trim_idx in tokens:
-            pos = list(tokens).index(trim_idx)
+            pos = tokens.index(trim_idx)
             tokens = tokens[:pos]
 
         return sep.join([self.to_token[idx] for idx in tokens])
 
     def print_human(self, sequences):
+        sequences = sequences.tolist() if isinstance(sequences, torch.Tensor) else sequences
         for seq in sequences:
             print(f'{seq} -> ', ' '.join([self.to_token[idx] for idx in seq if idx>0]))
 

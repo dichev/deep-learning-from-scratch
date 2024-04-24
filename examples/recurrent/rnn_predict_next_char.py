@@ -30,9 +30,9 @@ print('Data preprocessing..')
 text = open('./data/deep.txt', 'r', encoding="utf-8").read()  # todo: cleanup the text
 vocab = TextVocabulary(list(text))
 print(vocab)
-text_encoded = vocab.encode(text)
+text_encoded = vocab.encode(list(text))
 cut = len(text_encoded) % TIME_STEPS  # clip data to match the batch_size
-X = torch.tensor(text_encoded[:-cut], dtype=torch.int64).reshape(-1, TIME_STEPS)
+X = torch.tensor(text_encoded[:-cut], dtype=torch.long).reshape(-1, TIME_STEPS)
 
 
 # Model
