@@ -3,7 +3,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from tqdm import trange, tqdm as progress
 
-from preprocessing.text import clean_text, TextVocabulary
+from preprocessing.text import clean_text
+from preprocessing.vocab import TextVocabulary
 import preprocessing.text as text
 from utils.rng import sample_from
 from lib.functions.losses import cross_entropy

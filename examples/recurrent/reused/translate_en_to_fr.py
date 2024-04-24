@@ -10,8 +10,8 @@ from lib.functions.losses import cross_entropy
 from lib.functions.metrics import BLEU, accuracy
 from lib.regularizers import grad_clip_norm_
 from lib.training import batches
-from preprocessing.text import clean_text, TextVocabulary
-
+from preprocessing.text import clean_text
+from preprocessing.vocab import TextVocabulary
 
 # hyperparams
 IN_SEQ_LEN = 15

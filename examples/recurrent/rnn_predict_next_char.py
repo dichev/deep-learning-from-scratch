@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 
 from models.recurrent_networks import SimpleRNN, LSTM, GRU, LangModel
-from preprocessing.text import TextVocabulary
+from preprocessing.vocab import TextVocabulary
 from lib.functions.losses import cross_entropy
 from lib.optimizers import Adam
 from lib.regularizers import L2_regularizer, grad_clip_norm_

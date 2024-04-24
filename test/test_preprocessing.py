@@ -5,7 +5,8 @@ import pandas as pd
 
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import index_encoder
-from preprocessing.text import clean_text, n_grams, skip_grams, TextVocabulary
+from preprocessing.text import clean_text, n_grams, skip_grams
+from preprocessing.vocab import TextVocabulary
 from preprocessing.integer import one_hot, label_smooth
 
 
