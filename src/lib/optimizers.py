@@ -56,7 +56,7 @@ class SGD_Momentum(Optimizer):
         for name, param in self._parameters:
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
-            self.exp_avg[name] = beta * self.exp_avg[name] + (1 - beta) * param.grad
+            self.exp_avg[name] = beta * self.exp_avg[name] + param.grad
             param -= self.lr * self.exp_avg[name]
 
         return self
@@ -68,9 +68,9 @@ class AdaGrad(Optimizer):
     - Diminishing learning rates - the sum of squares of past derivatives increases.
     """
 
-    def __init__(self, parameters, lr):
+    def __init__(self, parameters, lr, eps=1e-8):
         super().__init__(parameters, lr)
-        self.eps = 1e-8
+        self.eps = eps
         self.grad_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
@@ -79,7 +79,7 @@ class AdaGrad(Optimizer):
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
             self.grad_sq[name] += param.grad ** 2
-            adjusted_lr = self.lr / (self.grad_sq[name] + self.eps).sqrt()
+            adjusted_lr = self.lr / (self.grad_sq[name].sqrt() + self.eps)
             param -= adjusted_lr * param.grad
 
         return self
@@ -91,10 +91,10 @@ class RMSProp(Optimizer):
     + No diminishing learning rates - because the exponential moving average
     - Initial bias - The initial running estimate is zero, causing a bias in the early iterations.
     """
-    def __init__(self, parameters, lr):
+    def __init__(self, parameters, lr, decay=0.9, eps=1e-8):
         super().__init__(parameters, lr)
-        self.eps = 1e-8
-        self.decay = 0.9
+        self.eps = eps
+        self.decay = decay
         self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
@@ -104,7 +104,7 @@ class RMSProp(Optimizer):
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
             self.exp_avg_sq[name] = beta * self.exp_avg_sq[name] + (1 - beta) * (param.grad ** 2)
-            adjusted_lr = self.lr / (self.exp_avg_sq[name] + self.eps).sqrt()
+            adjusted_lr = self.lr / (self.exp_avg_sq[name].sqrt() + self.eps)
             param -= adjusted_lr * param.grad
 
         return self
@@ -116,12 +116,12 @@ class AdaDelta(Optimizer):
     + No diminishing learning rates - because the exponential moving average
     + No learning rate parameter
     """
-    def __init__(self, parameters, lr=None):
+    def __init__(self, parameters, lr=None, decay=0.99, eps=1e-8):
         super().__init__(parameters, lr)
-        self.eps = 1e-8
-        self.decay = 0.99
+        self.eps = eps
+        self.decay = decay
         self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}
-        self.exp_avg_sq_delta = {name: torch.ones_like(param) for name, param in self._parameters}
+        self.exp_avg_sq_delta = {name: torch.zeros_like(param) for name, param in self._parameters}
 
     @torch.no_grad()
     def step(self):
@@ -130,7 +130,7 @@ class AdaDelta(Optimizer):
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
             self.exp_avg_sq[name] = beta*self.exp_avg_sq[name] + (1-beta)*(param.grad**2)
-            adjusted_lr = torch.sqrt(self.exp_avg_sq_delta[name] / (self.exp_avg_sq[name] + self.eps))
+            adjusted_lr = torch.sqrt((self.exp_avg_sq_delta[name] + self.eps) / (self.exp_avg_sq[name] + self.eps))
             param_delta = adjusted_lr * param.grad
             self.exp_avg_sq_delta[name] = beta * self.exp_avg_sq_delta[name] + (1 - beta) * (param_delta ** 2)
             param -= param_delta
@@ -144,11 +144,11 @@ class Adam(Optimizer):
     + Initial bias correction
     + Reduces zigzagging (momentum) - by averaging previous gradients
     """
-    def __init__(self, parameters, lr):
+    def __init__(self, parameters, lr, eps=1e-8, momentum=0.9, decay=0.999):
         super().__init__(parameters, lr)
-        self.eps = 1e-8
-        self.momentum = 0.9
-        self.decay = 0.999
+        self.eps = eps
+        self.momentum = momentum
+        self.decay = decay
         self.exp_avg = {name: torch.zeros_like(param) for name, param in self._parameters}     # i.e. first moment
         self.exp_avg_sq = {name: torch.zeros_like(param) for name, param in self._parameters}  # i.e. second moment
         self.steps = 0
@@ -165,15 +165,14 @@ class Adam(Optimizer):
         for name, param in self._parameters:
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
-            self.exp_avg[name] = beta1 * self.exp_avg[name] + (1 - beta1) * self.lr * param.grad
+            self.exp_avg[name] = beta1 * self.exp_avg[name] + (1 - beta1) * param.grad
             self.exp_avg_sq[name] = beta2 * self.exp_avg_sq[name] + (1 - beta2) * (param.grad**2)
 
             # bias_corrections
             exp_avg_corrected = self.exp_avg[name] / bias_correction1
             exp_avg_sq_corrected = self.exp_avg_sq[name] / bias_correction2
 
-            adjusted_lr = self.lr / (exp_avg_sq_corrected + self.eps).sqrt()
-            param -= adjusted_lr * exp_avg_corrected
+            param -= self.lr * exp_avg_corrected / (exp_avg_sq_corrected.sqrt() + self.eps)
 
         return self
 
