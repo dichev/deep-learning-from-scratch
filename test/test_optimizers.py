@@ -12,12 +12,13 @@ def train_loop(optim, param, prefix='', steps=10):
         yield param
 
 
-def test_SGD():
+@pytest.mark.parametrize('weight_decay',  [0, 0.8])
+def test_SGD(weight_decay):
     paramA = torch.tensor([5.0, 0.0001, -4.2, 0], requires_grad=True)
     paramB = torch.tensor([5.0, 0.0001, -4.2, 0], requires_grad=True)
 
-    optimizerA = torch.optim.SGD([paramA], lr=.1)
-    optimizerB = optimizers.SGD([('param1', paramB)], lr=.1)
+    optimizerA = torch.optim.SGD([paramA], lr=.1, weight_decay=weight_decay)
+    optimizerB = optimizers.SGD([('param1', paramB)], lr=.1, weight_decay=weight_decay)
 
     for A, B in zip(train_loop(optimizerA, paramA, '(expect) '), train_loop(optimizerB, paramB, '(actual) ')):
         assert torch.allclose(A, B)
@@ -90,6 +91,20 @@ def test_Adam(decay, momentum):
 
     optimizerA = torch.optim.Adam([paramA], lr=.1, eps=1e-8, betas=(momentum, decay))
     optimizerB = optimizers.Adam([('param1', paramB)], lr=.1, eps=1e-8, momentum=momentum, decay=decay)
+
+    for A, B in zip(train_loop(optimizerA, paramA, '(expect) '), train_loop(optimizerB, paramB, '(actual) ')):
+        assert torch.allclose(A, B)
+
+
+@pytest.mark.parametrize('decay',  [0, 0.99])
+@pytest.mark.parametrize('momentum',  [0, 0.9])
+@pytest.mark.parametrize('weight_decay',  [0, 0.1])
+def test_AdamW(decay, momentum, weight_decay):
+    paramA = torch.tensor([5.0, 0.0001, -4.2, 0], requires_grad=True)
+    paramB = torch.tensor([5.0, 0.0001, -4.2, 0], requires_grad=True)
+
+    optimizerA = torch.optim.AdamW([paramA], lr=.1, weight_decay=weight_decay, eps=1e-8, betas=(momentum, decay))
+    optimizerB = optimizers.AdamW([('param1', paramB)], lr=.1, weight_decay=weight_decay, eps=1e-8, momentum=momentum, decay=decay)
 
     for A, B in zip(train_loop(optimizerA, paramA, '(expect) '), train_loop(optimizerB, paramB, '(actual) ')):
         assert torch.allclose(A, B)

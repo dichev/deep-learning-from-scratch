@@ -26,7 +26,8 @@ class Optimizer:
 
 class SGD(Optimizer):
 
-    def __init__(self, parameters, lr):
+    def __init__(self, parameters, lr, weight_decay=0.):
+        self.weight_decay = weight_decay
         super().__init__(parameters, lr)
 
     @torch.no_grad()
@@ -34,7 +35,8 @@ class SGD(Optimizer):
         for name, param in self._parameters:
             if param.grad is None:
                 raise RuntimeError(f"Parameter {name} has no gradient")
-            param += -self.lr * param.grad
+            param -= self.lr * self.weight_decay * param
+            param -= self.lr * param.grad
 
         return self
 
@@ -174,6 +176,29 @@ class Adam(Optimizer):
 
             param -= self.lr * exp_avg_corrected / (exp_avg_sq_corrected.sqrt() + self.eps)
 
+        return self
+
+
+class AdamW(Adam):
+    """
+    + Adapts learning rate for each parameter - by scaling with the exponential moving average of past derivatives.
+    + No diminishing learning rates - because the exponential moving average
+    + Initial bias correction
+    + Reduces zigzagging (momentum) - by averaging previous gradients
+    + Decoupled (from the loss optimization) weight decay (that's better than Adams' L2 regularization, where the decay affects the adaptive learning rates) (see https://arxiv.org/abs/1706.03762)
+    """
+    def __init__(self, parameters, lr, weight_decay=0, eps=1e-8, momentum=0.9, decay=0.999):
+        super().__init__(parameters, lr, eps, momentum, decay)
+        self.weight_decay = weight_decay
+
+    @torch.no_grad()
+    def step(self):
+        # First decay parameters independently (same as regularization)
+        for name, param in self._parameters:
+            param -= self.lr * self.weight_decay * param
+
+        # Then update parameters with the adapted learning rates
+        super().step()
         return self
 
 
