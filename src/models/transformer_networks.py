@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, Sequential, ModuleList, PositionalEncoding
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 from math import sqrt
@@ -12,12 +12,13 @@ Context = namedtuple('Context', ['memory', 'memory_pad_mask', 'cached_targets'])
 
 class TransformerEncoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
         self.norm2 = LayerNorm(input_size)
         self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.ff = Sequential(  # Position-wise (per token)
-            Linear(input_size, hidden_size), ReLU(),
+            Linear(input_size, hidden_size),
+            GELU() if gelu_activation else ReLU(),
             Linear(hidden_size, input_size),
             Dropout(dropout)
         )
@@ -45,11 +46,11 @@ class TransformerEncoderLayer(Module):
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, scale_up_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, gelu_activation=True, scale_up_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
-            TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first) for _ in range(n_layers)
+            TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first, gelu_activation) for _ in range(n_layers)
         ])
         if norm_first:
             self.final_norm = LayerNorm(embed_size)
@@ -82,7 +83,7 @@ class TransformerEncoder(Module):
 
 class TransformerDecoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
         self.norm2 = LayerNorm(input_size)
         self.norm3 = LayerNorm(input_size)
@@ -90,7 +91,8 @@ class TransformerDecoderLayer(Module):
         self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.cross_attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
         self.ff = Sequential(  # Position-wise (per token)
-            Linear(input_size, hidden_size), ReLU(),
+            Linear(input_size, hidden_size),
+            GELU() if gelu_activation else ReLU(),
             Linear(hidden_size, input_size),
             Dropout(dropout)
         )
@@ -128,11 +130,11 @@ class TransformerDecoderLayer(Module):
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False, scale_up_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False, gelu_activation=True, scale_up_embeddings=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
-            TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first) for _ in range(n_layers)
+            TransformerDecoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first, gelu_activation) for _ in range(n_layers)
         ])
         if norm_first:
             self.final_norm = LayerNorm(embed_size)
