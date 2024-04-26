@@ -1,4 +1,5 @@
 import torch
+from math import sqrt
 
 def sign(x):
     return torch.where(x >= 0, 1, -1)
@@ -15,6 +16,11 @@ def tanh(x):
 
 def relu(x):
     return torch.clip(x, 0)
+
+def gelu(x):  # x * F(x), where F is the cumulative normal distribution
+    return x * 0.5 * (1 + torch.erf(x / sqrt(2)))
+
+
 
 def softmax(z, dim=-1, ignore_mask=None):
     if ignore_mask is not None:

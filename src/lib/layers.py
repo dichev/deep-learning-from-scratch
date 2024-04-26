@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from math import sqrt
 from matplotlib import pyplot as plt
 from lib.functions import init
-from lib.functions.activations import relu, tanh, sigmoid, softmax
+from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
@@ -764,9 +764,20 @@ class DiffPool(Module):
 
         return X, A_new, (loss_link, loss_entropy)
 
+
 class ReLU(Module):
     def forward(self, x):
         return relu(x)
+
+
+class GELU(Module):
+    """
+    Paper: Gaussian Error Linear Units (GELUs)
+    https://arxiv.org/pdf/1606.08415v5
+    """
+    def forward(self, x):
+        return gelu(x)
+
 
 class Flatten(Module):
     def __init__(self, start_dim=1):
