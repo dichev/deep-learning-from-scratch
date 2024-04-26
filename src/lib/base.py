@@ -24,9 +24,13 @@ class Param(torch.Tensor):
 
 
 class Module:
+
     @abstractmethod
     def forward(self, *args, **kwargs):
         pass
+
+    def __call__(self, *args, **kwargs):
+        return self.forward(*args, **kwargs)
 
     def parameters(self, named=True, prefix='', deep=True):
         for key, val in vars(self).items():
