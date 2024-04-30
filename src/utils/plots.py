@@ -111,7 +111,7 @@ def graphs_grid(graphs, labels_mask, cols=4, figsize=(16, 16), title=''):
 def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Attention'):
     assert attn_weights.ndim == 4, f'Expected attention weights to be a tensor of shape (n_layers, n_heads, tgt_len, src_len), but got {attn_weights.shape}'
     L, H, T_, T = attn_weights.shape
-    fig = plt.figure(figsize=(H*4+2, L*4))
+    fig = plt.figure(figsize=(min(H*4+2, 16), min(L*4, 12)))
     for layer in range(L):
         for head in range(H):
             ax = fig.add_subplot(L, H, layer * H + head + 1)
@@ -125,6 +125,8 @@ def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Att
             if key_labels:
                 ax.set_xticks(range(len(key_labels)))
                 ax.set_xticklabels(key_labels, rotation=90)
+            if not query_labels and not key_labels:
+                ax.axis(False)
             fig.text(0.02, 0.98, 'Keys ⟶', va='top', ha='left', fontsize=10)
             fig.text(0.01, 0.97, '⟵ Queries ', va='top', ha='left', fontsize=10, rotation=90)
 

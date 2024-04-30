@@ -1,5 +1,6 @@
 import torch
 from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
+from lib.functions.activations import softmax
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 from math import sqrt
@@ -216,11 +217,120 @@ class Transformer(Seq2Seq):
         super().__init__(encoder, decoder, sos_token, eos_token)
 
 
-    def visualize_attn_weights(self, src_labels, tgt_labels, subtitle=''):
+    def visualize_attn_weights(self, src_labels, tgt_labels, subtitle='', batch_idx=0):
         encoder_attn = self.encoder.get_last_attn_weights()
         decoder_self_attn, decoder_cross_attn = self.decoder.get_last_attn_weights()
-        plots.attention_heads(encoder_attn[0].detach().cpu(), src_labels, src_labels, title=f'Encoder Self-Attention {subtitle}')
-        plots.attention_heads(decoder_self_attn[0].detach().cpu(), tgt_labels, tgt_labels, title=f'Decoder Self-Attention {subtitle}')
-        plots.attention_heads(decoder_cross_attn[0].detach().cpu(), tgt_labels, src_labels, title=f'Decoder Cross-Attention {subtitle}')
+        plots.attention_heads(encoder_attn[batch_idx].detach().cpu(), src_labels, src_labels, title=f'Encoder Self-Attention {subtitle}')
+        plots.attention_heads(decoder_self_attn[batch_idx].detach().cpu(), tgt_labels, tgt_labels, title=f'Decoder Self-Attention {subtitle}')
+        plots.attention_heads(decoder_cross_attn[batch_idx].detach().cpu(), tgt_labels, src_labels, title=f'Decoder Cross-Attention {subtitle}')
 
 
+
+class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-attention
+
+    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0.):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+        self.norm1 = LayerNorm(input_size)
+        self.attn = MultiHeadAttention(input_size, attn_heads, scaled=True, dropout=dropout)
+        self.norm2 = LayerNorm(input_size)
+        self.ff = Sequential(  # Position-wise (per token)
+            Linear(input_size, hidden_size),
+            GELU(),
+            Linear(hidden_size, input_size),
+            Dropout(dropout)
+        )
+        self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
+        self.attn_weights = None        # keep record of the last attention weights for visualization
+        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
+
+    def forward(self, x, pad_mask=None):
+        x = x + self._self_attention(self.norm1(x), pad_mask)  # apply normalization also to the cached targets during autoregressive inference
+        x = x + self.ff(self.norm2(x))
+        return x
+
+    def _self_attention(self, x, pad_mask=None):
+        B, T, E = x.shape
+
+        # Attention mask
+        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        if pad_mask is not None:                           # restrict attention to padded targets
+            attn_mask = attn_mask | pad_mask.view(B, 1, T)
+
+        v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
+        return v
+
+
+class GPT2(Module):
+    """
+    Paper: Language Models are Unsupervised Multitask Learners
+    https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
+    """
+
+    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1, padding_idx=0):
+        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+        self.pos_emb = Embedding(context_size, embed_size)
+        self.dropout = Dropout(dropout)
+        self.transformers = ModuleList(
+            GPT2_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
+        )
+        self.final_norm = LayerNorm(embed_size)
+
+        self.n_layers = n_layers
+        self.padding_idx = padding_idx
+        self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
+        self.reset_parameters()  # Custom parameter initializations
+
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        # GPT-1: "Since layer norm is used extensively throughout the model, a simple weight initialization of N (0, 0.02) was sufficient."
+        self.emb.weight.data.normal_(std=0.02)
+        self.pos_emb.weight.data.normal_(std=0.01)
+        [layer_norm.reset_parameters() for name, layer_norm in self.modules() if isinstance(layer_norm, LayerNorm)]
+        # GPT-2: "We scale the weights of residual layers at initialization by a factor of 1/√N where N is the number of residual layers"
+        for name, param in self.transformers.parameters():
+            if 'weight' in name: param.data.normal_(std=0.02 / sqrt(2 * self.n_layers))  # check: just the projections, or also the ff
+            elif 'bias' in name: param.data.zero_()
+
+    def forward(self, x):
+        B, T = x.shape
+        assert T <= self.context_size, f'the input sequence {T} exceeds the context size {self.context_size}'
+        positions = torch.arange(T, device=x.device)
+        pad_mask = (x == self.padding_idx)
+
+        # Decode each token
+        x = self.emb(x) + self.pos_emb(positions)  # (B, T, emb) + (T, emb) -> (B, T, emb)
+        x = self.dropout(x)
+        for i, layer in enumerate(self.transformers):
+            x = layer(x, pad_mask)
+        x = self.final_norm(x)
+
+        # Output token logits
+        z = self.emb.backward(x)  # reuse the embedding matrix weights during pretraining
+        return z
+
+    def get_last_attn_weights(self):
+        return torch.stack([layer.attn_weights for layer in self.transformers], dim=1)   # (b, n_layers, n_heads, t, t)
+
+    def visualize_attn_weights(self, batch_idx=0):
+        attn_weights = self.get_last_attn_weights().detach().cpu()
+        plots.attention_heads(attn_weights[batch_idx], title=f'Last Self-Attention on {batch_idx=}')
+
+    @torch.no_grad()
+    def generate(self, x, max_tokens=10):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+        for i in range(max_tokens):
+            x = x[:, -self.context_size:]              # limit the input to not exceed the context size (because the fixed size of positional emb)
+            z = self.forward(x)                        # (B, T, E)
+            p = softmax(z[:, -1, :], dim=-1)           # just the last token
+            y = torch.multinomial(p, num_samples=1)    # (B, 1)
+            x = torch.cat((x, y), dim=1)       # (B, T+1)
+            yield y
+
+
+vocab_size = 50_257
+T = 8
+gpt = GPT2(vocab_size)
+gpt.summary()
+x = torch.randint(0, vocab_size-1, (10, T))
+z = gpt.forward(x)
+y = z.argmax(dim=-1)
+gpt.visualize_attn_weights()
