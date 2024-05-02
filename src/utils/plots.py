@@ -1,4 +1,5 @@
 import torch
+from torchvision.utils import make_grid
 from matplotlib import pyplot as plt
 import networkx as nx
 import numpy as np
@@ -133,3 +134,22 @@ def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Att
     plt.suptitle(title, fontsize=20, fontweight='bold')
     plt.tight_layout()
     plt.show()
+
+
+def attention_heads_fast(attn_weights, title='Attention'):
+    assert attn_weights.ndim == 4, f'Expected attention weights to be a tensor of shape (n_layers, n_heads, tgt_len, src_len), but got {attn_weights.shape}'
+    n_layers, n_heads, T_, T = attn_weights.shape
+    img_grid = make_grid(attn_weights.view(-1, 1, T_, T), padding=0, pad_value=1, nrow=n_layers).permute(1, 2, 0)
+
+    fig, ax = plt.subplots(figsize=(min(n_heads*4+2, 16), min(n_layers*4, 12)))
+    ax.matshow(img_grid, vmin=0, vmax=1)
+    ax.set_yticks(np.arange(n_layers)*T + T//2, labels=[f'Layer {i}' for i in range(n_layers)])
+    ax.set_xticks(np.arange(n_heads)*T_ + T_//2, labels=[f'Head {i}' for i in range(n_heads)])
+
+    fig.text(0.02, 0.98, 'Keys ⟶', va='top', ha='left', fontsize=10)
+    fig.text(0.01, 0.97, '⟵ Queries ', va='top', ha='left', fontsize=10, rotation=90)
+
+    plt.suptitle(title, fontsize=20, fontweight='bold')
+    plt.tight_layout()
+    plt.show()
+

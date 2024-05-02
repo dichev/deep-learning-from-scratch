@@ -311,9 +311,9 @@ class GPT2(Module):
     def get_last_attn_weights(self):
         return torch.stack([layer.attn_weights for layer in self.transformers], dim=1)   # (b, n_layers, n_heads, t, t)
 
-    def visualize_attn_weights(self, batch_idx=0):
+    def visualize_attn_weights(self, batch_idx=0, subtitle=''):
         attn_weights = self.get_last_attn_weights().detach().cpu()
-        plots.attention_heads(attn_weights[batch_idx], title=f'Last Self-Attention on {batch_idx=}')
+        plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
 
     @torch.no_grad()
     def generate(self, x, max_tokens=10):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
@@ -327,10 +327,10 @@ class GPT2(Module):
 
 
 vocab_size = 50_257
-T = 8
+B, T = 1, 8
 gpt = GPT2(vocab_size)
 gpt.summary()
-x = torch.randint(0, vocab_size-1, (10, T))
+x = torch.randint(0, vocab_size-1, (B, T))
 z = gpt.forward(x)
 y = z.argmax(dim=-1)
 gpt.visualize_attn_weights()
