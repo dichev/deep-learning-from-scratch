@@ -59,7 +59,7 @@ class TextVocabulary(Vocab):
         vocab = [(self.padding_token, 0), (self.unknown_token, count_unknown)] + [(token, 0) for token in self.special_tokens] + selected
         return vocab
 
-    def encode(self, sequence: list) -> list:
+    def encode(self, sequence: list|str) -> list:
         return [self.to_idx[token] if token in self.to_idx else 1 for token in sequence]
 
     def encode_batch(self, sequences: list[list[str]], seq_length=10):

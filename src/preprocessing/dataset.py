@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import Dataset
 
 
 def data_split(X, y, sizes: list | tuple, shuffle=True, seed=None):
@@ -31,3 +32,21 @@ def data_split(X, y, sizes: list | tuple, shuffle=True, seed=None):
         start += end
 
     return sets
+
+
+class RandomTextDataset(Dataset):
+
+    def __init__(self, data, seq_len):
+        self.data = data
+        self.seq_len = seq_len
+        self.data_size = len(data) - seq_len
+        self.total_seq = self.data_size // seq_len + 1
+
+    def __len__(self):
+        return self.total_seq
+
+    def __getitem__(self, idx):
+        i = torch.randint(self.data_size, size=(1,))
+        x = self.data[i:i+self.seq_len]
+        y = self.data[i+1:i+self.seq_len+1]
+        return x, y

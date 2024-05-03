@@ -325,12 +325,3 @@ class GPT2(Module):
             x = torch.cat((x, y), dim=1)       # (B, T+1)
             yield y
 
-
-vocab_size = 50_257
-B, T = 1, 8
-gpt = GPT2(vocab_size)
-gpt.summary()
-x = torch.randint(0, vocab_size-1, (B, T))
-z = gpt.forward(x)
-y = z.argmax(dim=-1)
-gpt.visualize_attn_weights()
