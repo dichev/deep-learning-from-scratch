@@ -181,6 +181,9 @@ class Adam(Optimizer):
 
 class AdamW(Adam):
     """
+    Paper: Decoupled Weight Decay Regularization
+    https://arxiv.org/pdf/1711.05101
+
     + Adapts learning rate for each parameter - by scaling with the exponential moving average of past derivatives.
     + No diminishing learning rates - because the exponential moving average
     + Initial bias correction
