@@ -5,7 +5,7 @@ import pandas as pd
 from preprocessing.floats import normalizeMinMax
 from preprocessing.integer import index_encoder
 from preprocessing.text import clean_text, n_grams, skip_grams, byte_pair_encoding
-from preprocessing.vocab import TextVocabulary, BytePairVocabulary
+from preprocessing.vocab import TextVocabulary, BPETokenizer
 from preprocessing.integer import one_hot, label_smooth
 
 
@@ -97,7 +97,7 @@ def test_byte_pair_encoding():
     assert actual == expected
 
 
-def test_BytePairVocabulary():
+def test_BPETokenizer():
     text = ('Firstly, we initialize the symbol vocabulary with the character vocabulary, '
             'and represent each word as a sequence of characters, plus a special end-of-word symbol, '
             'which allows us to restore the original tokenization after translation. '
@@ -109,11 +109,11 @@ def test_BytePairVocabulary():
             'For efficiency, we do not consider pairs that cross word boundaries. '
             'The algorithm can thus be run on the dictionary extracted from a text, with each word being weighted by its frequency.')
 
-    vocab = BytePairVocabulary([text.split()], num_merges=100, end_of_word_token='<EOW>')
-    assert vocab.decode(vocab.encode(text)) == text
-    assert vocab.decode(vocab.encode('Firstly')) == 'Firstly'
-    assert vocab.decode(vocab.encode('unseen words')) == 'unseen words'
-    assert vocab.decode(vocab.encode('unknown token Ю')) == f'unknown token {vocab.unknown_token}'
+    tokenizer = BPETokenizer()
+    tokenizer.train(text, num_merges=20)
+    assert tokenizer.decode(tokenizer.encode(text)) == text
+    assert tokenizer.decode(tokenizer.encode('unseen words: Здравейте 🤚')) == 'unseen words: Здравейте 🤚'
+    assert len(tokenizer.vocab) == 256 + 20
 
 
 def test_label_smoothing():
