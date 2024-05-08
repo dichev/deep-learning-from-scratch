@@ -11,7 +11,7 @@ from lib.training import batches
 
 
 DEVICE = 'cuda'
-DATA_DIR = './data/BW_images/'
+DATA_DIR = './data/images/'
 EPOCHS = 200
 BATCH_SIZE = 6
 LEARN_RATE = 0.1

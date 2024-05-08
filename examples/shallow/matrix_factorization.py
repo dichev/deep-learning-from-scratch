@@ -6,7 +6,8 @@ from matplotlib import pyplot as plt
 from lib.autoencoders import MatrixFactorization
 from preprocessing.integer import index_encoder
 from scipy import sparse
-# todo one-hot + linear = indices +embedding
+from torchvision.datasets.utils import download_and_extract_archive
+
 # Hyperparams & settings
 LEARN_RATE = 0.5
 EPOCHS = 50
@@ -17,8 +18,9 @@ DEVICE = 'cuda'
 
 # Data preprocessing
 print('Data preprocessing..')
-df_meta = pd.read_csv('./data/anime-metadata.csv')
-df = pd.read_csv('./data/anime-users-ratings-filtered.csv')
+download_and_extract_archive('https://drive.google.com/file/d/1k26DwQUtrtjvU2uaaWn4jvOZHKfMoeB_', './data/anime', filename='anime-ratings-dataset.zip')
+df_meta = pd.read_csv('./data/anime/anime-metadata.csv')
+df = pd.read_csv('./data/anime/anime-users-ratings-filtered.csv')
 df['user_idx'], user_to_idx, idx_to_user = index_encoder(df['user_id'])
 df['anime_idx'], anime_to_idx, idx_to_anime = index_encoder(df['anime_id'])
 N = df.shape[0]

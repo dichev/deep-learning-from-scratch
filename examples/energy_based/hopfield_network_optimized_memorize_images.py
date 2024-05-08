@@ -6,7 +6,7 @@ from models.energy_based_models import HopfieldNetwork, HopfieldNetworkOptimized
 import os
 
 DEVICE = 'cuda'
-DATA_DIR = './data/BW_images/'
+DATA_DIR = './data/images/'
 
 # Prepare images (data)
 files = [DATA_DIR+f for f in os.listdir(DATA_DIR) if f.endswith('.png')]

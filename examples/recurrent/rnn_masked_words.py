@@ -28,7 +28,7 @@ HIDDEN_SIZE = 128
 
 # Prepare text data
 print('Data preprocessing..')
-text = open('./data/deep-short.txt', 'r', encoding="utf-8").read()  # todo: cleanup the text
+text = open('./data/deep.txt', 'r', encoding="utf-8").read()[:32_000]  # todo: cleanup the text
 text = text.split()
 vocab = TextVocabulary([text], MAX_VOCAB_SIZE, special_tokens=('<MASK>',))
 print(vocab)
