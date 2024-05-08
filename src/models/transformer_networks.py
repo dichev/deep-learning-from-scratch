@@ -242,19 +242,16 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
         self.attn_weights = None        # keep record of the last attention weights for visualization
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
-    def forward(self, x, pad_mask=None):
-        x = x + self._self_attention(self.norm1(x), pad_mask)  # apply normalization also to the cached targets during autoregressive inference
+    def forward(self, x):
+        x = x + self._self_attention(self.norm1(x))  # apply normalization also to the cached targets during autoregressive inference
         x = x + self.ff(self.norm2(x))
         return x
 
-    def _self_attention(self, x, pad_mask=None):
+    def _self_attention(self, x):
         B, T, E = x.shape
 
         # Attention mask
         attn_mask = self.causal_mask[:T, :T].expand(B, T, T).to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        if pad_mask is not None:                                           # restrict attention to padded targets
-            attn_mask = attn_mask | pad_mask.view(B, 1, T)
-
         v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
         return v
 
@@ -265,8 +262,8 @@ class GPT2(Module):
     https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
     """
 
-    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1, padding_idx=None):
-        self.emb = Embedding(vocab_size, embed_size, padding_idx)
+    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1):
+        self.emb = Embedding(vocab_size, embed_size)
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
         self.transformers = ModuleList(
@@ -275,7 +272,6 @@ class GPT2(Module):
         self.final_norm = LayerNorm(embed_size)
 
         self.n_layers = n_layers
-        self.padding_idx = padding_idx
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
         self.reset_parameters()  # Custom parameter initializations
 
@@ -295,13 +291,12 @@ class GPT2(Module):
         B, T = x.shape
         assert T <= self.context_size, f'the input sequence {T} exceeds the context size {self.context_size}'
         positions = torch.arange(T, device=x.device)
-        pad_mask = (x == self.padding_idx) if self.padding_idx is not None else None
 
         # Decode each token
         x = self.emb(x) + self.pos_emb(positions)  # (B, T, emb) + (T, emb) -> (B, T, emb)
         x = self.dropout(x)
         for i, layer in enumerate(self.transformers):
-            x = layer(x, pad_mask)
+            x = layer(x)
         x = self.final_norm(x)
 
         # Output token logits

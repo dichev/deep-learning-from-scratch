@@ -39,7 +39,7 @@ val_loader = DataLoader(val_data, batch_size=batch_size)
 
 
 # Model
-model = GPT2(vocab_size=len(tokenizer.vocab), context_size=256, embed_size=384, hidden_size=4*384, n_layers=4, attn_heads=4, dropout=.2, padding_idx=None).to(device)
+model = GPT2(vocab_size=len(tokenizer.vocab), context_size=256, embed_size=384, hidden_size=4*384, n_layers=4, attn_heads=4, dropout=.2).to(device)
 optimizer = AdamW(model.parameters(), lr=learn_rate)
 
 
