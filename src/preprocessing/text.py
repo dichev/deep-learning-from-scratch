@@ -99,6 +99,6 @@ def byte_pair_encoding_byte_level(words_freq: Counter | dict, num_merges=100, st
         # Merge the best pair into the next integer
         merges[best] = start_idx + m
         words_freq = {tuple(merge_tokens(tokens, best, start_idx + m)): freq for tokens, freq in words_freq.items()}
-        print(f'Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {start_idx + m}')
+        print(f'BPE Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {start_idx + m}')
 
     return words_freq, merges

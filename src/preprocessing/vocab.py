@@ -82,7 +82,7 @@ class BPETokenizer:  # Byte pair encoding (on byte level)
     def __init__(self):
         self.merges = None
         self.vocab = None
-        self.cache = None
+        self._cache = None
 
         # using GPT4 split pattern
         contractions = r"'(?i:[sdmt]|ll|ve|re)"        # case-insensitive and language specific (similar to "'s|'t|'re|'ve|'m|'ll|'d|"
@@ -102,7 +102,7 @@ class BPETokenizer:  # Byte pair encoding (on byte level)
     def load(self, merges):
         assert sorted(merges.values()) == list(merges.values()) and len(set(merges.values())) == len(merges), f'The merges must be sorted and unique, but got {merges}'
 
-        self.cache = {}
+        self._cache = {}
         self.merges = merges
         self.vocab = {idx: bytes([idx]) for idx in range(256)}  # initialize with all single bytes
         for (a, b), idx in merges.items():
@@ -117,15 +117,15 @@ class BPETokenizer:  # Byte pair encoding (on byte level)
         return encoded
 
     def encode_word(self, word: str):
-        if word in self.cache:
-            return self.cache[word]
+        if word in self._cache:
+            return self._cache[word]
 
         tokens = self.to_byte_int(word)  # each byte as integer in the range [0, 255]
         if len(tokens) > 1:
             for pair, idx in self.merges.items():  # important - merges must be sorted (which is asserted by the load method)
                 tokens = merge_tokens(tokens, pair, idx)
 
-        self.cache[word] = tokens
+        self._cache[word] = tokens
         return tokens
 
     @staticmethod

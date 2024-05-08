@@ -4,9 +4,10 @@ from tqdm import trange
 
 from models.transformer_networks import GPT2
 from lib.functions.losses import cross_entropy
+from lib.functions.metrics import accuracy
 from lib.optimizers import AdamW
-from preprocessing.vocab import TextVocabulary
 from preprocessing.dataset import RandomTextDataset
+from preprocessing.vocab import BPETokenizer
 from utils.rng import seed_global
 seed_global(1)
 
@@ -23,41 +24,44 @@ device = 'cuda'
 print('Data preprocessing..')
 with open('./data/shakespeare.txt', 'r', encoding='utf8') as f:
     text = f.read()
-vocab = TextVocabulary(text)  # per character
-print(f'Vocab characters ({vocab.size}):', ''.join(sorted(vocab.to_idx.keys())))
-data = torch.tensor(vocab.encode(text))
-split = int(len(data) * 0.9)
 
-train_data = RandomTextDataset(data[:split], context_size)
-val_data = RandomTextDataset(data[split:], context_size)
+tokenizer = BPETokenizer()
+print('Training BPE tokenizer:')
+tokenizer.train(text, 200)
+assert tokenizer.decode(tokenizer.encode(text)) == text
+encoded = torch.tensor(tokenizer.encode(text))
+split = int(len(encoded) * 0.9)
+train_data = RandomTextDataset(encoded[:split], context_size)
+val_data = RandomTextDataset(encoded[split:], context_size)
 train_loader = DataLoader(train_data, batch_size=batch_size)
 val_loader = DataLoader(val_data, batch_size=batch_size)
 
 
 
 # Model
-model = GPT2(vocab_size=vocab.size, context_size=256, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6, dropout=.2, padding_idx=0).to(device)
+model = GPT2(vocab_size=len(tokenizer.vocab), context_size=256, embed_size=384, hidden_size=4*384, n_layers=4, attn_heads=4, dropout=.2, padding_idx=None).to(device)
 optimizer = AdamW(model.parameters(), lr=learn_rate)
 
 
 @torch.no_grad()
 def generate_random_text(model, prompt=None, max_tokens=100):
     prompt = prompt if prompt is not None else torch.tensor([[2]]).to(device)  # note: not using the padding token
-    print(f"[{vocab.decode(prompt.flatten().detach().tolist(), sep='')}]", end='')
-    for idx in model.generate(prompt, max_tokens):
-        print(vocab.to_token[idx.item()], end='')
-    print('')
+    print(f"[{tokenizer.decode(prompt.flatten().detach().tolist())}]", end='')
+    tokens = [idx.item() for idx in model.generate(prompt, max_tokens)]
+    print(tokenizer.decode(tokens))
 
 
 @torch.no_grad()
 def evaluate(model, loader, max_iter=None):
-    losses = []
+    losses, acc = [], []
     for i, (context, targets) in enumerate(loader):
-        logits = model(context.to(device))
-        loss = cross_entropy(logits, targets.to(device), logits=True)
+        context, targets = context.to(device), targets.to(device)
+        logits = model(context)
+        loss = cross_entropy(logits, targets, logits=True)
         losses.append(loss)
+        acc.append(accuracy(logits.argmax(dim=-1), targets))
         if max_iter and i >= max_iter: break
-    return torch.stack(losses).mean()
+    return torch.stack(losses).mean(), torch.stack(acc).mean()
 
 
 def train(model, optimizer, loader):
@@ -76,8 +80,9 @@ def train(model, optimizer, loader):
 # Training
 for epoch in range(1, epochs+1):
     train(model, optimizer, train_loader)
-    train_loss, val_loss = evaluate(model, train_loader), evaluate(model, val_loader)
-    print(f'Epoch {epoch}/{epochs} {train_loss=:.4f} {val_loss=:.4f}')
+    train_loss, train_acc = evaluate(model, train_loader)
+    val_loss, val_acc = evaluate(model, val_loader)
+    print(f'Epoch {epoch}/{epochs} {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
     if epoch < 10 or epoch % 10 == 0:
         generate_random_text(model, max_tokens=100)
         model.visualize_attn_weights(subtitle=f'{epoch=}')

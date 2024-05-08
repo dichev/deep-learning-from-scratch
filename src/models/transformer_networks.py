@@ -251,8 +251,8 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
         B, T, E = x.shape
 
         # Attention mask
-        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        if pad_mask is not None:                           # restrict attention to padded targets
+        attn_mask = self.causal_mask[:T, :T].expand(B, T, T).to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        if pad_mask is not None:                                           # restrict attention to padded targets
             attn_mask = attn_mask | pad_mask.view(B, 1, T)
 
         v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
@@ -265,7 +265,7 @@ class GPT2(Module):
     https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
     """
 
-    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1, padding_idx=0):
+    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1, padding_idx=None):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
@@ -295,7 +295,7 @@ class GPT2(Module):
         B, T = x.shape
         assert T <= self.context_size, f'the input sequence {T} exceeds the context size {self.context_size}'
         positions = torch.arange(T, device=x.device)
-        pad_mask = (x == self.padding_idx)
+        pad_mask = (x == self.padding_idx) if self.padding_idx is not None else None
 
         # Decode each token
         x = self.emb(x) + self.pos_emb(positions)  # (B, T, emb) + (T, emb) -> (B, T, emb)
