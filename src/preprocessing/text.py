@@ -1,8 +1,6 @@
 import re
 from itertools import combinations
 from collections import defaultdict, Counter
-import contractions
-
 
 _patterns = (
     # (re.compile(r'[^a-zA-Z0-9_\-\s]'), ''),  # remove any special character
@@ -13,8 +11,6 @@ _patterns = (
 
 def clean_text(doc, lang='en'):
     doc = doc.lower()
-    if lang == 'en':
-        doc = contractions.fix(doc)
     for pattern, repl in _patterns:
         doc = pattern.sub(repl, doc)
     return doc
@@ -76,7 +72,7 @@ def byte_pair_encoding(words_freq: Counter | dict, num_merges=100, end_of_word_t
 
         # Merge the best pair into the next symbol/integer
         words_freq = {tuple(merge_tokens(tokens, best, ''.join(best))): freq for tokens, freq in words_freq.items()}
-        print(f'Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {''.join(best)}')
+        print(f'Merge {m + 1:>3}/{num_merges}: freq={pairs[best]} {best} -> {"".join(best)}')
 
     return words_freq
 

@@ -83,7 +83,7 @@ def train(model, optimizer, loader, batch_size):
 
 
 def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', visualize_fn=None):
-    writer = SummaryWriter(f'runs/{title or model.__class__.__name__} params={model.n_params} - {datetime.now().strftime('%b%d %H-%M-%S')}', flush_secs=2)
+    writer = SummaryWriter(f'runs/{title or model.__class__.__name__} params={model.n_params} - {datetime.now().strftime("%b%d %H-%M-%S")}', flush_secs=2)
 
     for epoch in range(1, epochs+1):
         loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=batch_size, shuffle=True, device=device)  # todo: migrate to DataLoader
