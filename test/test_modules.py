@@ -136,31 +136,32 @@ def test_dot_product_attention():
 
 
 
-@pytest.mark.parametrize('emb_dim, k_dim, v_dim',  [(64, 64, 64), (64, 65, 66)])
+@pytest.mark.parametrize('emb_dim',  [64, 48, 32])
 @pytest.mark.parametrize('num_heads',  [1, 4, 8])
 @pytest.mark.parametrize('t_source, t_target',  [(15, 15), (10, 12)])
-def test_multi_head_attention(emb_dim, k_dim, v_dim, num_heads, t_source, t_target):
+def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     b, vocab_size = 10, 1000
     queries = torch.randn(b, t_target, emb_dim)
-    keys    = torch.randn(b, t_source, k_dim)
-    values  = torch.randn(b, t_source, v_dim)
+    keys    = torch.randn(b, t_source, emb_dim)
+    values  = torch.randn(b, t_source, emb_dim)
     valid_lens = torch.randint(1, t_source - 1, (b,))
     keys_pad_mask = paddings_mask(valid_lens, max_len=t_source)
 
-    attention1 = MultiHeadAttention(embed_dim=emb_dim, n_heads=num_heads, k_dim=k_dim, v_dim=v_dim)
-    attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, kdim=k_dim, vdim=v_dim, batch_first=True, bias=False)
+    attention1 = MultiHeadAttention(embed_dim=emb_dim, n_heads=num_heads)
+    attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, batch_first=True, bias=False)
 
     # use the same parameter values
-    if emb_dim == k_dim == v_dim:
-        attention1.weight_query.data[:] = attention2.in_proj_weight.data[0 * emb_dim:1 * emb_dim].T
-        attention1.weight_key.data[:]   = attention2.in_proj_weight.data[1 * emb_dim:2 * emb_dim].T
-        attention1.weight_value.data[:] = attention2.in_proj_weight.data[2 * emb_dim:3 * emb_dim].T
-        attention1.weight_out.data[:]   = attention2.out_proj.weight.data.T
-    else:
-        attention1.weight_query.data[:] = attention2.q_proj_weight.data.T
-        attention1.weight_key.data[:]   = attention2.k_proj_weight.data.T
-        attention1.weight_value.data[:] = attention2.v_proj_weight.data.T
-        attention1.weight_out.data[:]   = attention2.out_proj.weight.data.T
+    attention1.weight_qkv.data[:] = attention2.in_proj_weight.data.T
+    attention1.weight_out.data[:]  = attention2.out_proj.weight.data.T
+
+
+    # compute attentions with same x
+    if t_source == t_target:
+        x = queries
+        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=keys_pad_mask)
+        a2, a_weights2 = attention2.forward(x, x, x, key_padding_mask=keys_pad_mask, average_attn_weights=False)
+        assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+        assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions without keys padding mask
     a1, a_weights1 = attention1.forward(queries, keys, values)

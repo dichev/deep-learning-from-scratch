@@ -859,25 +859,21 @@ class MultiHeadAttention(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, embed_dim, n_heads, k_dim=None, v_dim=None, scaled=True, dropout=0.):
+    def __init__(self, embed_dim, n_heads, dropout=0.):
         assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
-        self.embed_dim = embed_dim
-        self.k_dim = embed_dim if k_dim is None else k_dim
-        self.v_dim = embed_dim if v_dim is None else v_dim
         self.n_heads = n_heads
-        self.scaled = scaled
+        self.embed_dim = embed_dim
+        self.head_dim = embed_dim // n_heads
 
-        self.weight_query = Param((embed_dim, embed_dim))
-        self.weight_key   = Param((self.k_dim, embed_dim))
-        self.weight_value = Param((self.v_dim, embed_dim))
-        self.weight_out   = Param((embed_dim, embed_dim))
+        self.weight_qkv = Param((embed_dim, 3*embed_dim))  # concatenated weights for key, values and keys
+        self.weight_out = Param((embed_dim, embed_dim))
         self.dropout = Dropout(dropout) if dropout > 0 else None
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
-        for name, weight in self.parameters():
-            init.xavier_uniform_(weight, *weight.shape)
+        init.xavier_uniform_(self.weight_qkv, *self.weight_qkv.shape)
+        init.xavier_uniform_(self.weight_out, *self.weight_out.shape)
 
     def forward(self, query, key, value, attn_mask=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
@@ -892,18 +888,23 @@ class MultiHeadAttention(Module):
                 raise Exception(f'Expected key_pad_mask of shape {b, t} or {b, t_, t}, but got {attn_mask.shape}')
 
         # Project to smaller vectors
-        Q = query @ self.weight_query                                 # (b, t', emb)  <- (b, t',  emb) @ (emb, emb)
-        K = key @ self.weight_key                                     # (b, t,  emb)  <- (b, t, k_dim) @ (k_dim, emb)
-        V = value @ self.weight_value                                 # (b, t,  emb)  <- (b, k, v_dim) @ (v_dim, emb)
+        if query is key and key is value:  # self attention without cache
+            QKV = query @ self.weight_qkv                             # (b, t, 3*emb)  <- (b, t,  emb) @ (emb, 3*emb)
+            Q, K, V = QKV.chunk(3, dim=-1)                            # (b, t*, emb) x 3
+        else:
+            Wq, Wk, Wv = self.weight_qkv.chunk(3, dim=-1)
+            Q = query @ Wq                                            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+            K = key @ Wk                                              # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
+            V = value @ Wv                                            # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+
 
         # Split projections into independent n_heads tensor
-        Q   = Q.view(b, t_, self.n_heads, -1).permute(0, 2, 1, 3)     # (b, heads, t', emb/heads)
-        K_T = K.view(b, t,  self.n_heads, -1).permute(0, 2, 3, 1)     # (b, heads, emb/heads, t)
-        V   = V.view(b, t,  self.n_heads, -1).permute(0, 2, 1, 3)     # (b, heads, t, emb/heads)
+        Q   = Q.view(b, t_, self.n_heads, self.head_dim).permute(0, 2, 1, 3)     # (b, heads, t', emb/heads)
+        K_T = K.view(b, t,  self.n_heads, self.head_dim).permute(0, 2, 3, 1)     # (b, heads, emb/heads, t)
+        V   = V.view(b, t,  self.n_heads, self.head_dim).permute(0, 2, 1, 3)     # (b, heads, t, emb/heads)
 
         # Compute attention weights for each head
-        scale = sqrt(emb//self.n_heads) if self.scaled else 1.
-        Z = Q @ K_T / scale                                           # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
+        Z = Q @ K_T / sqrt(self.head_dim)                                        # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
@@ -914,6 +915,7 @@ class MultiHeadAttention(Module):
         out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
 
         return out, A
+
 
     def __repr__(self):
         return f'MultiHeadAttention({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
