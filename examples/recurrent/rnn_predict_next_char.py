@@ -17,7 +17,7 @@ from utils import plots
 rng.seed_global(1)
 EPOCHS = 200
 BATCH_SIZE = 1024
-LEARN_RATE = 0.1
+LEARN_RATE = 0.01
 DEVICE = 'cuda'
 
 # hyperparams
@@ -76,7 +76,6 @@ for model_name, net in models.items():
         writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
         writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
         writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
-        pbar.set_postfix(cost=f"{loss:.4f}")
 
         if epoch == 1 or epoch % 10 == 0:
             print('\n# Sampling --------------------------------------------')

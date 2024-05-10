@@ -263,15 +263,6 @@ class LSTM_cell(Module):
     def __init__(self, input_size, hidden_size):
         self.weight = Param((input_size + hidden_size, 4 * hidden_size))  # (I+H, 4H)
         self.bias = Param((1, 4 * hidden_size))  # (1, 4H)
-
-        self._slice_i = slice(hidden_size * 0, hidden_size * 1)
-        self._slice_f = slice(hidden_size * 1, hidden_size * 2)
-        self._slice_o = slice(hidden_size * 2, hidden_size * 3)
-        self._slice_m = slice(hidden_size * 3, None)
-
-        with torch.no_grad():
-            self.bias[:, self._slice_f] = 1.  # set the sigmoid threshold beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
-
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.reset_parameters()
@@ -280,6 +271,9 @@ class LSTM_cell(Module):
     def reset_parameters(self):
         init.xavier_normal_(self.weight, self.weight.shape[0], self.weight.shape[1])
         self.bias.fill_(0)
+        # set the sigmoid threshold (of forget gate) beyond 0.5 to reduce the vanishing gradient at early stages of training (https://proceedings.mlr.press/v37/jozefowicz15.pdf)
+        self.bias[:, self.hidden_size:self.hidden_size*2] = 1.
+
 
     def forward(self, x, state=(None, None)):
         assert len(x.shape) == 2, f'Expected (batch_size, features) as input, got {x.shape}'
@@ -293,10 +287,12 @@ class LSTM_cell(Module):
         # Compute the gates
         xh = torch.concat((x, h), dim=-1)    # (N, I), (N, H)  -> (N, I+H)
         a = xh @ self.weight + self.bias             # (N, I+H) -> (N, 4H)
-        input_gate  = sigmoid(a[:, self._slice_i])   # input gate       (N, H)
-        forget_gate = sigmoid(a[:, self._slice_f])   # forget gate      (N, H)
-        output_gate = sigmoid(a[:, self._slice_o])   # output gate      (N, H)
-        mem_candidate =  tanh(a[:, self._slice_m])   # new cell state   (N, H)
+
+        i, f, o, m = a.chunk(4, dim=-1)     # (N, H) each
+        input_gate  = sigmoid(i)   # input gate       (N, H)
+        forget_gate = sigmoid(f)   # forget gate      (N, H)
+        output_gate = sigmoid(o)   # output gate      (N, H)
+        mem_candidate =  tanh(m)   # new cell state   (N, H)
 
         # Update the hidden and memory state
         mem = forget_gate * mem + input_gate * mem_candidate    # (N, H)
@@ -312,11 +308,6 @@ class GRU_cell(Module):
     def __init__(self, input_size, hidden_size):
         self.weight = Param((input_size + hidden_size, 3 * hidden_size))  # (I+H, 3H)
         self.bias = Param((1, 3 * hidden_size))  # (1, 3H)
-
-        self._slice_r = slice(hidden_size * 0, hidden_size * 1)  # reset gate params
-        self._slice_z = slice(hidden_size * 1, hidden_size * 2)  # update gate params
-        self._slice_n = slice(hidden_size * 2, hidden_size * 3)  # new cell candidate params
-
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.reset_parameters()
@@ -334,8 +325,8 @@ class GRU_cell(Module):
             h = torch.zeros(N, self.hidden_size, device=x.device)
 
         # Just references
-        W_xr, W_xz, W_xn = (self.weight[:, _slice] for _slice in [self._slice_r, self._slice_z, self._slice_n])
-        b_xr, b_xz, b_xn = (self.bias[:, _slice] for _slice in [self._slice_r, self._slice_z, self._slice_n])
+        W_xr, W_xz, W_xn = self.weight.chunk(3, dim=-1)
+        b_xr, b_xz, b_xn = self.bias.chunk(3, dim=-1)
 
         # Compute the gates
         xh = torch.concat((x, h), dim=-1)  # (N, I+H)

@@ -18,7 +18,7 @@ from lib.regularizers import grad_clip_norm_, L2_regularizer
 rng.seed_global(1)
 EPOCHS = 500
 BATCH_SIZE = 32
-LEARN_RATE = 0.1
+LEARN_RATE = 0.01
 DEVICE = 'cuda'
 
 # hyperparams
