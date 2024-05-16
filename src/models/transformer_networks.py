@@ -1,4 +1,5 @@
 import torch
+import einops as ein
 from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
 from lib.functions.activations import softmax
 from models.recurrent_networks import Seq2Seq
@@ -8,7 +9,7 @@ from utils import plots
 
 
 
-Context = namedtuple('Context', ['memory', 'memory_pad_mask', 'cached_targets'])
+Context = namedtuple('Context', ['memory', 'memory_attn_pad_mask', 'cached_targets'])
 
 
 class TransformerEncoderLayer(Module):
@@ -28,14 +29,14 @@ class TransformerEncoderLayer(Module):
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
-    def forward(self, x, pad_mask):
+    def forward(self, x, attn_mask):
         B, T, E = x.shape
 
         if self.norm_first:
-            x = x + self._self_attention(self.norm1(x), attn_mask=pad_mask)
+            x = x + self._self_attention(self.norm1(x), attn_mask)
             x = x + self.norm2(self.ff(x))
         else:
-            x = self.norm1(x + self._self_attention(x, attn_mask=pad_mask))
+            x = self.norm1(x + self._self_attention(x, attn_mask))
             x = self.norm2(x + self.ff(x))
 
         return x
@@ -60,20 +61,22 @@ class TransformerEncoder(Module):
         self.padding_idx = padding_idx
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
         self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
+        self.n_heads = attn_heads
 
     def forward(self, x):
         B, T = x.shape
-        pad_mask = (x == self.padding_idx)
+        pad_mask = (x == self.padding_idx)  # (B, T)
+        attn_mask = ein.repeat(pad_mask, "b t -> (b h) 1 t", h=self.n_heads)  # expected shape of attn_mask is (b*h, t', t), so repeat pad_mask along head sub-dimensions
 
         x = self.emb(x) * self.emb_scale_factor
         x = self.pos_emb(x)
         for i, layer in enumerate(self.layers):
-            x = layer(x, pad_mask)
+            x = layer(x, attn_mask)
 
         if self.norm_first:
             x = self.final_norm(x)
 
-        return x, Context(memory=x, memory_pad_mask=pad_mask, cached_targets=None)
+        return x, Context(memory=x, memory_attn_pad_mask=attn_mask, cached_targets=None)
 
     def get_last_attn_weights(self):
         attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
@@ -103,16 +106,16 @@ class TransformerDecoderLayer(Module):
         self.attn_weights = None        # keep record of the last attention weights for visualization
         self.cross_attn_weights = None  #
 
-    def forward(self, x, attn_mask, memory, memory_pad_mask=None, x_cached=None):
+    def forward(self, x, attn_mask, memory, memory_attn_pad_mask=None, x_cached=None):
         B, T, E = x.shape
 
         if self.norm_first:
             x = x + self._self_attention(self.norm1(x), attn_mask, self.norm1(x_cached) if x_cached is not None else None)  # apply normalization also to the cached targets during autoregressive inference
-            x = x + self._cross_attention(self.norm2(x), memory, memory_pad_mask)
+            x = x + self._cross_attention(self.norm2(x), memory, memory_attn_pad_mask)
             x = x + self.ff(self.norm3(x))
         else:
             x = self.norm1(x + self._self_attention(x, attn_mask, x_cached))
-            x = self.norm2(x + self._cross_attention(x, memory, memory_pad_mask))
+            x = self.norm2(x + self._cross_attention(x, memory, memory_attn_pad_mask))
             x = self.norm3(x + self.ff(x))
 
         return x
@@ -148,6 +151,7 @@ class TransformerDecoder(Module):
         self.tied_embeddings = tied_embeddings
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
         self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
+        self.n_heads = attn_heads
 
 
     def forward(self, tgt, context: Context):
@@ -157,13 +161,13 @@ class TransformerDecoder(Module):
         # Attention masks
         pad_mask = (tgt == self.padding_idx)                                          # restrict attention to padded targets
         causal_mask = torch.triu(torch.ones(T, T), diagonal=1).bool().to(tgt.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        attn_mask = pad_mask.unsqueeze(1) | causal_mask
+        attn_mask = causal_mask | ein.repeat(pad_mask, "b t -> (b h) 1 t", h=self.n_heads)
 
         # Decode each layer
         tgt = self.emb(tgt) * self.emb_scale_factor    # (B, T, emb)
         tgt = self.pos_emb(tgt)                        # (B, T, emb)
         for i, layer in enumerate(self.layers):
-            tgt = layer(tgt, attn_mask, context.memory, context.memory_pad_mask)
+            tgt = layer(tgt, attn_mask, context.memory, context.memory_attn_pad_mask)
 
         if self.norm_first:
             tgt = self.final_norm(tgt)
@@ -174,7 +178,7 @@ class TransformerDecoder(Module):
         else:
             y = self.out(tgt)
 
-        return y, Context(context.memory, context.memory_pad_mask, cached_targets=None)
+        return y, Context(context.memory, context.memory_attn_pad_mask, cached_targets=None)
 
     @torch.no_grad()
     def predict(self, x, context: Context):
@@ -189,7 +193,7 @@ class TransformerDecoder(Module):
         x = self.emb(x) * self.emb_scale_factor  # (B, T, emb)
         for i, layer in enumerate(self.layers):
             cache[i] = x if cache[i] is None else torch.cat((cache[i], x), dim=1)  # cache all the previous input tokens for each layer to avoid unnecessary computations
-            x = layer(x, attn_mask=None, memory=context.memory, memory_pad_mask=context.memory_pad_mask, x_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
+            x = layer(x, attn_mask=None, memory=context.memory, memory_attn_pad_mask=context.memory_attn_pad_mask, x_cached=cache[i])   # no attn_mask because it is autoregressive, and don't have the future tokens
 
         if self.norm_first:
             x = self.final_norm(x)
@@ -200,7 +204,7 @@ class TransformerDecoder(Module):
         else:
             y = self.out(x)
 
-        return y, Context(context.memory, context.memory_pad_mask, cached_targets=cache)
+        return y, Context(context.memory, context.memory_attn_pad_mask, cached_targets=cache)
 
     def get_last_attn_weights(self):
         self_attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
@@ -251,7 +255,7 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
         B, T, E = x.shape
 
         # Attention mask
-        attn_mask = self.causal_mask[:T, :T].expand(B, T, T).to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
         v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
         return v
 

@@ -28,3 +28,4 @@ dependencies:
   - datasets
   - pytorch_geometric
   - fsspec
+  - einops

@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import einops as ein
 from math import sqrt
 from matplotlib import pyplot as plt
 from lib.functions import init
@@ -870,43 +871,48 @@ class MultiHeadAttention(Module):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
-        if attn_mask is not None:
-            if attn_mask.ndim == 2:
-                attn_mask = attn_mask.view(b, 1, 1, t)   # to be broadcasted to (b, heads, t', t)
-            elif attn_mask.ndim == 3:
-                attn_mask = attn_mask.view(b, 1, t_, t)  # to be broadcasted to (b, heads, t', t)
-            else:
-                raise Exception(f'Expected key_pad_mask of shape {b, t} or {b, t_, t}, but got {attn_mask.shape}')
+        assert attn_mask is None or attn_mask.shape == (t_, t) or (attn_mask.ndim == 3 and attn_mask.shape[0] == b*self.n_heads), f'Expected attn_mask shape {t_, t} or {b*self.n_heads, t_, t}, but got {attn_mask.shape}'
+        if attn_mask is not None and attn_mask.shape == (t_, t):
+            attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
 
         # Project to smaller vectors
         if query is key and key is value:  # self attention without cache
             QKV = query @ self.weight_qkv                             # (b, t, 3*emb)  <- (b, t,  emb) @ (emb, 3*emb)
-            Q, K, V = QKV.chunk(3, dim=-1)                            # (b, t*, emb) x 3
+            Q, K, V = QKV.chunk(3, dim=-1)                            # (b, t, emb) x 3
         else:
             Wq, Wk, Wv = self.weight_qkv.chunk(3, dim=-1)
             Q = query @ Wq                                            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
             K = key @ Wk                                              # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
             V = value @ Wv                                            # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
+        # Split projections into n_heads
+        Q = self.split_heads(Q)                                       # (b * heads, t', emb/heads)
+        K = self.split_heads(K)                                       # (b * heads, t, emb/heads)
+        V = self.split_heads(V)                                       # (b * heads, t, emb/heads)
 
-        # Split projections into independent n_heads tensor
-        Q   = Q.view(b, t_, self.n_heads, self.head_dim).permute(0, 2, 1, 3)     # (b, heads, t', emb/heads)
-        K_T = K.view(b, t,  self.n_heads, self.head_dim).permute(0, 2, 3, 1)     # (b, heads, emb/heads, t)
-        V   = V.view(b, t,  self.n_heads, self.head_dim).permute(0, 2, 1, 3)     # (b, heads, t, emb/heads)
+        # Compute attention (heads are considered batches)
+        out, A = self.dot_product_attention(Q, K, V, attn_mask)
+        out = self._merge_heads(out)                                  # (b, t', emb)               <- concat the heads to emb
 
-        # Compute attention weights for each head
-        Z = Q @ K_T / sqrt(self.head_dim)                                        # (b, heads, t', t)  <- (b, heads, t', emb/heads)  @  (b, heads, emb/heads, t)
+        # Finally project the weighted values
+        out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
+
+        return out, A.view(b, self.n_heads, t_, t)
+
+    def dot_product_attention(self, Q, K, V, attn_mask=None):
+        Z = Q @ K.transpose(2, 1) / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
-
-        # Weighted sum of values for each query
-        out = A @ V                                                   # (b, heads, t', emb/heads)  <- (b, heads, t', t) @ (b, heads, t, emb/heads)
-        out = out.permute(0, 2, 1, 3).reshape(b, t_, self.embed_dim)  # (b, t', emb)               <- concat the heads
-        out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
-
+        out = A @ V                                        # (bh, t', emb/heads)  <- (bh, t', t) @ (bh, t, emb/heads)
         return out, A
 
+
+    def split_heads(self, X):
+        return ein.rearrange(X, 'b t (h emb) -> (b h) t emb', h=self.n_heads)
+
+    def _merge_heads(self, X):
+        return ein.rearrange(X, '(b h) t emb -> b t (h emb)', h=self.n_heads)
 
     def __repr__(self):
         return f'MultiHeadAttention({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'

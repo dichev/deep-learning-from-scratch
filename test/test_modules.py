@@ -2,7 +2,7 @@ import pytest
 import torch
 from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention
 from utils.other import paddings_mask
-
+import einops as ein
 
 @torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
@@ -146,6 +146,7 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     values  = torch.randn(b, t_source, emb_dim)
     valid_lens = torch.randint(1, t_source - 1, (b,))
     keys_pad_mask = paddings_mask(valid_lens, max_len=t_source)
+    attn_mask = ein.repeat(keys_pad_mask, "b t -> (b h) 1 t", h=num_heads)  # repeat keys_pads along head sub-dimensions
 
     attention1 = MultiHeadAttention(embed_dim=emb_dim, n_heads=num_heads)
     attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, batch_first=True, bias=False)
@@ -158,9 +159,9 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     # compute attentions with same x
     if t_source == t_target:
         x = queries
-        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=keys_pad_mask)
+        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=attn_mask)
         a2, a_weights2 = attention2.forward(x, x, x, key_padding_mask=keys_pad_mask, average_attn_weights=False)
-        assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+        assert torch.allclose(a1, a2, rtol=1e-4, atol=1e-6)
         assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions without keys padding mask
@@ -170,8 +171,21 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=keys_pad_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask)
     a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
+    # compute attentions with causal mask
+    causal_mask = torch.triu(torch.ones(t_target, t_source), diagonal=1).bool()
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=causal_mask)
+    a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, average_attn_weights=False)
+    assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+    assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
+
+
+    # compute attentions with causal mask and keys padding mask
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask | causal_mask)
+    a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, key_padding_mask=keys_pad_mask, average_attn_weights=False)
+    assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
+    assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
