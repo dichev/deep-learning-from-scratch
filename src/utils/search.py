@@ -61,7 +61,7 @@ def beam_search(decoder_fn, context, start_token: int, end_token: int, max_steps
         paths = candidates[:k]
         # assert k <= len(candidates) <= k**2
         # print(t, paths)
-        if all(path.ended for path in paths):
+        if all([path.ended for path in paths]):
             break  # all selected paths are completed
 
     best = max(paths, key=score_fn)
