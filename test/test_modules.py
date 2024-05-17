@@ -1,8 +1,11 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention
+from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention
+from lib.functions.activations import softmax
 from utils.other import paddings_mask
 import einops as ein
+from math import sqrt
+from matplotlib import pyplot as plt
 
 @torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
@@ -189,3 +192,58 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
+
+
+@pytest.mark.parametrize('block_size',  [4, 8, 16])
+def test_sparse_multi_head_attention(block_size, visualize=True):
+    # -----------------------------------------------------
+    b, t, e = 2, 10 * block_size, 99
+    Q = torch.rand(b, t, e)
+    K = torch.rand(b, t, e)
+    K_T = K.transpose(2, 1)
+    V = torch.rand(b, t, e)
+
+    sparse_attention = SparseMultiHeadAttention(e, 1, 0, block_size)
+
+    # Block-diagonal ---------------------------------------------
+    attn_mask = sparse_attention.get_attn_mask_local(t)
+    Z = Q @ K_T / sqrt(e)
+    A_diag = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
+    Y1 = A_diag @ V
+    Y2, A_sparse = sparse_attention.attend_local(Q, K, V)
+    if visualize:
+        visualize_attn(A_diag[0], A_sparse[0].to_dense())
+    assert torch.allclose(A_sparse.to_dense(), A_diag)
+    assert torch.allclose(Y1, Y2)
+
+
+    # Column ---------------------------------------------
+    attn_mask = sparse_attention.get_attn_mask_global(t)
+    Z = Q @ K_T / sqrt(e)
+    A_col = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
+    A_col[:, :block_size-1] = 0  # these are expected to be -inf
+    Y1 = A_col @ V
+    Y2, A_sparse = sparse_attention.attend_global(Q, K, V)
+    if visualize:
+        visualize_attn(A_col[0], A_sparse[0].to_dense())
+    assert torch.allclose(A_sparse.to_dense(), A_col)
+    assert torch.allclose(Y1, Y2)
+
+
+
+    # Both ---------------------------------------------
+    Y1 = (A_diag + A_col) @ V
+    Y2, A_sparse = sparse_attention.dot_product_attention(Q, K, V)
+    if visualize:
+        visualize_attn((A_diag + A_col)[0], A_sparse[0].to_dense())
+    assert torch.allclose(A_sparse.to_dense(), A_diag + A_col)
+    assert torch.allclose(Y1, Y2)
+
+
+def visualize_attn(attn_expected, attn_actual):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
+    ax1.matshow(attn_expected)
+    ax1.set_title('Expected')
+    ax2.matshow(attn_actual)
+    ax2.set_title('Actual')
+    plt.show()
