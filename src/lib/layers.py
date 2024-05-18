@@ -7,7 +7,7 @@ from lib.functions import init
 from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
-from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity, sparse_slice
+from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
 from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
@@ -856,6 +856,7 @@ class MultiHeadAttention(Module):
         self.n_heads = n_heads
         self.embed_dim = embed_dim
         self.head_dim = embed_dim // n_heads
+        self.attn_weights = None  # keep record of the last attention weights for visualization
 
         self.weight_qkv = Param((embed_dim, 3*embed_dim))  # concatenated weights for key, values and keys
         self.weight_out = Param((embed_dim, embed_dim))
@@ -886,18 +887,18 @@ class MultiHeadAttention(Module):
             V = value @ Wv                                            # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
         # Split projections into n_heads
-        Q = self.split_heads(Q)                                       # (b * heads, t', emb/heads)
-        K = self.split_heads(K)                                       # (b * heads, t, emb/heads)
-        V = self.split_heads(V)                                       # (b * heads, t, emb/heads)
+        Q = self._split_heads(Q)                                       # (b * heads, t', emb/heads)
+        K = self._split_heads(K)                                       # (b * heads, t, emb/heads)
+        V = self._split_heads(V)                                       # (b * heads, t, emb/heads)
 
         # Compute attention (heads are considered batches)
-        out, A = self.dot_product_attention(Q, K, V, attn_mask)
+        out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
         out = self._merge_heads(out)                                  # (b, t', emb)               <- concat the heads to emb
 
         # Finally project the weighted values
         out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
 
-        return out, A.view(b, self.n_heads, t_, t)
+        return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
         Z = Q @ K.transpose(2, 1) / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
@@ -907,11 +908,14 @@ class MultiHeadAttention(Module):
         out = A @ V                                        # (bh, t', emb/heads)  <- (bh, t', t) @ (bh, t, emb/heads)
         return out, A
 
-    def split_heads(self, X):
+    def _split_heads(self, X):
         return ein.rearrange(X, 'b t (h emb) -> (b h) t emb', h=self.n_heads)
 
     def _merge_heads(self, X):
         return ein.rearrange(X, '(b h) t emb -> b t (h emb)', h=self.n_heads)
+
+    def get_last_attn_weights(self):
+        return ein.rearrange(self.attn_weights, '(b h) tt ts -> b h tt ts', h=self.n_heads)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
@@ -928,16 +932,11 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         assert causal is True, 'Only causal masking is supported'
         super(SparseMultiHeadAttention, self).__init__(embed_dim, n_heads, dropout)
         self.block_size = block_size  # stride
-        self.cached_attn_mask = {
-            'local': torch.empty(0, dtype=torch.bool),
-            'global': torch.empty(0, dtype=torch.bool),
-        }
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
         assert attn_mask is None, f'Custom attention mask is not supported, will be applying just the casual mask'
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         b, t, e = Q.shape
-        # assert t % self.block_size == 0, f'Block size is not divisible by sequence length: {t} / {self.block_size} = {t / self.block_size}'
 
         # used for inference to match the attention patterns blocks. For example for x[:, t=1] will be temporary padded to x[:, block-size] to match to the attention patterns
         is_block_padded = t % self.block_size != 0
@@ -946,19 +945,18 @@ class SparseMultiHeadAttention(MultiHeadAttention):
             Q, K, V = [torch.cat((x, torch.zeros(b, pad, e, device=x.device)), dim=1) for x in (Q, K, V)]
 
         # Compute the values and attention
-        out_local, A_local = self.attend_local(Q, K, V)
-        out_global, A_global = self.attend_global(Q, K, V)
+        out_local, A_local = self._attend_local(Q, K, V)
+        out_global, A_global = self._attend_global(Q, K, V)
         out = out_local + out_global  # note: that's not the same to the union of column and diag blocks patterns, as here the output is the sum of both patterns computed independently
-        A = A_local + A_global
 
         if is_block_padded:
             out = out[:, :t]
-            A = sparse_slice(A, dim=1, end=t)
+            A_local, A_global = A_local[:, :t], A_global[:, :t]
 
-        return out, A
+        return out, (A_local, A_global)
 
 
-    def attend_global(self, Q, K, V):  # global columns strided by block_size
+    def _attend_global(self, Q, K, V):  # global columns strided by block_size
         b, t, e = Q.shape
         K_T = K.transpose(2, 1)
         block_size = self.block_size
@@ -978,13 +976,10 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         # Weighted values
         out = A @ V[:, (rows := cols)]  # (b, t, cols) @ (b, t[rows], e) -> (b, t, e)
 
-        # To simplify visualizations
-        A_sparse = self.to_sparse_attn_pattern(A, self.get_attn_mask_global(t))
-
-        return out, A_sparse
+        return out, A
 
 
-    def attend_local(self, Q, K, V):  # local diagonal blocks
+    def _attend_local(self, Q, K, V):  # local diagonal blocks
         b, t, e = Q.shape
         K_T = K.transpose(2, 1)
         block_size = self.block_size
@@ -1001,48 +996,47 @@ class SparseMultiHeadAttention(MultiHeadAttention):
 
         # Softmax scores
         A = softmax(Z_diag_blocks.view(b, t, block_size), dim=-1)
-        A = A.view(b, t//block_size, block_size, block_size)
 
         # Weighted values
-        out = A @ V.view(b, t // block_size, block_size, e)  # (b, n_blocks, block_size, block_size) @ (b, n_blocks, block_size, e) -> b, n_blocks, block_size, e)
+        out = A.view(b, t//block_size, block_size, block_size) @ V.view(b, t // block_size, block_size, e)  # (b, n_blocks, block_size, e)
         out = out.view(b, t, e)
 
-        # To simplify visualizations
-        A_sparse = self.to_sparse_attn_pattern(A, self.get_attn_mask_local(t))
+        return out, A
 
-        return out, A_sparse
+    def _expand_attn_blocks(self, A_blocks, local=True):
+        b, t, _ = A_blocks.shape
+        A = torch.zeros(b, t, t, device=A_blocks.device)
+        mask = self.get_attn_mask(t, local, causal=False)  # causal is False here just to match the blocks which contains zeros on the causal cells
+        A[:, ~mask] += A_blocks.view(b, -1)
+        return A
 
 
-    def get_attn_mask_global(self, t):
-        if len(self.cached_attn_mask['local']) >= t:
-            return self.cached_attn_mask['local'][:t, :t]
-
+    def get_attn_mask(self, t, local=True, causal=True):
         mask = torch.zeros(t, t)
-        cols = torch.arange(self.block_size - 1, t, self.block_size)
-        mask[:, cols] = 1
-        mask = torch.tril(mask)  # causal
-        mask = self.cached_attn_mask['local'] = ~mask.bool()
+
+        if local:
+            # local block diagonal
+            for i in range(0, t, self.block_size):
+                mask[i:i + self.block_size, i:i + self.block_size] = 1
+        else:
+            # global strided columns
+            cols = torch.arange(self.block_size - 1, t, self.block_size)
+            mask[:, cols] = 1
+
+        if causal:
+            mask = torch.tril(mask)
+
+        mask = ~mask.bool()
         return mask
 
-    def get_attn_mask_local(self, t):
-        if len(self.cached_attn_mask['global']) >= t:
-            return self.cached_attn_mask['global'][:t, :t]
+    def get_last_attn_weights(self):
+        A_local, A_global = self.attn_weights
 
-        mask = torch.zeros(t, t)
-        for i in range(0, t, self.block_size):
-            mask[i:i+self.block_size, i:i+self.block_size] = 1
-        mask = torch.tril(mask)  # causal
-        mask = self.cached_attn_mask['global'] = ~mask.bool()
-        return mask
+        # Generate dense attention matrix from the blocks ( it can be made as sparse matrix if necessary)
+        A = self._expand_attn_blocks(A_local, local=True) + self._expand_attn_blocks(A_global, local=False)  # importantly we sum the overlaps between local and global patterns
 
-    def to_sparse_attn_pattern(self, A, attn_mask):
-        b, t = A.shape[0], attn_mask.shape[0]
+        return ein.rearrange(A, '(b h) tt ts -> b h tt ts', h=self.n_heads)
 
-        values = A[A != 0]
-        batched_indices = (~attn_mask).view(1, t, t).expand(b, t, t).nonzero().T.to(A.device)
-
-        A_sparse = torch.sparse_coo_tensor(batched_indices, values, (b, t, t))
-        return A_sparse
 
 
 class PositionalEncoding(Module):

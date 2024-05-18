@@ -162,33 +162,33 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     # compute attentions with same x
     if t_source == t_target:
         x = queries
-        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=attn_mask)
+        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=attn_mask), attention1.get_last_attn_weights()
         a2, a_weights2 = attention2.forward(x, x, x, key_padding_mask=keys_pad_mask, average_attn_weights=False)
         assert torch.allclose(a1, a2, rtol=1e-4, atol=1e-6)
         assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions without keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values)
+    a1, a_weights1 = attention1.forward(queries, keys, values), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with causal mask
     causal_mask = torch.triu(torch.ones(t_target, t_source), diagonal=1).bool()
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=causal_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=causal_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
 
     # compute attentions with causal mask and keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask | causal_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask | causal_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
@@ -206,37 +206,40 @@ def test_sparse_multi_head_attention(block_size, visualize=True):
     sparse_attention = SparseMultiHeadAttention(e, 1, 0, block_size)
 
     # Block-diagonal ---------------------------------------------
-    attn_mask = sparse_attention.get_attn_mask_local(t)
+    attn_mask = sparse_attention.get_attn_mask(t, local=True, causal=True)
     Z = Q @ K_T / sqrt(e)
     A_diag = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
     Y1 = A_diag @ V
-    Y2, A_sparse = sparse_attention.attend_local(Q, K, V)
+    Y2, A_local = sparse_attention._attend_local(Q, K, V)
+    A_local = sparse_attention._expand_attn_blocks(A_local, local=True)
     if visualize:
-        visualize_attn(A_diag[0], A_sparse[0].to_dense())
-    assert torch.allclose(A_sparse.to_dense(), A_diag)
+        visualize_attn(A_diag[0], A_local[0])
+    assert torch.allclose(A_local, A_diag)
     assert torch.allclose(Y1, Y2)
 
 
     # Column ---------------------------------------------
-    attn_mask = sparse_attention.get_attn_mask_global(t)
+    attn_mask = sparse_attention.get_attn_mask(t, local=False, causal=True)
     Z = Q @ K_T / sqrt(e)
     A_col = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
     A_col[:, :block_size-1] = 0  # these are expected to be -inf
     Y1 = A_col @ V
-    Y2, A_sparse = sparse_attention.attend_global(Q, K, V)
+    Y2, A_global = sparse_attention._attend_global(Q, K, V)
+    A_global = sparse_attention._expand_attn_blocks(A_global, local=False)
     if visualize:
-        visualize_attn(A_col[0], A_sparse[0].to_dense())
-    assert torch.allclose(A_sparse.to_dense(), A_col)
+        visualize_attn(A_col[0], A_global[0])
+    assert torch.allclose(A_global, A_col)
     assert torch.allclose(Y1, Y2)
 
 
 
     # Both ---------------------------------------------
     Y1 = (A_diag + A_col) @ V
-    Y2, A_sparse = sparse_attention.dot_product_attention(Q, K, V)
+    Y2, (A_local, A_global) = sparse_attention.dot_product_attention(Q, K, V)
+    A = sparse_attention._expand_attn_blocks(A_local, local=True) + sparse_attention._expand_attn_blocks(A_global, local=False)
     if visualize:
-        visualize_attn((A_diag + A_col)[0], A_sparse[0].to_dense())
-    assert torch.allclose(A_sparse.to_dense(), A_diag + A_col)
+        visualize_attn((A_diag + A_col)[0], A[0])
+    assert torch.allclose(A, A_diag + A_col)
     assert torch.allclose(Y1, Y2)
 
 
