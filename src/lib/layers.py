@@ -7,7 +7,7 @@ from lib.functions import init
 from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
-from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
+from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity, sparse_slice
 from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
@@ -937,13 +937,24 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         assert attn_mask is None, f'Custom attention mask is not supported, will be applying just the casual mask'
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         b, t, e = Q.shape
-        assert t % self.block_size == 0, f'Block size is not divisible by sequence length: {t} / {self.block_size} = {t / self.block_size}'
+        # assert t % self.block_size == 0, f'Block size is not divisible by sequence length: {t} / {self.block_size} = {t / self.block_size}'
 
+        # used for inference to match the attention patterns blocks. For example for x[:, t=1] will be temporary padded to x[:, block-size] to match to the attention patterns
+        is_block_padded = t % self.block_size != 0
+        if is_block_padded:
+            pad = self.block_size - t % self.block_size
+            Q, K, V = [torch.cat((x, torch.zeros(b, pad, e, device=x.device)), dim=1) for x in (Q, K, V)]
+
+        # Compute the values and attention
         out_local, A_local = self.attend_local(Q, K, V)
         out_global, A_global = self.attend_global(Q, K, V)
-
         out = out_local + out_global  # note: that's not the same to the union of column and diag blocks patterns, as here the output is the sum of both patterns computed independently
-        A = (A_local + A_global) if A_local.is_sparse and A_global.is_sparse else (A_local, A_global)
+        A = A_local + A_global
+
+        if is_block_padded:
+            out = out[:, :t]
+            A = sparse_slice(A, dim=1, end=t)
+
         return out, A
 
 
