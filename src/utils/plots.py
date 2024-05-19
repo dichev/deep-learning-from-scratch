@@ -139,7 +139,7 @@ def attention_heads(attn_weights, query_labels=None, key_labels=None, title='Att
 def attention_heads_fast(attn_weights, title='Attention'):
     assert attn_weights.ndim == 4, f'Expected attention weights to be a tensor of shape (n_layers, n_heads, tgt_len, src_len), but got {attn_weights.shape}'
     n_layers, n_heads, T_, T = attn_weights.shape
-    img_grid = make_grid(attn_weights.view(-1, 1, T_, T), padding=0, pad_value=1, nrow=n_layers).permute(1, 2, 0)
+    img_grid = make_grid(attn_weights.view(-1, 1, T_, T), padding=0, pad_value=1, nrow=n_heads).permute(1, 2, 0)
 
     fig, ax = plt.subplots(figsize=(min(n_heads*4+2, 16), min(n_layers*4, 12)))
     ax.matshow(img_grid, vmin=0, vmax=1)
