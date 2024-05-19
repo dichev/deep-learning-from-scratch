@@ -928,7 +928,6 @@ class SparseMultiHeadAttention(MultiHeadAttention):
     """
 
     def __init__(self, embed_dim, n_heads, dropout=0., block_size=4, causal=True):
-        assert dropout == 0., 'Dropout is not implemented'  # [paper] "To simplify our implementation, we do not apply dropout within the attention blocks|
         assert causal is True, 'Only causal masking is supported'
         super(SparseMultiHeadAttention, self).__init__(embed_dim, n_heads, dropout)
         self.block_size = block_size  # stride
@@ -972,6 +971,8 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         # Softmax scores
         A = torch.zeros_like(Z_cols)        # (b, t, cols)
         A[:, block_size-1:] = softmax(Z_cols[:, block_size-1:], dim=-1)   # skips initial timestamps where there are no columns (so all values are -inf)
+        if self.dropout:
+            A = self.dropout.forward(A)
 
         # Weighted values
         out = A @ V[:, (rows := cols)]  # (b, t, cols) @ (b, t[rows], e) -> (b, t, e)
@@ -996,6 +997,8 @@ class SparseMultiHeadAttention(MultiHeadAttention):
 
         # Softmax scores
         A = softmax(Z_diag_blocks.view(b, t, block_size), dim=-1)
+        if self.dropout:
+            A = self.dropout.forward(A)
 
         # Weighted values
         out = A.view(b, t//block_size, block_size, block_size) @ V.view(b, t // block_size, block_size, e)  # (b, n_blocks, block_size, e)
