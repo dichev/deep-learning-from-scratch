@@ -194,59 +194,48 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
 
-@pytest.mark.parametrize('block_size',  [4, 8, 16])
-def test_sparse_multi_head_attention(block_size, visualize=True):
-    # -----------------------------------------------------
-    b, t, e = 2, 10 * block_size, 99
+@pytest.mark.parametrize('block_size',  [4, 8])
+@pytest.mark.parametrize('seq_len',  [32, 5, 1, 7])
+@pytest.mark.parametrize('n_heads',  [1, 4])
+def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=True):
+    b, t, e = 2, seq_len, 128
     Q = torch.rand(b, t, e)
     K = torch.rand(b, t, e)
-    K_T = K.transpose(2, 1)
     V = torch.rand(b, t, e)
 
-    sparse_attention = SparseMultiHeadAttention(e, 1, 0, block_size)
+    attention = MultiHeadAttention(e, n_heads, 0)
+    sparse_attention = SparseMultiHeadAttention(e, n_heads, 0, block_size)
+    sparse_attention.weight_qkv.data[:] = attention.weight_qkv.data.clone()
+    sparse_attention.weight_out.data[:] = attention.weight_out.data.clone()
 
-    # Block-diagonal ---------------------------------------------
-    attn_mask = sparse_attention.get_attn_mask(t, local=True, causal=True)
-    Z = Q @ K_T / sqrt(e)
-    A_diag = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
-    Y1 = A_diag @ V
-    Y2, A_local = sparse_attention._attend_local(Q, K, V)
-    A_local = sparse_attention._expand_attn_blocks(A_local, local=True)
+    Y2 = sparse_attention.forward(Q, K, V)
+    A2 = sparse_attention.get_last_attn_weights()
+
+    # simulate the sparsed attention with two heads for each pattern
+    attn_mask_diag = sparse_attention.get_attn_mask(t, local=True)
+    attn_mask_col = sparse_attention.get_attn_mask(t, local=False)
+    Y1_diag = attention.forward(Q, K, V, attn_mask=attn_mask_diag)
+    A1_diag = attention.get_last_attn_weights()
+    Y1_col = attention.forward(Q, K, V, attn_mask=attn_mask_col)
+    A1_col = attention.get_last_attn_weights()
+    Y1_col[:, :block_size - 1] = 0     # these are expected to be -inf
+    A1_col[:, :, :block_size - 1] = 0  # these are expected to be -inf
+
+    Y1 = Y1_diag + Y1_col
+    A1 = A1_diag + A1_col
+
     if visualize:
-        visualize_attn(A_diag[0], A_local[0])
-    assert torch.allclose(A_local, A_diag)
-    assert torch.allclose(Y1, Y2)
+        visualize_attn(A1[0].view(n_heads * t, t).detach().cpu(), A2[0].view(n_heads * t, t).detach().cpu(), f'{seq_len=}, {block_size=}, {n_heads=}')
+    assert torch.allclose(A1, A2)
+    assert torch.allclose(Y1, Y2, rtol=1e-04, atol=1e-06)
 
 
-    # Column ---------------------------------------------
-    attn_mask = sparse_attention.get_attn_mask(t, local=False, causal=True)
-    Z = Q @ K_T / sqrt(e)
-    A_col = softmax(Z, dim=-1, ignore_mask=attn_mask.view(1, t, t))
-    A_col[:, :block_size-1] = 0  # these are expected to be -inf
-    Y1 = A_col @ V
-    Y2, A_global = sparse_attention._attend_global(Q, K, V)
-    A_global = sparse_attention._expand_attn_blocks(A_global, local=False)
-    if visualize:
-        visualize_attn(A_col[0], A_global[0])
-    assert torch.allclose(A_global, A_col)
-    assert torch.allclose(Y1, Y2)
-
-
-
-    # Both ---------------------------------------------
-    Y1 = (A_diag + A_col) @ V
-    Y2, (A_local, A_global) = sparse_attention.dot_product_attention(Q, K, V)
-    A = sparse_attention._expand_attn_blocks(A_local, local=True) + sparse_attention._expand_attn_blocks(A_global, local=False)
-    if visualize:
-        visualize_attn((A_diag + A_col)[0], A[0])
-    assert torch.allclose(A, A_diag + A_col)
-    assert torch.allclose(Y1, Y2)
-
-
-def visualize_attn(attn_expected, attn_actual):
+def visualize_attn(attn_expected, attn_actual, title=''):
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
-    ax1.matshow(attn_expected)
+    ax1.matshow(attn_expected, vmin=0)
     ax1.set_title('Expected')
-    ax2.matshow(attn_actual)
+    ax2.matshow(attn_actual, vmin=0)
     ax2.set_title('Actual')
+    plt.suptitle(title)
+    plt.tight_layout()
     plt.show()

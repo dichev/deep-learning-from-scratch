@@ -950,7 +950,7 @@ class SparseMultiHeadAttention(MultiHeadAttention):
 
         if is_block_padded:
             out = out[:, :t]
-            A_local, A_global = A_local[:, :t], A_global[:, :t]
+            A_local, A_global = A_local[:, :t], A_global[:, :t, :t//self.block_size]
 
         return out, (A_local, A_global)
 
@@ -965,7 +965,7 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         Z_cols = Q @ K_T[:, :, cols] / sqrt(self.head_dim)
 
         # Apply causal mask
-        causal_mask = (torch.arange(t).view(t, 1).expand(t, len(cols)) < cols).to(Z_cols.device)
+        causal_mask = self.get_causal_mask(t, local=False).to(Z_cols.device)
         Z_cols = Z_cols.masked_fill(causal_mask, -torch.inf)
 
         # Softmax scores
@@ -990,13 +990,14 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         Q_blocks = Q.view(b, n_blocks, block_size, e)  # (b, n_blocks, block_size, e)
         K_T_blocks = K_T.view(b, e, n_blocks, block_size).permute(0, 2, 1, 3)  # (b, n_blocks, e, block_size)
         Z_diag_blocks = Q_blocks @ K_T_blocks / sqrt(self.head_dim)
+        Z_diag_blocks = Z_diag_blocks.view(b, t, block_size)
 
         # Apply causal mask
-        causal_mask = torch.triu(torch.ones(block_size, block_size), diagonal=1).bool().to(Z_diag_blocks.device)
+        causal_mask = self.get_causal_mask(t, local=True).to(Z_diag_blocks.device)
         Z_diag_blocks = Z_diag_blocks.masked_fill(causal_mask, -torch.inf)
 
         # Softmax scores
-        A = softmax(Z_diag_blocks.view(b, t, block_size), dim=-1)
+        A = softmax(Z_diag_blocks, dim=-1)
         if self.dropout:
             A = self.dropout.forward(A)
 
@@ -1009,12 +1010,25 @@ class SparseMultiHeadAttention(MultiHeadAttention):
     def _expand_attn_blocks(self, A_blocks, local=True):
         b, t, _ = A_blocks.shape
         A = torch.zeros(b, t, t, device=A_blocks.device)
-        mask = self.get_attn_mask(t, local, causal=False)  # causal is False here just to match the blocks which contains zeros on the causal cells
-        A[:, ~mask] += A_blocks.view(b, -1)
+        causal = self.get_causal_mask(t, local)
+        attn_mask = self.get_attn_mask(t, local)
+        A[:, ~attn_mask] = A_blocks[:, ~causal]
         return A
 
+    def get_causal_mask(self, t, local=True):
+        block_size = self.block_size
+        if local:
+            causal = torch.triu(torch.ones(block_size, block_size), diagonal=1).bool()
+            causal = causal.repeat(t//block_size + 1, 1)[:t]
+        else:
+            if self.block_size <= t:
+                cols = torch.arange(block_size - 1, t, block_size)
+                causal = torch.arange(t).view(t, 1).expand(t, len(cols)) < cols
+            else:
+                causal = torch.tensor([], dtype=torch.bool).view(t, 0)
+        return causal
 
-    def get_attn_mask(self, t, local=True, causal=True):
+    def get_attn_mask(self, t, local=True):
         mask = torch.zeros(t, t)
 
         if local:
@@ -1023,15 +1037,15 @@ class SparseMultiHeadAttention(MultiHeadAttention):
                 mask[i:i + self.block_size, i:i + self.block_size] = 1
         else:
             # global strided columns
-            cols = torch.arange(self.block_size - 1, t, self.block_size)
-            mask[:, cols] = 1
+            if self.block_size <= t:
+                cols = torch.arange(self.block_size - 1, t, self.block_size)
+                mask[:, cols] = 1
 
-        if causal:
-            mask = torch.tril(mask)
-
+        mask = torch.tril(mask)  # causal
         mask = ~mask.bool()
         return mask
 
+    @torch.no_grad()
     def get_last_attn_weights(self):
         A_local, A_global = self.attn_weights
 
