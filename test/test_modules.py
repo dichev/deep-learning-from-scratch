@@ -212,8 +212,8 @@ def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=Tru
     A2 = sparse_attention.get_last_attn_weights()
 
     # simulate the sparsed attention with two heads for each pattern
-    attn_mask_diag = sparse_attention.get_attn_mask(t, local=True)
-    attn_mask_col = sparse_attention.get_attn_mask(t, local=False)
+    attn_mask_diag = sparse_attention.attn_local.get_attn_mask(t)
+    attn_mask_col = sparse_attention.attn_global.get_attn_mask(t)
     Y1_diag = attention.forward(Q, K, V, attn_mask=attn_mask_diag)
     A1_diag = attention.get_last_attn_weights()
     Y1_col = attention.forward(Q, K, V, attn_mask=attn_mask_col)
