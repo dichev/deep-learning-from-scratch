@@ -27,7 +27,6 @@ class TransformerEncoderLayer(Module):
 
         self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.attn_weights = None  # keep record of the last attention weights for visualization
 
     def forward(self, x, attn_mask):
         B, T, E = x.shape
@@ -42,7 +41,7 @@ class TransformerEncoderLayer(Module):
         return x
 
     def _self_attention(self, x, attn_mask):
-        v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
         return v
 
 
@@ -79,7 +78,7 @@ class TransformerEncoder(Module):
         return x, Context(memory=x, memory_attn_pad_mask=attn_mask, cached_targets=None)
 
     def get_last_attn_weights(self):
-        attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
+        attn_weights = torch.stack([layer.attn.get_last_attn_weights() for layer in self.layers], dim=1)
         return attn_weights  # (b, n_layers, n_heads, t, t)
 
 
@@ -103,8 +102,6 @@ class TransformerDecoderLayer(Module):
 
         self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.attn_weights = None        # keep record of the last attention weights for visualization
-        self.cross_attn_weights = None  #
 
     def forward(self, x, attn_mask, memory, memory_attn_pad_mask=None, x_cached=None):
         B, T, E = x.shape
@@ -123,11 +120,11 @@ class TransformerDecoderLayer(Module):
     def _self_attention(self, x, attn_mask, x_cached=None):
         if x_cached is None:
             x_cached = x  # the cached targets are used only during autoregressive inference
-        v, self.attn_weights = self.attn(query=x, key=x_cached, value=x_cached, attn_mask=attn_mask)
+        v = self.attn(query=x, key=x_cached, value=x_cached, attn_mask=attn_mask)
         return v
 
     def _cross_attention(self, x, memory, attn_mask):
-        v, self.cross_attn_weights = self.cross_attn(query=x, key=memory, value=memory, attn_mask=attn_mask)
+        v = self.cross_attn(query=x, key=memory, value=memory, attn_mask=attn_mask)
         return v
 
 
@@ -207,8 +204,8 @@ class TransformerDecoder(Module):
         return y, Context(context.memory, context.memory_attn_pad_mask, cached_targets=cache)
 
     def get_last_attn_weights(self):
-        self_attn_weights = torch.stack([layer.attn_weights for layer in self.layers], dim=1)
-        cross_attn_weights = torch.stack([layer.cross_attn_weights for layer in self.layers], dim=1)
+        self_attn_weights = torch.stack([layer.attn.get_last_attn_weights() for layer in self.layers], dim=1)
+        cross_attn_weights = torch.stack([layer.cross_attn.get_last_attn_weights() for layer in self.layers], dim=1)
         return self_attn_weights, cross_attn_weights  # (b, n_layers, n_heads, t', t'), (b, n_layers, n_heads, t', t)
 
 
@@ -243,7 +240,6 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
             Dropout(dropout)
         )
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.attn_weights = None        # keep record of the last attention weights for visualization
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
     def forward(self, x):
@@ -256,7 +252,7 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
 
         # Attention mask
         attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v, self.attn_weights = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
         return v
 
 
@@ -308,7 +304,7 @@ class GPT2(Module):
         return z
 
     def get_last_attn_weights(self):
-        return torch.stack([layer.attn_weights for layer in self.transformers], dim=1)   # (b, n_layers, n_heads, t, t)
+        return torch.stack([layer.attn.get_last_attn_weights() for layer in self.transformers], dim=1)   # (b, n_layers, n_heads, t, t)
 
     def visualize_attn_weights(self, batch_idx=0, subtitle=''):
         attn_weights = self.get_last_attn_weights().detach().cpu()

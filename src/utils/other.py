@@ -42,3 +42,9 @@ def paddings_mask(lengths, max_len):
     mask = torch.arange(max_len).expand(target_shape) >= lengths.unsqueeze(-1)
     return mask
 
+
+def sparse_slice(x, dim, end):
+    x = x.coalesce()  # it's very important to sum the values of possibly duplicated indices
+    indices, values = x.indices(), x.values()
+    mask = indices[dim] < end
+    return torch.sparse_coo_tensor(indices[:, mask], values[mask])

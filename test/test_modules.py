@@ -1,8 +1,11 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention
+from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention
+from lib.functions.activations import softmax
 from utils.other import paddings_mask
 import einops as ein
+from math import sqrt
+from matplotlib import pyplot as plt
 
 @torch.no_grad()
 @pytest.mark.parametrize('dilation', [1, 2])
@@ -159,33 +162,80 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     # compute attentions with same x
     if t_source == t_target:
         x = queries
-        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=attn_mask)
+        a1, a_weights1 = attention1.forward(x, x, x, attn_mask=attn_mask), attention1.get_last_attn_weights()
         a2, a_weights2 = attention2.forward(x, x, x, key_padding_mask=keys_pad_mask, average_attn_weights=False)
         assert torch.allclose(a1, a2, rtol=1e-4, atol=1e-6)
         assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions without keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values)
+    a1, a_weights1 = attention1.forward(queries, keys, values), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
     # compute attentions with causal mask
     causal_mask = torch.triu(torch.ones(t_target, t_source), diagonal=1).bool()
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=causal_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=causal_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
 
 
     # compute attentions with causal mask and keys padding mask
-    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask | causal_mask)
+    a1, a_weights1 = attention1.forward(queries, keys, values, attn_mask=attn_mask | causal_mask), attention1.get_last_attn_weights()
     a2, a_weights2 = attention2.forward(queries, keys, values, attn_mask=causal_mask, key_padding_mask=keys_pad_mask, average_attn_weights=False)
     assert torch.allclose(a1, a1, rtol=1e-4, atol=1e-6)
     assert torch.allclose(a_weights1, a_weights2, rtol=1e-4, atol=1e-6)
+
+
+@pytest.mark.parametrize('block_size',  [4, 8])
+@pytest.mark.parametrize('seq_len',  [32, 5, 1, 7])
+@pytest.mark.parametrize('n_heads',  [1, 4])
+def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=True):
+    b, t, e = 2, seq_len, 128
+    Q = torch.rand(b, t, e)
+    K = torch.rand(b, t, e)
+    V = torch.rand(b, t, e)
+
+    attention = MultiHeadAttention(e, n_heads, 0)
+    sparse_attention = SparseMultiHeadAttention(e, n_heads, 0, block_size)
+    sparse_attention.weight_qkv.data[:] = attention.weight_qkv.data.clone()
+    sparse_attention.weight_out.data[:] = attention.weight_out.data.clone()
+
+    Y2 = sparse_attention.forward(Q, K, V)
+    A2 = sparse_attention.get_last_attn_weights()
+
+    # simulate the sparsed attention with two heads for each pattern
+    attn_mask_diag = sparse_attention.attn_local.get_attn_mask(t)
+    attn_mask_col = sparse_attention.attn_global.get_attn_mask(t)
+    Y1_diag = attention.forward(Q, K, V, attn_mask=attn_mask_diag)
+    A1_diag = attention.get_last_attn_weights()
+    Y1_col = attention.forward(Q, K, V, attn_mask=attn_mask_col)
+    A1_col = attention.get_last_attn_weights()
+    Y1_col[:, :block_size - 1] = 0     # these are expected to be -inf
+    A1_col[:, :, :block_size - 1] = 0  # these are expected to be -inf
+
+    Y1 = Y1_diag + Y1_col
+    A1 = A1_diag + A1_col
+
+    if visualize:
+        visualize_attn(A1[0].view(n_heads * t, t).detach().cpu(), A2[0].view(n_heads * t, t).detach().cpu(), f'{seq_len=}, {block_size=}, {n_heads=}')
+    assert torch.allclose(A1, A2)
+    assert torch.allclose(Y1, Y2, rtol=1e-04, atol=1e-06)
+
+
+def visualize_attn(attn_expected, attn_actual, title=''):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
+    ax1.matshow(attn_expected, vmin=0)
+    ax1.set_title('Expected')
+    ax2.matshow(attn_actual, vmin=0)
+    ax2.set_title('Actual')
+    plt.suptitle(title)
+    plt.tight_layout()
+    plt.show()
