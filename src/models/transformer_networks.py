@@ -1,6 +1,6 @@
 import torch
 import einops as ein
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
 from lib.functions.activations import softmax
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
@@ -227,7 +227,11 @@ class Transformer(Seq2Seq):
 
 
 
-class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-attention
+class GPT_Block(Module):  # Same as TransformerDecoderLayer but without cross-attention
+    """
+    Paper: Language Models are Unsupervised Multitask Learners
+    https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
+    """
 
     def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0.):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
@@ -256,6 +260,36 @@ class GPT2_Block(Module):  # Same as TransformerDecoderLayer but without cross-a
         return v
 
 
+class GPT_SparseBlock(Module):
+    """
+    Paper: Generating Long Sequences with Sparse Transformers
+    https://arxiv.org/pdf/1904.10509
+    """
+
+    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0., local_attn_block_size=16):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+        self.norm1 = LayerNorm(input_size)
+        self.attn = SparseMultiHeadAttention(input_size, attn_heads, dropout, block_size=local_attn_block_size, causal=True)
+        self.norm2 = LayerNorm(input_size)
+        self.ff = Sequential(  # Position-wise (per token)
+            Linear(input_size, hidden_size),
+            GELU(),
+            Linear(hidden_size, input_size),
+            Dropout(dropout)
+        )
+        self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
+        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
+
+    def forward(self, x):
+        x = x + self._self_attention(self.norm1(x))  # apply normalization also to the cached targets during autoregressive inference
+        x = x + self.ff(self.norm2(x))
+        return x
+
+    def _self_attention(self, x):
+        v = self.attn(query=x, key=x, value=x, attn_mask=None)  # SparseMultiHeadAttention is with causal mask by default
+        return v
+
+
+
 class GPT2(Module):
     """
     Paper: Language Models are Unsupervised Multitask Learners
@@ -267,11 +301,11 @@ class GPT2(Module):
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
         self.transformers = ModuleList(
-            GPT2_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
+            GPT_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
         )
         self.final_norm = LayerNorm(embed_size)
 
-        self.n_layers = n_layers
+        self.n_layers, self.n_heads = n_layers, attn_heads
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
         self.reset_parameters()  # Custom parameter initializations
 
@@ -320,3 +354,28 @@ class GPT2(Module):
             x = torch.cat((x, y), dim=1)       # (B, T+1)
             yield y
 
+
+
+class GPT3(GPT2):
+    """
+    Paper: Language Models are Few-Shot Learners
+    https://arxiv.org/pdf/2005.14165
+    """
+
+    def __init__(self, vocab_size=50_257, context_size=2048, embed_size=768, hidden_size=768 * 4, n_layers=12, attn_heads=12, dropout=0.1, local_attn_block_size=8):
+        self.emb = Embedding(vocab_size, embed_size)
+        self.pos_emb = Embedding(context_size, embed_size)
+        self.dropout = Dropout(dropout)
+
+        # GPT-3: "we use alternating dense and locally banded sparse attention patterns in the layers of the transformer, similar to the Sparse Transformer"
+        assert n_layers % 2 == 0, f'number of layers must be even'
+        self.transformers = ModuleList([
+            GPT_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout),
+            GPT_SparseBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout, local_attn_block_size=local_attn_block_size),
+        ] for _ in range(n_layers//2))
+
+        self.final_norm = LayerNorm(embed_size)
+
+        self.n_layers, self.n_heads = n_layers, attn_heads
+        self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
+        self.reset_parameters()  # Custom parameter initializations

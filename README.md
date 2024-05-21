@@ -6,10 +6,10 @@ I agree.
 
 
 ---
- Everything is coded from scratch, except:
-* using PyTorch's tensors for GPU computation
+Clean code implementation of the foundational deep learning layers, optimizers and models
 * using PyTorch's autograd for the backpropagation
-
+* using PyTorch's tensors for GPU computation
+---
 
 <!-- auto-generated-start -->
 
@@ -138,8 +138,10 @@ I agree.
 - TransformerDecoderLayer
 - TransformerDecoder
 - Transformer <sup>[*[13]*](#ref13 "Attention Is All You Need")</sup>
-- GPT2_Block
+- GPT_Block <sup>[*[28]*](#ref28 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT_SparseBlock <sup>[*[12]*](#ref12 "Generating Long Sequences with Sparse Transformers")</sup>
 - GPT2 <sup>[*[28]*](#ref28 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT3 <sup>[*[29]*](#ref29 "Language Models are Few-Shot Learners")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[20]*](#ref20 "Going deeper with convolutions")</sup>
@@ -194,6 +196,7 @@ I agree.
 26. <a name="ref26" href="https://arxiv.org/pdf/1406.6247.pdf">Recurrent Models of Visual Attention</a>
 27. <a name="ref27" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
 28. <a name="ref28" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
+29. <a name="ref29" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
 
 <!-- auto-generated-end -->
 
