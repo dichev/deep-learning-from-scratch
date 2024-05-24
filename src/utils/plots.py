@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import math
 
+
 def decision_boundary_2d(X, Y, classifier):
     xx, yy = torch.meshgrid(torch.linspace(X[:, 0].min() - 1, X[:, 0].max() + 1, 500),
                             torch.linspace(X[:, 1].min() - 1, X[:, 1].max() + 1, 500), indexing='xy')
@@ -153,3 +154,26 @@ def attention_heads_fast(attn_weights, title='Attention'):
     plt.tight_layout()
     plt.show()
 
+
+def rotary_encoded_vectors(x, x_rot, max_plots=6):
+    b, t, d = x.shape
+    assert b == 1 and x.shape == x_rot.shape
+    d = d if d <= 2*max_plots else 2*max_plots
+
+    x, x_rot = x[..., :d], x_rot[..., :d]
+    fig, axes = plt.subplots(1, d//2, figsize=(5*d//2, 5))
+    for j in range(d//2):
+        ax = axes[j]
+        for i, (x_, x_rot_) in enumerate(zip(x[0, :, j*2:j*2+2], x_rot[0, :, j*2:j*2+2])):
+            ax.quiver(0, 0, *x_rot_, angles='xy', scale_units='xy', scale=1, width=0.006)
+            ax.quiver(0, 0, *x_, angles='xy', scale_units='xy', color="red", scale=1, width=0.004)
+            ax.text(*x_rot_, f't={i}', ha='center', va='center')
+            ax.set_xlim(-2, 2)
+            ax.set_ylim(-2, 2)
+            ax.axhline(0, color='grey', linewidth=0.5)
+            ax.axvline(0, color='grey', linewidth=0.5)
+            ax.axis(False)
+            ax.set_aspect('equal')
+            ax.set_title(f'T={t} D={j*2, j*2+1}')
+    plt.suptitle(f'Rotations along first {d} dimensions for each timestep')
+    plt.show()

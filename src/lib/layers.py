@@ -8,6 +8,7 @@ from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
+from utils import plots
 from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
@@ -1100,29 +1101,29 @@ class PositionalEncoding(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False):
-        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed)
+    def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False, base_freq_theta=10_000):
+        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed, base_freq_theta)
         self.dropout = Dropout(dropout) if dropout else None
         self.depth_size, self.max_seq_len = depth_size, max_seq_len
 
     @staticmethod
-    def compute_encodings(depth_size, seq_len, mixed=False):
+    def compute_encodings(depth_size, seq_len, mixed=False, base_freq_theta=10_000):
         assert depth_size % 2 == 0, f'depth_size must be even, got {depth_size}'
 
         pos = torch.arange(seq_len)
         i = torch.arange(depth_size//2)
-        freq = 1 / 10_000 ** (2 * i / depth_size)
-        radians = pos.view(-1, 1) * freq                  # (P, D/2)  <-  (P, 1) * (D/2)
+        freq = 1 / base_freq_theta ** (2 * i / depth_size)
+        radians = pos.view(-1, 1) * freq                  # (t, d/2)  <-  (t, 1) * (d/2)
         sin, cos = torch.sin(radians), torch.cos(radians)
 
         if not mixed:  # Concatenation is equivalent to interleaving (i.e. mixed=True), because it is just a permutation of independent channels
             embeddings = torch.cat((sin, cos), dim=-1)
         else:
             embeddings = torch.zeros(seq_len, depth_size)
-            embeddings[:, 0::2] = sin
-            embeddings[:, 1::2] = cos
+            embeddings[:, 0::2] = cos   # switched cos and sin to match to rotary freqs
+            embeddings[:, 1::2] = sin
 
-        return embeddings   # (P, D)
+        return embeddings   # (t, d)
 
     def forward(self, x):
         B, T, E = x.shape
@@ -1136,8 +1137,52 @@ class PositionalEncoding(Module):
 
     def plot(self):
         plt.pcolormesh(self.fixed_embeddings.T)
+        plt.title('Sinusoidal embeddings')
         plt.xlabel('Position')
         plt.ylabel('Depth')
         plt.colorbar()
         plt.show()
+
+
+class RotaryEncoding(Module):
+    """
+    Paper: RoFormer: Enhanced Transformer with Rotary Position Embedding
+    https://arxiv.org/pdf/2104.09864
+    """
+
+    def __init__(self, emb_dim, max_seq_len, base_freq_theta=10_000):
+        self.fixed_embeddings = self.compute_encodings(emb_dim, max_seq_len, base_freq_theta)
+        self.emb_dim, self.max_seq_len = emb_dim, max_seq_len
+
+    @staticmethod
+    def compute_encodings(d, seq_len, base_freq_theta=10_000):
+        assert d % 2 == 0, f'embedding dim must be even, got {d}'
+        pos = torch.arange(seq_len).view(-1, 1)
+        i = torch.arange(d // 2)
+        theta = 1 / base_freq_theta ** (2 * i / d)    # different frequency for each position
+        freqs_complex = torch.exp(pos * theta * 1j)   # equivalent to cis: cos(x) + isin(x) = e^{ix}
+        return freqs_complex   # (t, d/2)
+
+    def forward(self, x, clockwise=False):
+        b, t, d = x.shape
+        rotation = self.fixed_embeddings if not clockwise else self.fixed_embeddings.conj()
+
+        x = torch.view_as_complex(x.view(b, t, -1, 2))  # split in pairs of dims, and represent each two real numbers as complex number
+        x = x * rotation                                # rotate on the complex plane: x * e^{pos * theta * 1j}
+        x = torch.view_as_real(x).view(b, t, d)         # restore back to real numbers  (b, t, id//2) -> (b, t, d)
+        return x
+
+    def plot(self):
+        t, d = self.fixed_embeddings.shape[0], self.emb_dim
+        emb = torch.view_as_real(self.fixed_embeddings).view(t, d)
+        plt.pcolormesh(emb.T)
+        plt.title('Rotary sinusoidal embeddings')
+        plt.xlabel('Position')
+        plt.ylabel('Depth')
+        plt.colorbar()
+        plt.show()
+
+        with torch.no_grad():
+            x = torch.ones(1, t, d)
+            plots.rotary_encoded_vectors(x, self.forward(x), max_plots=6)
 
