@@ -1,24 +1,49 @@
 import torch
 from math import sqrt
 
+
 def sign(x):
     return torch.where(x >= 0, 1, -1)
+
 
 def unit_step(x):
     return torch.where(x >= 0, 1, 0)
 
+
 def sigmoid(x):
     return 1 / (1 + torch.exp(-x))
+
 
 def tanh(x):
     e = torch.exp(x)
     return (e - 1/e) / (e + 1/e)
 
+
 def relu(x):
     return torch.clip(x, 0)
 
+
 def gelu(x):  # x * F(x), where F is the cumulative normal distribution
-    return x * 0.5 * (1 + torch.erf(x / sqrt(2)))
+    return x * 0.5 * (1 + torch.erf(x / sqrt(2)))  # ≈ sigmoid(1.702 * x)
+
+
+def silu(x):
+    return x * sigmoid(x)
+
+
+def swish(x, beta=1.):
+    """
+    swish(x, beta=1)     = silu(x)
+    swish(x, beta=1.702) ≈ gelu(x)
+    swish(x, beta=inf)   = relu(x)
+    """
+    return x * sigmoid(beta * x)
+
+
+def glu(x, gate=sigmoid):  # Gated Linear Unit (implemented as non-parameterized function, to allow the linear projections to be defined as separate modules in the model)
+    assert x.shape[-1] % 2 == 0, f'Expected even dimension but got {x.shape}. GLU expect the input to be two concatenated linear projections a and b (with equal size).'
+    a, b = x.chunk(2, dim=-1)
+    return a * gate(b)
 
 
 
@@ -33,6 +58,7 @@ def softmax(z, dim=-1, ignore_mask=None):
     e = torch.exp(z - z.max(dim, keepdim=True)[0])
     return e / e.sum(dim, keepdim=True)
 
+
 def log_softmax(z, dim=-1, ignore_mask=None):
     if ignore_mask is not None:
         assert z.ndim == ignore_mask.ndim, f'Expecting mask with the same dimension as {z.shape} but got {ignore_mask.shape}'
@@ -42,6 +68,7 @@ def log_softmax(z, dim=-1, ignore_mask=None):
     ->  ln(softmax(z)) = ln( e^{z_i} / sum e^z) = z_i - ln(sum e^z)
     """
     return z - log_sum_exp(z, dim)
+
 
 def log_sum_exp(z, dim=-1):
     """ LogSumExp trick for numerical stability:

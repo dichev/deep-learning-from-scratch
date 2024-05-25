@@ -4,7 +4,7 @@ import einops as ein
 from math import sqrt
 from matplotlib import pyplot as plt
 from lib.functions import init
-from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
+from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax, swish
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
@@ -770,6 +770,42 @@ class GELU(Module):
     """
     def forward(self, x):
         return gelu(x)
+
+
+class GLU(Module):  # Gated Linear Unit
+    """
+    Paper: Language Modeling with Gated Convolutional Networks
+    https://arxiv.org/pdf/1612.08083v3
+    """
+
+    def __init__(self, input_size, output_size, gate_fn=sigmoid):
+        assert output_size % 2 == 0, f'output_size must be an even, but got {output_size}'
+        self.weight = Param((input_size, output_size//2))
+        self.bias = Param((1, output_size//2))
+        self.gate = gate_fn
+        self.input_size, self.output_size = input_size, output_size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.linear_uniform_(self.weight, self.input_size)
+        init.linear_uniform_(self.bias, self.input_size)
+
+    def forward(self, x):
+        # Concatenated equivalent to: y = (x @ W + b) * self.gate(x @ V + c)
+        a, b = (x @ self.weight + self.bias).chunk(2, dim=-1)
+        y = a * self.gate(b)
+        return y
+
+
+class SwiGLU(GLU):  # Swish-Gated Linear Unit
+    """
+    Paper: GLU Variants Improve Transformer
+    https://arxiv.org/pdf/2002.05202
+    """
+    def __init__(self, input_size, output_size):
+        super().__init__(input_size, output_size, gate_fn=swish)  # swish(beta=1) is the same as silu()
+
 
 
 class Flatten(Module):
