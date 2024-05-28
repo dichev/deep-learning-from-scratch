@@ -142,10 +142,11 @@ class LayerNorm(Module):
     https://arxiv.org/pdf/1607.06450.pdf
     """
 
-    def __init__(self, size):
+    def __init__(self, size, eps=1e-5):
         self.shift = Param((1, size))
         self.scale = Param((1, size))
         self.size = size
+        self.eps = eps
         self.reset_parameters()
 
     @torch.no_grad()
@@ -155,12 +156,44 @@ class LayerNorm(Module):
 
     def forward(self, a):  # "a" are all pre-activations of the layer
         mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
-        a = (a - mu) / (var + 1e-5).sqrt()
+        a = (a - mu) / (var + self.eps).sqrt()
         a = self.scale * a + self.shift
         return a
 
     def __repr__(self):
         return f'LayerNorm({self.size}): {self.n_params} params'
+
+
+class RMSNorm(Module):
+    """
+    Paper: Root Mean Square Layer Normalization
+    https://arxiv.org/pdf/1910.07467
+    """
+
+    def __init__(self, size, eps=1e-6, partial=1.):
+        self.gain = Param((1, size))
+        self.size = size
+        self.eps = eps
+        self.p = partial
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.gain.fill_(1)
+
+    def forward(self, a):
+        if self.p == 1.:
+            rms = a.norm(dim=-1, keepdim=True) * (1/self.size)**0.5   # equivalent to: (a**2).mean().sqrt()
+        else:  # partial sample statistic
+            sample_size = round(self.p*self.size)
+            rms = a[..., :sample_size].norm(dim=-1, keepdim=True) * (1/sample_size)**0.5
+
+        a = a / (rms + self.eps) * self.gain
+        return a
+
+    def __repr__(self):
+        return f'RMSNorm({self.size}, partial={self.p}): {self.n_params} params'
+
 
 
 class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/resize:fit:720/format:webp/1*MFl0tPjwvc49HirAJZPhEA.png

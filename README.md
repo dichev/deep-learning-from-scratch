@@ -23,10 +23,11 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - BatchNorm1d
 - BatchNorm2d
 - LayerNorm <sup>[*[2]*](#ref2 "Layer Normalization")</sup>
-- LocalResponseNorm <sup>[*[3]*](#ref3 "ImageNet Classification with Deep Convolutional Neural Networks")</sup>
-- Dropout <sup>[*[4]*](#ref4 "Dropout: A Simple Way to Prevent Neural Networks from Overfitting")</sup>
+- RMSNorm <sup>[*[3]*](#ref3 "Root Mean Square Layer Normalization")</sup>
+- LocalResponseNorm <sup>[*[4]*](#ref4 "ImageNet Classification with Deep Convolutional Neural Networks")</sup>
+- Dropout <sup>[*[5]*](#ref5 "Dropout: A Simple Way to Prevent Neural Networks from Overfitting")</sup>
 - RNN_cell
-- LSTM_cell <sup>[*[5]*](#ref5 "Generating Sequences With Recurrent Neural Networks")</sup>
+- LSTM_cell <sup>[*[6]*](#ref6 "Generating Sequences With Recurrent Neural Networks")</sup>
 - GRU_cell
 - RNN
 - Conv2d
@@ -35,29 +36,29 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - MaxPool2d
 - AvgPool2d
 - BatchAddPool
-- SEGate <sup>[*[6]*](#ref6 "Squeeze-and-Excitation Gate layer")</sup>
+- SEGate <sup>[*[7]*](#ref7 "Squeeze-and-Excitation Gate layer")</sup>
 - Graph_cell
-- GCN_cell <sup>[*[7]*](#ref7 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
-- GraphSAGE_cell <sup>[*[8]*](#ref8 "Inductive Representation Learning on Large Graphs")</sup>
-- DiffPool <sup>[*[9]*](#ref9 "Hierarchical Graph Representation Learning with Differentiable Pooling")</sup>
+- GCN_cell <sup>[*[8]*](#ref8 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
+- GraphSAGE_cell <sup>[*[9]*](#ref9 "Inductive Representation Learning on Large Graphs")</sup>
+- DiffPool <sup>[*[10]*](#ref10 "Hierarchical Graph Representation Learning with Differentiable Pooling")</sup>
 - ReLU
-- GELU <sup>[*[10]*](#ref10 "Gaussian Error Linear Units (GELUs)")</sup>
-- GLU <sup>[*[11]*](#ref11 "Language Modeling with Gated Convolutional Networks")</sup>
-- SwiGLU <sup>[*[12]*](#ref12 "GLU Variants Improve Transformer")</sup>
+- GELU <sup>[*[11]*](#ref11 "Gaussian Error Linear Units (GELUs)")</sup>
+- GLU <sup>[*[12]*](#ref12 "Language Modeling with Gated Convolutional Networks")</sup>
+- SwiGLU <sup>[*[13]*](#ref13 "GLU Variants Improve Transformer")</sup>
 - Flatten
 - DotProductAttention
-- AdditiveAttention <sup>[*[13]*](#ref13 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
-- DiagBlockAttention <sup>[*[14]*](#ref14 "Generating Long Sequences with Sparse Transformers")</sup>
-- ColumnBlockAttention <sup>[*[14]*](#ref14 "Generating Long Sequences with Sparse Transformers")</sup>
-- MultiHeadAttention <sup>[*[15]*](#ref15 "Attention Is All You Need")</sup>
-- SparseMultiHeadAttention <sup>[*[14]*](#ref14 "Generating Long Sequences with Sparse Transformers")</sup>
-- PositionalEncoding <sup>[*[15]*](#ref15 "Attention Is All You Need")</sup>
-- RotaryEncoding <sup>[*[16]*](#ref16 "RoFormer: Enhanced Transformer with Rotary Position Embedding")</sup>
+- AdditiveAttention <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
+- DiagBlockAttention <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
+- ColumnBlockAttention <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
+- MultiHeadAttention <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
+- SparseMultiHeadAttention <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
+- PositionalEncoding <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
+- RotaryEncoding <sup>[*[17]*](#ref17 "RoFormer: Enhanced Transformer with Rotary Position Embedding")</sup>
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
 - AutoencoderLinear
-- Word2Vec <sup>[*[17]*](#ref17 "Efficient Estimation of Word Representations in Vector Space")</sup>
+- Word2Vec <sup>[*[18]*](#ref18 "Efficient Estimation of Word Representations in Vector Space")</sup>
 
 
 ### Optimizers
@@ -70,7 +71,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - RMSProp
 - AdaDelta
 - Adam
-- AdamW <sup>[*[18]*](#ref18 "Decoupled Weight Decay Regularization")</sup>
+- AdamW <sup>[*[19]*](#ref19 "Decoupled Weight Decay Regularization")</sup>
 - LR_Scheduler
 - LR_StepScheduler
 - LR_PlateauScheduler
@@ -95,65 +96,65 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 `models.recurrent_networks` [➜](src/models/recurrent_networks.py)
 - RNN_factory
 - SimpleRNN
-- LSTM <sup>[*[5]*](#ref5 "Generating Sequences With Recurrent Neural Networks")</sup>
+- LSTM <sup>[*[6]*](#ref6 "Generating Sequences With Recurrent Neural Networks")</sup>
 - GRU
 - LangModel
 - EchoStateNetwork
 - Encoder
 - Decoder
-- Seq2Seq <sup>[*[19]*](#ref19 "Sequence to Sequence Learning with Neural Networks")</sup>
+- Seq2Seq <sup>[*[20]*](#ref20 "Sequence to Sequence Learning with Neural Networks")</sup>
 
 `models.convolutional_networks` [➜](src/models/convolutional_networks.py)
 - SimpleCNN
 - SimpleFullyCNN
-- LeNet5 <sup>[*[20]*](#ref20 "Gradient-based learning applied to document recognition")</sup>
-- AlexNet <sup>[*[3]*](#ref3 "ImageNet Classification with Deep Convolutional Neural Networks")</sup>
-- NetworkInNetwork <sup>[*[21]*](#ref21 "Network In Network")</sup>
-- VGG16 <sup>[*[22]*](#ref22 "Very Deep Convolutional Networks for Large-Scale Image Recognition")</sup>
-- GoogLeNet <sup>[*[23]*](#ref23 "Going deeper with convolutions")</sup>
+- LeNet5 <sup>[*[21]*](#ref21 "Gradient-based learning applied to document recognition")</sup>
+- AlexNet <sup>[*[4]*](#ref4 "ImageNet Classification with Deep Convolutional Neural Networks")</sup>
+- NetworkInNetwork <sup>[*[22]*](#ref22 "Network In Network")</sup>
+- VGG16 <sup>[*[23]*](#ref23 "Very Deep Convolutional Networks for Large-Scale Image Recognition")</sup>
+- GoogLeNet <sup>[*[24]*](#ref24 "Going deeper with convolutions")</sup>
 - DeepPlainCNN
 
 `models.residual_networks` [➜](src/models/residual_networks.py)
-- ResNet34 <sup>[*[24]*](#ref24 "Deep Residual Learning for Image Recognition")</sup>
-- ResNet50 <sup>[*[24]*](#ref24 "Deep Residual Learning for Image Recognition")</sup>
-- ResNeXt50 <sup>[*[25]*](#ref25 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
-- SEResNet50 <sup>[*[26]*](#ref26 "Squeeze-and-Excitation Networks")</sup>
-- SEResNeXt50 <sup>[*[26]*](#ref26 "Squeeze-and-Excitation Networks")</sup>
-- DenseNet121 <sup>[*[27]*](#ref27 "Densely Connected Convolutional Networks")</sup>
+- ResNet34 <sup>[*[25]*](#ref25 "Deep Residual Learning for Image Recognition")</sup>
+- ResNet50 <sup>[*[25]*](#ref25 "Deep Residual Learning for Image Recognition")</sup>
+- ResNeXt50 <sup>[*[26]*](#ref26 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
+- SEResNet50 <sup>[*[27]*](#ref27 "Squeeze-and-Excitation Networks")</sup>
+- SEResNeXt50 <sup>[*[27]*](#ref27 "Squeeze-and-Excitation Networks")</sup>
+- DenseNet121 <sup>[*[28]*](#ref28 "Densely Connected Convolutional Networks")</sup>
 
 `models.graph_networks` [➜](src/models/graph_networks.py)
-- GCN <sup>[*[7]*](#ref7 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
-- GraphSAGE <sup>[*[8]*](#ref8 "Inductive Representation Learning on Large Graphs")</sup>
-- GIN <sup>[*[28]*](#ref28 "How Powerful are Graph Neural Networks?")</sup>
-- DiffPoolNet <sup>[*[9]*](#ref9 "Hierarchical Graph Representation Learning with Differentiable Pooling")</sup>
+- GCN <sup>[*[8]*](#ref8 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
+- GraphSAGE <sup>[*[9]*](#ref9 "Inductive Representation Learning on Large Graphs")</sup>
+- GIN <sup>[*[29]*](#ref29 "How Powerful are Graph Neural Networks?")</sup>
+- DiffPoolNet <sup>[*[10]*](#ref10 "Hierarchical Graph Representation Learning with Differentiable Pooling")</sup>
 
 `models.attention_networks` [➜](src/models/attention_networks.py)
-- RecurrentAttention <sup>[*[29]*](#ref29 "Recurrent Models of Visual Attention")</sup>
-- SpatialTransformer <sup>[*[30]*](#ref30 "Spatial Transformer Networks")</sup>
+- RecurrentAttention <sup>[*[30]*](#ref30 "Recurrent Models of Visual Attention")</sup>
+- SpatialTransformer <sup>[*[31]*](#ref31 "Spatial Transformer Networks")</sup>
 - SpatialTransformerNet
-- AttentionEncoder <sup>[*[13]*](#ref13 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
-- AttentionDecoder <sup>[*[13]*](#ref13 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
-- BahdanauAttention <sup>[*[13]*](#ref13 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
+- AttentionEncoder <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
+- AttentionDecoder <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
+- BahdanauAttention <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
 
 `models.transformer_networks` [➜](src/models/transformer_networks.py)
 - TransformerEncoderLayer
 - TransformerEncoder
 - TransformerDecoderLayer
 - TransformerDecoder
-- Transformer <sup>[*[15]*](#ref15 "Attention Is All You Need")</sup>
-- GPT_Block <sup>[*[31]*](#ref31 "Language Models are Unsupervised Multitask Learners")</sup>
-- GPT_SparseBlock <sup>[*[14]*](#ref14 "Generating Long Sequences with Sparse Transformers")</sup>
-- GPT2 <sup>[*[31]*](#ref31 "Language Models are Unsupervised Multitask Learners")</sup>
-- GPT3 <sup>[*[32]*](#ref32 "Language Models are Few-Shot Learners")</sup>
+- Transformer <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
+- GPT_Block <sup>[*[32]*](#ref32 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT_SparseBlock <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
+- GPT2 <sup>[*[32]*](#ref32 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT3 <sup>[*[33]*](#ref33 "Language Models are Few-Shot Learners")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
-- Inception <sup>[*[23]*](#ref23 "Going deeper with convolutions")</sup>
-- ResBlock <sup>[*[24]*](#ref24 "Deep Residual Learning for Image Recognition")</sup>
-- ResBottleneckBlock <sup>[*[24]*](#ref24 "Deep Residual Learning for Image Recognition")</sup>
-- ResNeXtBlock <sup>[*[25]*](#ref25 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
-- DenseLayer <sup>[*[27]*](#ref27 "Densely Connected Convolutional Networks")</sup>
-- DenseBlock <sup>[*[27]*](#ref27 "Densely Connected Convolutional Networks")</sup>
-- DenseTransition <sup>[*[27]*](#ref27 "Densely Connected Convolutional Networks")</sup>
+- Inception <sup>[*[24]*](#ref24 "Going deeper with convolutions")</sup>
+- ResBlock <sup>[*[25]*](#ref25 "Deep Residual Learning for Image Recognition")</sup>
+- ResBottleneckBlock <sup>[*[25]*](#ref25 "Deep Residual Learning for Image Recognition")</sup>
+- ResNeXtBlock <sup>[*[26]*](#ref26 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
+- DenseLayer <sup>[*[28]*](#ref28 "Densely Connected Convolutional Networks")</sup>
+- DenseBlock <sup>[*[28]*](#ref28 "Densely Connected Convolutional Networks")</sup>
+- DenseTransition <sup>[*[28]*](#ref28 "Densely Connected Convolutional Networks")</sup>
 
 
 ### Example usages
@@ -173,36 +174,37 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 ### References
 1. <a name="ref1" href="https://proceedings.mlr.press/v37/ioffe15.pdf">Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift</a>
 2. <a name="ref2" href="https://arxiv.org/pdf/1607.06450.pdf">Layer Normalization</a>
-3. <a name="ref3" href="https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf">ImageNet Classification with Deep Convolutional Neural Networks</a>
-4. <a name="ref4" href="https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf">Dropout: A Simple Way to Prevent Neural Networks from Overfitting</a>
-5. <a name="ref5" href="https://arxiv.org/pdf/1308.0850.pdf">Generating Sequences With Recurrent Neural Networks</a>
-6. <a name="ref6" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Gate layer</a>
-7. <a name="ref7" href="https://arxiv.org/pdf/1609.02907.pdf">Semi-Supervised Classification with Graph Convolutional Networks</a>
-8. <a name="ref8" href="https://arxiv.org/pdf/1706.02216.pdf">Inductive Representation Learning on Large Graphs</a>
-9. <a name="ref9" href="https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf">Hierarchical Graph Representation Learning with Differentiable Pooling</a>
-10. <a name="ref10" href="https://arxiv.org/pdf/1606.08415v5">Gaussian Error Linear Units (GELUs)</a>
-11. <a name="ref11" href="https://arxiv.org/pdf/1612.08083v3">Language Modeling with Gated Convolutional Networks</a>
-12. <a name="ref12" href="https://arxiv.org/pdf/2002.05202">GLU Variants Improve Transformer</a>
-13. <a name="ref13" href="https://arxiv.org/pdf/1409.0473.pdf">Neural Machine Translation by Jointly Learning to Align and Translate</a>
-14. <a name="ref14" href="https://arxiv.org/pdf/1904.10509">Generating Long Sequences with Sparse Transformers</a>
-15. <a name="ref15" href="https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf">Attention Is All You Need</a>
-16. <a name="ref16" href="https://arxiv.org/pdf/2104.09864">RoFormer: Enhanced Transformer with Rotary Position Embedding</a>
-17. <a name="ref17" href="https://arxiv.org/pdf/1301.3781.pdf">Efficient Estimation of Word Representations in Vector Space</a>
-18. <a name="ref18" href="https://arxiv.org/pdf/1711.05101">Decoupled Weight Decay Regularization</a>
-19. <a name="ref19" href="https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf">Sequence to Sequence Learning with Neural Networks</a>
-20. <a name="ref20" href="https://hal.science/hal-03926082/document">Gradient-based learning applied to document recognition</a>
-21. <a name="ref21" href="https://arxiv.org/pdf/1312.4400.pdf">Network In Network</a>
-22. <a name="ref22" href="https://arxiv.org/pdf/1409.1556.pdf">Very Deep Convolutional Networks for Large-Scale Image Recognition</a>
-23. <a name="ref23" href="https://arxiv.org/pdf/1409.4842.pdf?">Going deeper with convolutions</a>
-24. <a name="ref24" href="https://arxiv.org/pdf/1512.03385.pdf">Deep Residual Learning for Image Recognition</a>
-25. <a name="ref25" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf">Aggregated Residual Transformations for Deep Neural Networks</a>
-26. <a name="ref26" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Networks</a>
-27. <a name="ref27" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf">Densely Connected Convolutional Networks</a>
-28. <a name="ref28" href="https://arxiv.org/pdf/1810.00826v3.pdf">How Powerful are Graph Neural Networks?</a>
-29. <a name="ref29" href="https://arxiv.org/pdf/1406.6247.pdf">Recurrent Models of Visual Attention</a>
-30. <a name="ref30" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
-31. <a name="ref31" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
-32. <a name="ref32" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
+3. <a name="ref3" href="https://arxiv.org/pdf/1910.07467">Root Mean Square Layer Normalization</a>
+4. <a name="ref4" href="https://proceedings.neurips.cc/paper/2012/file/c399862d3b9d6b76c8436e924a68c45b-Paper.pdf">ImageNet Classification with Deep Convolutional Neural Networks</a>
+5. <a name="ref5" href="https://www.jmlr.org/papers/volume15/srivastava14a/srivastava14a.pdf">Dropout: A Simple Way to Prevent Neural Networks from Overfitting</a>
+6. <a name="ref6" href="https://arxiv.org/pdf/1308.0850.pdf">Generating Sequences With Recurrent Neural Networks</a>
+7. <a name="ref7" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Gate layer</a>
+8. <a name="ref8" href="https://arxiv.org/pdf/1609.02907.pdf">Semi-Supervised Classification with Graph Convolutional Networks</a>
+9. <a name="ref9" href="https://arxiv.org/pdf/1706.02216.pdf">Inductive Representation Learning on Large Graphs</a>
+10. <a name="ref10" href="https://proceedings.neurips.cc/paper_files/paper/2018/file/e77dbaf6759253c7c6d0efc5690369c7-Paper.pdf">Hierarchical Graph Representation Learning with Differentiable Pooling</a>
+11. <a name="ref11" href="https://arxiv.org/pdf/1606.08415v5">Gaussian Error Linear Units (GELUs)</a>
+12. <a name="ref12" href="https://arxiv.org/pdf/1612.08083v3">Language Modeling with Gated Convolutional Networks</a>
+13. <a name="ref13" href="https://arxiv.org/pdf/2002.05202">GLU Variants Improve Transformer</a>
+14. <a name="ref14" href="https://arxiv.org/pdf/1409.0473.pdf">Neural Machine Translation by Jointly Learning to Align and Translate</a>
+15. <a name="ref15" href="https://arxiv.org/pdf/1904.10509">Generating Long Sequences with Sparse Transformers</a>
+16. <a name="ref16" href="https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf">Attention Is All You Need</a>
+17. <a name="ref17" href="https://arxiv.org/pdf/2104.09864">RoFormer: Enhanced Transformer with Rotary Position Embedding</a>
+18. <a name="ref18" href="https://arxiv.org/pdf/1301.3781.pdf">Efficient Estimation of Word Representations in Vector Space</a>
+19. <a name="ref19" href="https://arxiv.org/pdf/1711.05101">Decoupled Weight Decay Regularization</a>
+20. <a name="ref20" href="https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf">Sequence to Sequence Learning with Neural Networks</a>
+21. <a name="ref21" href="https://hal.science/hal-03926082/document">Gradient-based learning applied to document recognition</a>
+22. <a name="ref22" href="https://arxiv.org/pdf/1312.4400.pdf">Network In Network</a>
+23. <a name="ref23" href="https://arxiv.org/pdf/1409.1556.pdf">Very Deep Convolutional Networks for Large-Scale Image Recognition</a>
+24. <a name="ref24" href="https://arxiv.org/pdf/1409.4842.pdf?">Going deeper with convolutions</a>
+25. <a name="ref25" href="https://arxiv.org/pdf/1512.03385.pdf">Deep Residual Learning for Image Recognition</a>
+26. <a name="ref26" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf">Aggregated Residual Transformations for Deep Neural Networks</a>
+27. <a name="ref27" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Networks</a>
+28. <a name="ref28" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf">Densely Connected Convolutional Networks</a>
+29. <a name="ref29" href="https://arxiv.org/pdf/1810.00826v3.pdf">How Powerful are Graph Neural Networks?</a>
+30. <a name="ref30" href="https://arxiv.org/pdf/1406.6247.pdf">Recurrent Models of Visual Attention</a>
+31. <a name="ref31" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
+32. <a name="ref32" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
+33. <a name="ref33" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
 
 <!-- auto-generated-end -->
 
