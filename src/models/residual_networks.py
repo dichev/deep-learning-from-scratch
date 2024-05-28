@@ -11,7 +11,7 @@ class ResNet34(Module):
     def __init__(self, n_classes=1000, attention=False):
 
         self.stem = Sequential(                                                                # in:   3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same'),   # ->   64, 112, 112
+             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),   # ->   64, 112, 112
             BatchNorm2d(64), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                          # ->   64,  56,  56 (max)
         )
@@ -68,7 +68,7 @@ class ResNet50(Module):
     def __init__(self, n_classes=1000, attention=False):
 
         self.stem = Sequential(                                                                                             # in:   3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same'),                                # ->   64, 112, 112
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),                    # ->   64, 112, 112
             BatchNorm2d(64), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                       # ->   64,  56,  56 (max)
         )
@@ -125,7 +125,7 @@ class ResNeXt50(Module):  # same computations/params as ResNet-50, but more chan
     def __init__(self, n_classes=1000, attention=False):
 
         self.stem = Sequential(                                                                                               # in:   3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same'),                                  # ->   64, 112, 112
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),                      # ->   64, 112, 112
             BatchNorm2d(64), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                                                         # ->   64,  56,  56 (max)
         )
@@ -199,7 +199,7 @@ class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
 
     def __init__(self, n_classes=1000, dropout=.2):
         self.stem = Sequential(                                                                # in:   3, 224, 224
-            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same'),   # ->   64, 112, 112
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),   # ->   64, 112, 112
             BatchNorm2d(64), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                          # ->   64,  56,  56 (max)
         )

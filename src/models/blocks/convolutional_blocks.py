@@ -48,9 +48,9 @@ class ResBlock(Module):
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', stride=stride),
+            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', stride=stride, bias=False),
             BatchNorm2d(out_channels), ReLU(),
-            Conv2d(out_channels, out_channels, kernel_size=3, padding='same'),
+            Conv2d(out_channels, out_channels, kernel_size=3, padding='same', bias=False),
             BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
@@ -87,11 +87,11 @@ class ResBottleneckBlock(Module):
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride),   # 1x1 conv (reduce channels)
+            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride, bias=False),   # 1x1 conv (reduce channels)
             BatchNorm2d(mid_channels), ReLU(),
-            Conv2d(mid_channels, mid_channels, kernel_size=3, padding='same'),                  # 3x3 conv
+            Conv2d(mid_channels, mid_channels, kernel_size=3, padding='same', bias=False),                  # 3x3 conv
             BatchNorm2d(mid_channels), ReLU(),
-            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same'),                  # 1x1 conv (expand channels)
+            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', bias=False),                  # 1x1 conv (expand channels)
             BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
@@ -130,11 +130,11 @@ class ResNeXtBlock(Module):
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride),        # 1x1 conv (reduce channels)
+            Conv2d(in_channels,  mid_channels, kernel_size=1, padding='same', stride=stride, bias=False),        # 1x1 conv (reduce channels)
             BatchNorm2d(mid_channels), ReLU(),
-            Conv2dGroups(mid_channels, mid_channels, kernel_size=3, padding='same', groups=groups),  # groups x 3x3 conv with channels/groups
+            Conv2dGroups(mid_channels, mid_channels, kernel_size=3, padding='same', groups=groups, bias=False),  # groups x 3x3 conv with channels/groups
             BatchNorm2d(mid_channels), ReLU(),
-            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same'),                       # 1x1 conv (expand channels)
+            Conv2d(mid_channels, out_channels, kernel_size=1, padding='same', bias=False),                       # 1x1 conv (expand channels)
             BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
