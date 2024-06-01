@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 import math
 
-from models.transformer_networks import GPT2, GPT3
+from models.transformer_networks import GPT2, GPT3, LLaMA1
 from lib.functions.losses import cross_entropy
 from lib.functions.metrics import accuracy
 from lib.optimizers import AdamW
@@ -50,6 +50,7 @@ val_loader = DataLoader(val_data, batch_size=batch_size)
 models = {
     'GPT-2': GPT2(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6, dropout=.4),
     'GPT-3': GPT3(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6, dropout=.4, local_attn_block_size=8),
+    'LLaMA-1': LLaMA1(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6),
 }
 
 

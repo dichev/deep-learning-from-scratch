@@ -1,10 +1,19 @@
 import pytest
 import torch
 from lib.functions.metrics import BLEU
-from lib.functions.activations import softmax, log_softmax
+from lib.functions.activations import softmax, log_softmax, relu, silu, gelu, swish
 from utils.other import paddings_mask
 from torchtext.data.metrics import bleu_score
 import math
+
+
+@pytest.mark.parametrize('batch',  [1, 2, 5, 256])
+@pytest.mark.parametrize('dim',  [1, 2, 5, 256])
+def test_smooth_relu(batch, dim):
+    x = torch.randn(batch, dim)
+    assert torch.allclose(silu(x), swish(x, 1))
+    assert torch.allclose(gelu(x), swish(x, 1.702), rtol=1e-1, atol=1e-1)  # approx
+    assert torch.allclose(relu(x), swish(x, torch.inf))
 
 
 @pytest.mark.parametrize('z_shape',  [(2, 8), (2, 4, 6), (1024, 16, 32)])

@@ -1,7 +1,8 @@
 import pytest
 import torch
-from lib.layers import Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm, DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention
-from lib.functions.activations import softmax
+from lib.layers import (Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm,
+                        DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention,
+                        PositionalEncoding, RotaryEncoding)
 from utils.other import paddings_mask
 import einops as ein
 from math import sqrt
@@ -239,3 +240,28 @@ def visualize_attn(attn_expected, attn_actual, title=''):
     plt.suptitle(title)
     plt.tight_layout()
     plt.show()
+
+
+def test_positional_encodings_frequency():
+    t, d = 50, 256
+    sin_enc = PositionalEncoding.compute_encodings(d, t, mixed=True)
+    rot_enc = RotaryEncoding.compute_encodings(d, t)
+    rot_enc_real = torch.view_as_real(rot_enc).view(t, d)
+    assert torch.allclose(sin_enc, rot_enc_real)
+
+
+@pytest.mark.parametrize('t',  [1, 2, 50])
+@pytest.mark.parametrize('d',  [2, 8, 64])
+@pytest.mark.parametrize('base_theta',  [10_000, 500_000])
+def test_positional_rotary_encodings(t, d, base_theta, batch_size=3):
+    x = torch.randn(batch_size, t, d)
+
+    encoder = RotaryEncoding(d, t, base_freq_theta=base_theta)
+    x_rotated = encoder.forward(x, clockwise=False)
+    x_restored = encoder.forward(x_rotated, clockwise=True)
+
+    assert torch.allclose(x, x_rotated, rtol=1e-04, atol=1e-06) == (t == 1)  # expected no rotation only for t=1
+    assert torch.allclose(x, x_restored, rtol=1e-04, atol=1e-06)
+
+
+

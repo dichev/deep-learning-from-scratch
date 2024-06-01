@@ -4,10 +4,11 @@ import einops as ein
 from math import sqrt
 from matplotlib import pyplot as plt
 from lib.functions import init
-from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax
+from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax, swish
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
+from utils import plots
 from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
@@ -141,10 +142,11 @@ class LayerNorm(Module):
     https://arxiv.org/pdf/1607.06450.pdf
     """
 
-    def __init__(self, size):
+    def __init__(self, size, eps=1e-5):
         self.shift = Param((1, size))
         self.scale = Param((1, size))
         self.size = size
+        self.eps = eps
         self.reset_parameters()
 
     @torch.no_grad()
@@ -154,12 +156,44 @@ class LayerNorm(Module):
 
     def forward(self, a):  # "a" are all pre-activations of the layer
         mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
-        a = (a - mu) / (var + 1e-5).sqrt()
+        a = (a - mu) / (var + self.eps).sqrt()
         a = self.scale * a + self.shift
         return a
 
     def __repr__(self):
         return f'LayerNorm({self.size}): {self.n_params} params'
+
+
+class RMSNorm(Module):
+    """
+    Paper: Root Mean Square Layer Normalization
+    https://arxiv.org/pdf/1910.07467
+    """
+
+    def __init__(self, size, eps=1e-6, partial=1.):
+        self.gain = Param((1, size))
+        self.size = size
+        self.eps = eps
+        self.p = partial
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.gain.fill_(1)
+
+    def forward(self, a):
+        if self.p == 1.:
+            rms = a.norm(dim=-1, keepdim=True) * (1/self.size)**0.5   # equivalent to: (a**2).mean().sqrt()
+        else:  # partial sample statistic
+            sample_size = round(self.p*self.size)
+            rms = a[..., :sample_size].norm(dim=-1, keepdim=True) * (1/sample_size)**0.5
+
+        a = a / (rms + self.eps) * self.gain
+        return a
+
+    def __repr__(self):
+        return f'RMSNorm({self.size}, partial={self.p}): {self.n_params} params'
+
 
 
 class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/resize:fit:720/format:webp/1*MFl0tPjwvc49HirAJZPhEA.png
@@ -771,6 +805,42 @@ class GELU(Module):
         return gelu(x)
 
 
+class GLU(Module):  # Gated Linear Unit
+    """
+    Paper: Language Modeling with Gated Convolutional Networks
+    https://arxiv.org/pdf/1612.08083v3
+    """
+
+    def __init__(self, input_size, hidden_size, gate_fn=sigmoid):
+        assert hidden_size % 2 == 0, f'hidden_size must be an even, but got {hidden_size}'
+        self.weight = Param((input_size, hidden_size))
+        self.bias = Param((1, hidden_size))
+        self.gate = gate_fn
+        self.input_size, self.output_size = input_size, hidden_size
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        init.linear_uniform_(self.weight, self.input_size)
+        init.linear_uniform_(self.bias, self.input_size)
+
+    def forward(self, x):
+        # Concatenated equivalent to: y = (x @ W + b) * self.gate(x @ V + c)
+        a, b = (x @ self.weight + self.bias).chunk(2, dim=-1)
+        y = a * self.gate(b)
+        return y
+
+
+class SwiGLU(GLU):  # Swish-Gated Linear Unit
+    """
+    Paper: GLU Variants Improve Transformer
+    https://arxiv.org/pdf/2002.05202
+    """
+    def __init__(self, input_size, hidden_size):
+        super().__init__(input_size, hidden_size, gate_fn=swish)  # swish(beta=1) is the same as silu()
+
+
+
 class Flatten(Module):
     def __init__(self, start_dim=1):
         self.start_dim = start_dim
@@ -859,7 +929,7 @@ class DiagBlockAttention(Module):
         b, t, e = Q.shape
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
-        K_T = K.transpose(2, 1)
+        K_T = K.mT
         block_size = self.block_size
         n_blocks = t // block_size
 
@@ -923,7 +993,7 @@ class ColumnBlockAttention(Module):
         b, t, e = Q.shape
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
-        K_T = K.transpose(2, 1)
+        K_T = K.mT
         block_size = self.block_size
         cols = torch.arange(block_size-1, t, block_size)
 
@@ -995,7 +1065,7 @@ class MultiHeadAttention(Module):
         init.xavier_uniform_(self.weight_qkv, *self.weight_qkv.shape)
         init.xavier_uniform_(self.weight_out, *self.weight_out.shape)
 
-    def forward(self, query, key, value, attn_mask=None):
+    def forward(self, query, key, value, attn_mask=None, transform=None, kv_cache=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
@@ -1018,6 +1088,10 @@ class MultiHeadAttention(Module):
         K = self._split_heads(K)                                       # (b * heads, t, emb/heads)
         V = self._split_heads(V)                                       # (b * heads, t, emb/heads)
 
+        # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
+        if transform is not None:
+            Q, K, V = transform(Q, K, V)
+
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
         out = self._merge_heads(out)                                  # (b, t', emb)               <- concat the heads to emb
@@ -1028,7 +1102,7 @@ class MultiHeadAttention(Module):
         return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
-        Z = Q @ K.transpose(2, 1) / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
+        Z = Q @ K.mT / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
@@ -1100,29 +1174,29 @@ class PositionalEncoding(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False):
-        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed)
+    def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False, base_freq_theta=10_000):
+        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed, base_freq_theta)
         self.dropout = Dropout(dropout) if dropout else None
         self.depth_size, self.max_seq_len = depth_size, max_seq_len
 
     @staticmethod
-    def compute_encodings(depth_size, seq_len, mixed=False):
+    def compute_encodings(depth_size, seq_len, mixed=False, base_freq_theta=10_000):
         assert depth_size % 2 == 0, f'depth_size must be even, got {depth_size}'
 
         pos = torch.arange(seq_len)
         i = torch.arange(depth_size//2)
-        freq = 1 / 10_000 ** (2 * i / depth_size)
-        radians = pos.view(-1, 1) * freq                  # (P, D/2)  <-  (P, 1) * (D/2)
+        freq = 1 / base_freq_theta ** (2 * i / depth_size)
+        radians = pos.view(-1, 1) * freq                  # (t, d/2)  <-  (t, 1) * (d/2)
         sin, cos = torch.sin(radians), torch.cos(radians)
 
         if not mixed:  # Concatenation is equivalent to interleaving (i.e. mixed=True), because it is just a permutation of independent channels
             embeddings = torch.cat((sin, cos), dim=-1)
         else:
             embeddings = torch.zeros(seq_len, depth_size)
-            embeddings[:, 0::2] = sin
-            embeddings[:, 1::2] = cos
+            embeddings[:, 0::2] = cos   # switched cos and sin to match to rotary freqs
+            embeddings[:, 1::2] = sin
 
-        return embeddings   # (P, D)
+        return embeddings   # (t, d)
 
     def forward(self, x):
         B, T, E = x.shape
@@ -1136,8 +1210,52 @@ class PositionalEncoding(Module):
 
     def plot(self):
         plt.pcolormesh(self.fixed_embeddings.T)
+        plt.title('Sinusoidal embeddings')
         plt.xlabel('Position')
         plt.ylabel('Depth')
         plt.colorbar()
         plt.show()
+
+
+class RotaryEncoding(Module):
+    """
+    Paper: RoFormer: Enhanced Transformer with Rotary Position Embedding
+    https://arxiv.org/pdf/2104.09864
+    """
+
+    def __init__(self, emb_dim, max_seq_len, base_freq_theta=10_000):
+        self.fixed_embeddings = self.compute_encodings(emb_dim, max_seq_len, base_freq_theta)
+        self.emb_dim, self.max_seq_len = emb_dim, max_seq_len
+
+    @staticmethod
+    def compute_encodings(d, seq_len, base_freq_theta=10_000):
+        assert d % 2 == 0, f'embedding dim must be even, got {d}'
+        pos = torch.arange(seq_len).view(-1, 1)
+        i = torch.arange(d // 2)
+        theta = 1 / base_freq_theta ** (2 * i / d)    # different frequency for each position
+        freqs_complex = torch.exp(pos * theta * 1j)   # equivalent to cis: cos(x) + isin(x) = e^{ix}
+        return freqs_complex   # (t, d/2)
+
+    def forward(self, x, pos=0, clockwise=False):
+        b, t, d = x.shape
+        rotation = self.fixed_embeddings if not clockwise else self.fixed_embeddings.conj()
+
+        x = torch.view_as_complex(x.view(b, t, -1, 2))  # split in pairs of dims, and represent each two real numbers as complex number
+        x = x * rotation[pos:pos+t].to(x.device)        # rotate on the complex plane: x * e^{pos * theta * 1j}
+        x = torch.view_as_real(x).view(b, t, d)         # restore back to real numbers  (b, t, id//2) -> (b, t, d)
+        return x
+
+    def plot(self):
+        t, d = self.fixed_embeddings.shape[0], self.emb_dim
+        emb = torch.view_as_real(self.fixed_embeddings).view(t, d)
+        plt.pcolormesh(emb.T)
+        plt.title('Rotary sinusoidal embeddings')
+        plt.xlabel('Position')
+        plt.ylabel('Depth')
+        plt.colorbar()
+        plt.show()
+
+        with torch.no_grad():
+            x = torch.ones(1, t, d)
+            plots.rotary_encoded_vectors(x, self.forward(x), max_plots=6)
 
