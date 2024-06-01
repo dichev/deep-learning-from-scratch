@@ -142,10 +142,12 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - TransformerDecoderLayer
 - TransformerDecoder
 - Transformer <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
-- GPT_Block <sup>[*[32]*](#ref32 "Language Models are Unsupervised Multitask Learners")</sup>
-- GPT_SparseBlock <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
+- GPT_TransformerBlock <sup>[*[32]*](#ref32 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT_SparseTransformerBlock <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
 - GPT2 <sup>[*[32]*](#ref32 "Language Models are Unsupervised Multitask Learners")</sup>
 - GPT3 <sup>[*[33]*](#ref33 "Language Models are Few-Shot Learners")</sup>
+- LLaMA_TransformerBlock <sup>[*[34]*](#ref34 "LLaMA: Open and Efficient Foundation Language Models")</sup>
+- LLaMA1 <sup>[*[34]*](#ref34 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[24]*](#ref24 "Going deeper with convolutions")</sup>
@@ -205,6 +207,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 31. <a name="ref31" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
 32. <a name="ref32" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
 33. <a name="ref33" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
+34. <a name="ref34" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
 
 <!-- auto-generated-end -->
 

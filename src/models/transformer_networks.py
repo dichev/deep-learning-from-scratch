@@ -227,7 +227,7 @@ class Transformer(Seq2Seq):
 
 
 
-class GPT_Block(Module):  # Same as TransformerDecoderLayer but without cross-attention
+class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but without cross-attention
     """
     Paper: Language Models are Unsupervised Multitask Learners
     https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
@@ -247,7 +247,7 @@ class GPT_Block(Module):  # Same as TransformerDecoderLayer but without cross-at
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
     def forward(self, x):
-        x = x + self._self_attention(self.norm1(x))  # apply normalization also to the cached targets during autoregressive inference
+        x = x + self._self_attention(self.norm1(x))
         x = x + self.ff(self.norm2(x))
         return x
 
@@ -260,7 +260,7 @@ class GPT_Block(Module):  # Same as TransformerDecoderLayer but without cross-at
         return v
 
 
-class GPT_SparseBlock(Module):
+class GPT_SparseTransformerBlock(Module):
     """
     Paper: Generating Long Sequences with Sparse Transformers
     https://arxiv.org/pdf/1904.10509
@@ -280,7 +280,7 @@ class GPT_SparseBlock(Module):
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
     def forward(self, x):
-        x = x + self._self_attention(self.norm1(x))  # apply normalization also to the cached targets during autoregressive inference
+        x = x + self._self_attention(self.norm1(x))
         x = x + self.ff(self.norm2(x))
         return x
 
@@ -301,7 +301,7 @@ class GPT2(Module):
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
         self.transformers = ModuleList(
-            GPT_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
+            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
         )
         self.final_norm = LayerNorm(embed_size)
 
@@ -370,8 +370,8 @@ class GPT3(GPT2):
         # GPT-3: "we use alternating dense and locally banded sparse attention patterns in the layers of the transformer, similar to the Sparse Transformer"
         assert n_layers % 2 == 0, f'number of layers must be even'
         self.transformers = ModuleList([
-            GPT_Block(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout),
-            GPT_SparseBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout, local_attn_block_size=local_attn_block_size),
+            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout),
+            GPT_SparseTransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout, local_attn_block_size=local_attn_block_size),
         ] for _ in range(n_layers//2))
 
         self.final_norm = LayerNorm(embed_size)
@@ -383,7 +383,7 @@ class GPT3(GPT2):
 
 
 
-class LLaMA_Transformer(Module):
+class LLaMA_TransformerBlock(Module):
     """
     Paper: LLaMA: Open and Efficient Foundation Language Models
     https://arxiv.org/pdf/2302.13971
@@ -426,7 +426,7 @@ class LLaMA_Transformer(Module):
         return q, k, v
 
 
-class LLaMA(Module):
+class LLaMA1(Module):
     """
     Paper: LLaMA: Open and Efficient Foundation Language Models
     https://arxiv.org/pdf/2302.13971
@@ -436,7 +436,7 @@ class LLaMA(Module):
         self.emb = Embedding(vocab_size, embed_size)
         self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size)
         self.transformers = ModuleList(
-            LLaMA_Transformer(embed_size, hidden_size, attn_heads, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
+            LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
         )
         self.final_norm = RMSNorm(embed_size, eps=1e-5)
         self.out = Linear(embed_size, vocab_size)
