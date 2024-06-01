@@ -45,6 +45,8 @@ def glu(x, gate=sigmoid):  # Gated Linear Unit (implemented as non-parameterized
     a, b = x.chunk(2, dim=-1)
     return a * gate(b)
 
+def swiglu(x):
+    return glu(x, gate=swish)
 
 
 def softmax(z, dim=-1, ignore_mask=None):

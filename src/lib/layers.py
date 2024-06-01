@@ -811,12 +811,12 @@ class GLU(Module):  # Gated Linear Unit
     https://arxiv.org/pdf/1612.08083v3
     """
 
-    def __init__(self, input_size, output_size, gate_fn=sigmoid):
-        assert output_size % 2 == 0, f'output_size must be an even, but got {output_size}'
-        self.weight = Param((input_size, output_size//2))
-        self.bias = Param((1, output_size//2))
+    def __init__(self, input_size, hidden_size, gate_fn=sigmoid):
+        assert hidden_size % 2 == 0, f'hidden_size must be an even, but got {hidden_size}'
+        self.weight = Param((input_size, hidden_size))
+        self.bias = Param((1, hidden_size))
         self.gate = gate_fn
-        self.input_size, self.output_size = input_size, output_size
+        self.input_size, self.output_size = input_size, hidden_size
         self.reset_parameters()
 
     @torch.no_grad()
@@ -836,8 +836,8 @@ class SwiGLU(GLU):  # Swish-Gated Linear Unit
     Paper: GLU Variants Improve Transformer
     https://arxiv.org/pdf/2002.05202
     """
-    def __init__(self, input_size, output_size):
-        super().__init__(input_size, output_size, gate_fn=swish)  # swish(beta=1) is the same as silu()
+    def __init__(self, input_size, hidden_size):
+        super().__init__(input_size, hidden_size, gate_fn=swish)  # swish(beta=1) is the same as silu()
 
 
 
@@ -929,7 +929,7 @@ class DiagBlockAttention(Module):
         b, t, e = Q.shape
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
-        K_T = K.transpose(2, 1)
+        K_T = K.mT
         block_size = self.block_size
         n_blocks = t // block_size
 
@@ -993,7 +993,7 @@ class ColumnBlockAttention(Module):
         b, t, e = Q.shape
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
-        K_T = K.transpose(2, 1)
+        K_T = K.mT
         block_size = self.block_size
         cols = torch.arange(block_size-1, t, block_size)
 
@@ -1065,7 +1065,7 @@ class MultiHeadAttention(Module):
         init.xavier_uniform_(self.weight_qkv, *self.weight_qkv.shape)
         init.xavier_uniform_(self.weight_out, *self.weight_out.shape)
 
-    def forward(self, query, key, value, attn_mask=None):
+    def forward(self, query, key, value, attn_mask=None, transform=None, kv_cache=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
@@ -1088,6 +1088,10 @@ class MultiHeadAttention(Module):
         K = self._split_heads(K)                                       # (b * heads, t, emb/heads)
         V = self._split_heads(V)                                       # (b * heads, t, emb/heads)
 
+        # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
+        if transform is not None:
+            Q, K, V = transform(Q, K, V)
+
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
         out = self._merge_heads(out)                                  # (b, t', emb)               <- concat the heads to emb
@@ -1098,7 +1102,7 @@ class MultiHeadAttention(Module):
         return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
-        Z = Q @ K.transpose(2, 1) / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
+        Z = Q @ K.mT / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
@@ -1232,12 +1236,12 @@ class RotaryEncoding(Module):
         freqs_complex = torch.exp(pos * theta * 1j)   # equivalent to cis: cos(x) + isin(x) = e^{ix}
         return freqs_complex   # (t, d/2)
 
-    def forward(self, x, clockwise=False):
+    def forward(self, x, pos=0, clockwise=False):
         b, t, d = x.shape
         rotation = self.fixed_embeddings if not clockwise else self.fixed_embeddings.conj()
 
         x = torch.view_as_complex(x.view(b, t, -1, 2))  # split in pairs of dims, and represent each two real numbers as complex number
-        x = x * rotation                                # rotate on the complex plane: x * e^{pos * theta * 1j}
+        x = x * rotation[pos:pos+t].to(x.device)        # rotate on the complex plane: x * e^{pos * theta * 1j}
         x = torch.view_as_real(x).view(b, t, d)         # restore back to real numbers  (b, t, id//2) -> (b, t, d)
         return x
 

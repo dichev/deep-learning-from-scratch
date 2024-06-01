@@ -1,7 +1,7 @@
 import torch
 import einops as ein
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, Dropout, ReLU, GELU, Sequential, ModuleList, PositionalEncoding
-from lib.functions.activations import softmax
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, RMSNorm, Dropout, ReLU, GELU, SwiGLU, Sequential, ModuleList, PositionalEncoding, RotaryEncoding
+from lib.functions.activations import softmax, swiglu
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 from math import sqrt
@@ -379,3 +379,98 @@ class GPT3(GPT2):
         self.n_layers, self.n_heads = n_layers, attn_heads
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
         self.reset_parameters()  # Custom parameter initializations
+
+
+
+
+class LLaMA_Transformer(Module):
+    """
+    Paper: LLaMA: Open and Efficient Foundation Language Models
+    https://arxiv.org/pdf/2302.13971
+    """
+
+    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, rotary_fn):
+        assert callable(rotary_fn) and not isinstance(rotary_fn, Module), f'Expecting callable rotary function (e.g. rotary_emb.forward), which is not a Module, got {rotary_fn}'
+        self.norm1 = RMSNorm(input_size, eps=1e-5)
+        self.attn = MultiHeadAttention(input_size, attn_heads)
+        self.rotary_fn = rotary_fn
+        self.norm2 = RMSNorm(input_size, eps=1e-5)
+
+        # [LLaMA-1 paper] "We use a dimension of 2/3 4d instead of 4d as in PaLM."
+        expected_size = 2 * hidden_size           # typically there are two weight matrices
+        target_size = expected_size // 3          # but because SwiGLU there should be 3 weights matrices, which we want to be of similar size in total:
+        self.ff = Sequential(
+            SwiGLU(input_size, 2 * target_size),  # d -> [h,h] -> h
+            Linear(target_size, input_size),      # h ->  d
+        )
+
+        self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
+        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
+
+    def forward(self, x, start_pos=0):
+        x = x + self._self_attention(self.norm1(x), start_pos)
+        x = x + self.ff(self.norm2(x))
+        return x
+
+    def _self_attention(self, x, start_pos):
+        B, T, E = x.shape
+
+        # Attention mask
+        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, transform=lambda q, k, v: self._rotary(q, k, v, start_pos))
+        return v
+
+    def _rotary(self, q, k, v, start_pos):
+        q = self.rotary_fn(q, pos=start_pos)
+        k = self.rotary_fn(k, pos=start_pos)
+        return q, k, v
+
+
+class LLaMA(Module):
+    """
+    Paper: LLaMA: Open and Efficient Foundation Language Models
+    https://arxiv.org/pdf/2302.13971
+    """
+
+    def __init__(self, vocab_size=32_000, context_size=2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32):
+        self.emb = Embedding(vocab_size, embed_size)
+        self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size)
+        self.transformers = ModuleList(
+            LLaMA_Transformer(embed_size, hidden_size, attn_heads, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
+        )
+        self.final_norm = RMSNorm(embed_size, eps=1e-5)
+        self.out = Linear(embed_size, vocab_size)
+
+        self.n_layers, self.n_heads = n_layers, attn_heads
+        self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
+
+    def forward(self, x, start_pos=0):
+        B, T = x.shape
+        assert start_pos+T <= self.context_size, f'the input sequence {start_pos+T} exceeds the context size {self.context_size}'
+
+        # Decode each token
+        x = self.emb(x)
+        for i, layer in enumerate(self.transformers):
+            x = layer(x, start_pos)
+        x = self.final_norm(x)
+
+        # Output token logits
+        z = self.out(x)
+        return z
+
+    def get_last_attn_weights(self):
+        return torch.stack([layer.attn.get_last_attn_weights() for layer in self.transformers], dim=1)   # (b, n_layers, n_heads, t, t)
+
+    def visualize_attn_weights(self, batch_idx=0, subtitle=''):
+        attn_weights = self.get_last_attn_weights().detach().cpu()
+        plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
+
+    @torch.no_grad()
+    def generate(self, x, max_tokens=10):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+        for i in range(max_tokens):
+            z = self.forward(x, start_pos=i)           # (B, T, E)
+            p = softmax(z[:, -1, :], dim=-1)           # just the last token
+            y = torch.multinomial(p, num_samples=1)    # (B, 1)
+            x = torch.cat((x, y), dim=1)       # (B, T+1)
+            yield y
+

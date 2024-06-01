@@ -1,4 +1,5 @@
 import torch
+import math
 import warnings
 
 
@@ -48,3 +49,7 @@ def sparse_slice(x, dim, end):
     indices, values = x.indices(), x.values()
     mask = indices[dim] < end
     return torch.sparse_coo_tensor(indices[:, mask], values[mask])
+
+
+def roundup_to_multiple(value, multiple):
+    return multiple * math.ceil(value / multiple)
