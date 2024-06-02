@@ -403,8 +403,8 @@ class LLaMA_TransformerBlock(Module):
         expected_size = 2 * hidden_size           # typically there are two weight matrices
         target_size = expected_size // 3          # but because SwiGLU there should be 3 weights matrices, which we want to be of similar size in total:
         self.ff = Sequential(
-            SwiGLU(input_size, 2 * target_size),  # d -> [h,h] -> h
-            Linear(target_size, input_size),      # h ->  d
+            SwiGLU(input_size, 2 * target_size, bias=False),  # d -> [h,h] -> h
+            Linear(target_size, input_size, bias=False),      # h ->  d
         )
 
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
@@ -450,7 +450,7 @@ class LLaMA1(Module):
             LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
         )
         self.final_norm = RMSNorm(embed_size, eps=1e-5)
-        self.out = Linear(embed_size, vocab_size)
+        self.out = Linear(embed_size, vocab_size, bias=False)
 
         self.n_layers, self.n_heads = n_layers, attn_heads
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size

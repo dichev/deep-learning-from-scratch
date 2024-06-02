@@ -13,25 +13,28 @@ from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
 
+
 class Linear(Module):
-    def __init__(self, input_size, output_size=1, weights_init=init.linear_uniform_):
+    def __init__(self, input_size, output_size=1, weights_init=init.linear_uniform_, bias=True):
         self.weight = Param((input_size, output_size))
-        self.bias = Param((1, output_size))
+        self.bias = Param((1, output_size)) if bias else 0.
         self.input_size, self.output_size = input_size, output_size
         self.weights_initializer = weights_init
+        self.has_bias = bias
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
         self.weights_initializer(self.weight, self.input_size, self.output_size)
-        self.weights_initializer(self.bias, self.input_size, self.output_size)
+        if self.has_bias:
+            self.weights_initializer(self.bias, self.input_size, self.output_size)
 
     def forward(self, X):
         z = X @ self.weight + self.bias    # (N, D)x(D, C) + (1, C)  --> (N, C)
         return z
 
     def __repr__(self):
-        return f'Linear({self.input_size}, {self.output_size}, bias=true): {self.n_params} params'
+        return f'Linear({self.input_size}, {self.output_size}, bias={self.has_bias}): {self.n_params} params'
 
 
 class Embedding(Module):  # aka lookup table
@@ -811,18 +814,20 @@ class GLU(Module):  # Gated Linear Unit
     https://arxiv.org/pdf/1612.08083v3
     """
 
-    def __init__(self, input_size, hidden_size, gate_fn=sigmoid):
+    def __init__(self, input_size, hidden_size, bias=True, gate_fn=sigmoid):
         assert hidden_size % 2 == 0, f'hidden_size must be an even, but got {hidden_size}'
         self.weight = Param((input_size, hidden_size))
-        self.bias = Param((1, hidden_size))
+        self.bias = Param((1, hidden_size)) if bias else 0.
         self.gate = gate_fn
         self.input_size, self.output_size = input_size, hidden_size
+        self.has_bias = bias
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
         init.linear_uniform_(self.weight, self.input_size)
-        init.linear_uniform_(self.bias, self.input_size)
+        if self.has_bias:
+            init.linear_uniform_(self.bias, self.input_size)
 
     def forward(self, x):
         # Concatenated equivalent to: y = (x @ W + b) * self.gate(x @ V + c)
@@ -830,14 +835,18 @@ class GLU(Module):  # Gated Linear Unit
         y = a * self.gate(b)
         return y
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.input_size}, {self.output_size}, bias={self.has_bias}): {self.n_params} params'
+
+
 
 class SwiGLU(GLU):  # Swish-Gated Linear Unit
     """
     Paper: GLU Variants Improve Transformer
     https://arxiv.org/pdf/2002.05202
     """
-    def __init__(self, input_size, hidden_size):
-        super().__init__(input_size, hidden_size, gate_fn=swish)  # swish(beta=1) is the same as silu()
+    def __init__(self, input_size, hidden_size, bias=True):
+        super().__init__(input_size, hidden_size, bias, gate_fn=swish)  # swish(beta=1) is the same as silu()
 
 
 
