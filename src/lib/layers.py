@@ -1168,6 +1168,33 @@ class SparseMultiHeadAttention(MultiHeadAttention):
         return ein.rearrange(A, '(b h) tt ts -> b h tt ts', h=self.n_heads)
 
 
+
+class KVCache:
+    def __init__(self):
+        self.cache_kv = None
+
+    def reset(self):
+        self.cache_kv = None
+
+    def update(self, k, v, pos, reset=False):
+        assert torch.no_grad(), f'Expecting a key-value cache to be used only during inference'
+        assert pos == 0 or (v.shape[1] == v.shape[1] == 1), f'Expected kv_cache to be used for inference of the next token, but detected batched usage. Investigate!'
+
+        if reset:
+            self.reset()
+
+        if not self.cache_kv:
+            self.cache_kv = k, v
+        else:
+            self.cache_kv = (
+                torch.cat((self.cache_kv[0], k), dim=1),
+                torch.cat((self.cache_kv[1], v), dim=1),
+            )
+        k, v = self.cache_kv
+        return k, v
+
+
+
 class PositionalEncoding(Module):
     """
     Paper: Attention Is All You Need

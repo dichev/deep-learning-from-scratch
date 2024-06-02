@@ -55,14 +55,14 @@ models = {
 
 
 @torch.no_grad()
-def generate_random_text(model, prompt='', max_tokens=100):
+def generate_random_text(model, prompt='', max_tokens=100, use_cache=True):
     if prompt:
         print(f'[{prompt}]', end='')
         prompt = torch.tensor([tokenizer.encode(prompt)])
     else:
-        prompt = torch.randint(vocab_size, (1,)).view(1, 1)
-    tokens = [idx.item() for idx in model.generate(prompt.to(device), max_tokens)]
-    print(tokenizer.decode(tokens))
+        prompt = torch.randint(vocab_size, (1, 1))
+    tokens = model.generate(prompt.to(device), max_tokens, use_cache)
+    print(tokenizer.decode(tokens.ravel().tolist()))
 
 
 @torch.no_grad()

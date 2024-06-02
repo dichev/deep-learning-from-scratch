@@ -1,7 +1,7 @@
 import torch
 import einops as ein
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, RMSNorm, Dropout, ReLU, GELU, SwiGLU, Sequential, ModuleList, PositionalEncoding, RotaryEncoding
-from lib.functions.activations import softmax, swiglu
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, RMSNorm, Dropout, ReLU, GELU, SwiGLU, Sequential, ModuleList, PositionalEncoding, RotaryEncoding, KVCache
+from lib.functions.activations import softmax
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
 from math import sqrt
@@ -344,15 +344,18 @@ class GPT2(Module):
         attn_weights = self.get_last_attn_weights().detach().cpu()
         plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
 
+
     @torch.no_grad()
-    def generate(self, x, max_tokens=10):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+    def generate(self, x, max_tokens=10, use_cache=False):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+        seqs = []
         for i in range(max_tokens):
-            x = x[:, -self.context_size:]              # limit the input to not exceed the context size (because the fixed size of positional emb)
-            z = self.forward(x)                        # (B, T, E)
+            z = self.forward(x)                        # (B, t, E)
             p = softmax(z[:, -1, :], dim=-1)           # just the last token
             y = torch.multinomial(p, num_samples=1)    # (B, 1)
-            x = torch.cat((x, y), dim=1)       # (B, T+1)
-            yield y
+            x = torch.cat((x, y), dim=1)
+            seqs.append(y)
+        seqs = torch.cat(seqs, dim=1)                  # (B, T)
+        return seqs
 
 
 
@@ -406,24 +409,32 @@ class LLaMA_TransformerBlock(Module):
 
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
+        self.cache_kv = KVCache()
 
-    def forward(self, x, start_pos=0):
-        x = x + self._self_attention(self.norm1(x), start_pos)
+    def forward(self, x, start_pos=0, use_cache=False):
+        x = x + self._self_attention(self.norm1(x), start_pos, use_cache)
         x = x + self.ff(self.norm2(x))
         return x
 
-    def _self_attention(self, x, start_pos):
+    def _self_attention(self, x, start_pos, use_cache=False):
         B, T, E = x.shape
 
         # Attention mask
-        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, transform=lambda q, k, v: self._rotary(q, k, v, start_pos))
+        attn_mask = self.causal_mask[:T, :T].to(x.device) if T > 1 else None  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, transform=lambda q, k, v: self._rotary_and_cache(q, k, v, start_pos, use_cache))
         return v
 
-    def _rotary(self, q, k, v, start_pos):
-        q = self.rotary_fn(q, pos=start_pos)
-        k = self.rotary_fn(k, pos=start_pos)
+    def _rotary_and_cache(self, q, k, v, pos, use_cache=False):
+        q = self.rotary_fn(q, pos)
+        k = self.rotary_fn(k, pos)
+
+        # Auto cache previous keys and values (used for inference)
+        if use_cache:
+            k, v = self.cache_kv.update(k, v, pos, reset=(pos == 0))   # (b, t, e) -> (b, cache_len + t, e)
+
         return q, k, v
+
+
 
 
 class LLaMA1(Module):
@@ -444,14 +455,14 @@ class LLaMA1(Module):
         self.n_layers, self.n_heads = n_layers, attn_heads
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
 
-    def forward(self, x, start_pos=0):
+    def forward(self, x, start_pos=0, use_cache=False):
         B, T = x.shape
         assert start_pos+T <= self.context_size, f'the input sequence {start_pos+T} exceeds the context size {self.context_size}'
 
         # Decode each token
         x = self.emb(x)
         for i, layer in enumerate(self.transformers):
-            x = layer(x, start_pos)
+            x = layer(x, start_pos, use_cache)
         x = self.final_norm(x)
 
         # Output token logits
@@ -465,12 +476,20 @@ class LLaMA1(Module):
         attn_weights = self.get_last_attn_weights().detach().cpu()
         plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
 
+
     @torch.no_grad()
-    def generate(self, x, max_tokens=10):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+    def generate(self, x, max_tokens=10, use_cache=True):
+        batch_size, prompt_len = x.shape
+        seqs = []
+        pos = 0
         for i in range(max_tokens):
-            z = self.forward(x, start_pos=i)           # (B, T, E)
+            z = self.forward(x, pos, use_cache)        # (B, t, E)
             p = softmax(z[:, -1, :], dim=-1)           # just the last token
             y = torch.multinomial(p, num_samples=1)    # (B, 1)
-            x = torch.cat((x, y), dim=1)       # (B, T+1)
-            yield y
-
+            seqs.append(y)
+            if use_cache:
+                x, pos = y, prompt_len + i
+            else:
+                x = torch.cat((x, y), dim=1)
+        seqs = torch.cat(seqs, dim=1)                  # (B, T)
+        return seqs
