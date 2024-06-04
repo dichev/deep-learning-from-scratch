@@ -1092,6 +1092,12 @@ class MultiHeadAttention(Module):
         K = key @ self.weight_k                  # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
         V = value @ self.weight_v                # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
+        # Grouped Query Attention
+        if self.n_kv_heads < self.n_heads:
+            repeat_shared_kv = self.n_heads // self.n_kv_heads
+            K = ein.repeat(K, 'b t (h d) -> b t (h repeat d)', d=self.head_dim, repeat=repeat_shared_kv)
+            V = ein.repeat(V, 'b t (h d) -> b t (h repeat d)', d=self.head_dim, repeat=repeat_shared_kv)
+
         # Split projections into n_heads
         Q = self._split_heads(Q)                 # (b * heads, t', head_dim)
         K = self._split_heads(K)                 # (b * heads, t,  head_dim)
@@ -1138,18 +1144,10 @@ class GroupedQueryAttention(MultiHeadAttention):
     https://arxiv.org/pdf/2305.13245v3
     """
 
-    def __init__(self, embed_dim, n_heads, groups, dropout=0.):
+    def __init__(self, embed_dim, n_heads, groups, dropout=0.):  # implemented as feature of MultiHeadAttention
         assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
         self.groups = groups
         super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups)
-
-    def _split_heads(self, X):
-        has_shared_heads = (X.shape[-1] != self.embed_dim)
-        heads_per_group = 1 if has_shared_heads else self.n_heads // self.groups
-        return ein.rearrange(X, 'b t (g h emb) -> b g h t emb', g=self.groups, h=heads_per_group)   # shared keys/values heads will be broadcasted:  1 -> self.n_heads // self.groups
-
-    def _merge_heads(self, X):
-        return ein.rearrange(X, 'b g h t emb -> b t (g h emb)', g=self.groups, h=self.n_heads // self.groups)
 
     def __repr__(self):
         return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, groups={self.groups}): {self.n_params} params'

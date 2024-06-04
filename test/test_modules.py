@@ -262,28 +262,30 @@ def test_grouped_query_attention():
 
 
     # Grouped Query Attention (1 group -> 1 kv head for 8 query heads) = Multi Query Attention
+    groups = 1
     attn1 = MultiHeadAttention(emb_dim, n_heads)
-    attn3 = GroupedQueryAttention(emb_dim, n_heads, groups=1)  # Multi-query attention
-    attn1.weight_q.data[:] = attn3.weight_q.data[:]
-    attn1.weight_k.data[:] = attn3.weight_k.data[:].repeat(1, n_heads)
-    attn1.weight_v.data[:] = attn3.weight_v.data[:].repeat(1, n_heads)
-    attn1.weight_o.data[:] = attn3.weight_o.data[:]
+    attn2 = GroupedQueryAttention(emb_dim, n_heads, groups)  # Multi-query attention
+    attn1.weight_q.data[:] = attn2.weight_q.data[:]
+    attn1.weight_k.data[:] = attn2.weight_k.data[:].repeat(1, n_heads)
+    attn1.weight_v.data[:] = attn2.weight_v.data[:].repeat(1, n_heads)
+    attn1.weight_o.data[:] = attn2.weight_o.data[:]
 
     y1 = attn1.forward(q, k, v)
-    y2 = attn3.forward(q, k, v)
+    y2 = attn2.forward(q, k, v)
     assert torch.allclose(y1, y2, rtol=1e-04, atol=1e-06)
 
 
     # Grouped Query Attention (8 groups -> 8 kv heads for 8 query heads) = Multi Head Attention
+    groups = 8
     attn1 = MultiHeadAttention(emb_dim, n_heads)
-    attn4 = GroupedQueryAttention(emb_dim, n_heads, groups=8)  # Multi-head attention
-    attn4.weight_q.data[:] = attn1.weight_q.data[:]
-    attn4.weight_k.data[:] = attn1.weight_k.data[:]
-    attn4.weight_v.data[:] = attn1.weight_v.data[:]
-    attn4.weight_o.data[:] = attn1.weight_o.data[:]
+    attn2 = GroupedQueryAttention(emb_dim, n_heads, groups)  # Multi-head attention
+    attn2.weight_q.data[:] = attn1.weight_q.data[:]
+    attn2.weight_k.data[:] = attn1.weight_k.data[:]
+    attn2.weight_v.data[:] = attn1.weight_v.data[:]
+    attn2.weight_o.data[:] = attn1.weight_o.data[:]
 
     y1 = attn1.forward(q, k, v)
-    y2 = attn4.forward(q, k, v)
+    y2 = attn2.forward(q, k, v)
     assert torch.allclose(y1, y2, rtol=1e-04, atol=1e-06)
 
 
