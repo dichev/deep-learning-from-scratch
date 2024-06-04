@@ -156,8 +156,12 @@ def test_multi_head_attention(emb_dim, num_heads, t_source, t_target):
     attention2 = torch.nn.MultiheadAttention(embed_dim=emb_dim, num_heads=num_heads, batch_first=True, bias=False)
 
     # use the same parameter values
-    attention1.weight_qkv.data[:] = attention2.in_proj_weight.data.T
-    attention1.weight_out.data[:]  = attention2.out_proj.weight.data.T
+    wq, wk, wv = attention2.in_proj_weight.data.T.chunk(3, dim=-1)
+    attention1.weight_q.data[:] = wq
+    attention1.weight_k.data[:] = wk
+    attention1.weight_v.data[:] = wv
+    attention1.weight_o.data[:] = attention2.out_proj.weight.data.T
+
 
 
     # compute attentions with same x
@@ -206,8 +210,12 @@ def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=Tru
 
     attention = MultiHeadAttention(e, n_heads, 0)
     sparse_attention = SparseMultiHeadAttention(e, n_heads, 0, block_size)
-    sparse_attention.weight_qkv.data[:] = attention.weight_qkv.data.clone()
-    sparse_attention.weight_out.data[:] = attention.weight_out.data.clone()
+
+    # use the same parameter values
+    sparse_attention.weight_q.data[:] = attention.weight_q.data.clone()
+    sparse_attention.weight_k.data[:] = attention.weight_k.data.clone()
+    sparse_attention.weight_v.data[:] = attention.weight_v.data.clone()
+    sparse_attention.weight_o.data[:] = attention.weight_o.data.clone()
 
     Y2 = sparse_attention.forward(Q, K, V)
     A2 = sparse_attention.get_last_attn_weights()

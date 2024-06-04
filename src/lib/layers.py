@@ -1064,15 +1064,19 @@ class MultiHeadAttention(Module):
         self.head_dim = embed_dim // n_heads
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
-        self.weight_qkv = Param((embed_dim, 3*embed_dim))  # concatenated weights for key, values and keys
-        self.weight_out = Param((embed_dim, embed_dim))
+        self.weight_q = Param((embed_dim, embed_dim))  # not concatenated to weight_qkv for flexibility (while extending the class)
+        self.weight_k = Param((embed_dim, embed_dim))  # but the price is performance
+        self.weight_v = Param((embed_dim, embed_dim))  #
+        self.weight_o = Param((embed_dim, embed_dim))
         self.dropout = Dropout(dropout) if dropout > 0 else None
         self.reset_parameters()
 
     @torch.no_grad()
     def reset_parameters(self):
-        init.xavier_uniform_(self.weight_qkv, *self.weight_qkv.shape)
-        init.xavier_uniform_(self.weight_out, *self.weight_out.shape)
+        init.xavier_uniform_(self.weight_q, *self.weight_q.shape)
+        init.xavier_uniform_(self.weight_k, *self.weight_k.shape)
+        init.xavier_uniform_(self.weight_v, *self.weight_v.shape)
+        init.xavier_uniform_(self.weight_o, *self.weight_o.shape)
 
     def forward(self, query, key, value, attn_mask=None, transform=None, kv_cache=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
@@ -1083,19 +1087,14 @@ class MultiHeadAttention(Module):
             attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
 
         # Project to smaller vectors
-        if query is key and key is value:  # self attention without cache
-            QKV = query @ self.weight_qkv                             # (b, t, 3*emb)  <- (b, t,  emb) @ (emb, 3*emb)
-            Q, K, V = QKV.chunk(3, dim=-1)                            # (b, t, emb) x 3
-        else:
-            Wq, Wk, Wv = self.weight_qkv.chunk(3, dim=-1)
-            Q = query @ Wq                                            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
-            K = key @ Wk                                              # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
-            V = value @ Wv                                            # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+        Q = query @ self.weight_q                # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        K = key @ self.weight_k                  # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
+        V = value @ self.weight_v                # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
         # Split projections into n_heads
-        Q = self._split_heads(Q)                                       # (b * heads, t', emb/heads)
-        K = self._split_heads(K)                                       # (b * heads, t, emb/heads)
-        V = self._split_heads(V)                                       # (b * heads, t, emb/heads)
+        Q = self._split_heads(Q)                 # (b * heads, t', head_dim)
+        K = self._split_heads(K)                 # (b * heads, t,  head_dim)
+        V = self._split_heads(V)                 # (b * heads, t,  head_dim)
 
         # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
         if transform is not None:
@@ -1103,19 +1102,19 @@ class MultiHeadAttention(Module):
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
-        out = self._merge_heads(out)                                  # (b, t', emb)               <- concat the heads to emb
+        out = self._merge_heads(out)             # (b, t', emb)   <- concat the heads to emb
 
         # Finally project the weighted values
-        out = out @ self.weight_out                                   # (b, t', emb)               <- (b, t', emb) @ (emb, emb)
+        out = out @ self.weight_o                # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
 
         return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
-        Z = Q @ K.mT / sqrt(self.head_dim)    # (bh, t', t)  <- (bh, t', emb/heads)  @  (bh, emb/heads, t)
+        Z = Q @ K.mT / sqrt(self.head_dim)       # (bh, t', t)  <- (bh, t', head_dim)  @  (bh, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
-        out = A @ V                                        # (bh, t', emb/heads)  <- (bh, t', t) @ (bh, t, emb/heads)
+        out = A @ V                              # (bh, t', head_dim)  <- (bh, t', t) @ (bh, t, head_dim)
         return out, A
 
     def _split_heads(self, X):
