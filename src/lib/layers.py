@@ -1101,16 +1101,10 @@ class MultiHeadAttention(Module):
         if transform is not None:
             Q, K, V = transform(Q, K, V)
 
-        # Grouped Query Attention
-        if self.n_kv_heads < self.n_heads:
-            repeat_shared_kv = self.n_heads // self.n_kv_heads
-            K = ein.repeat(K, 'b t h d -> b t (h repeat) d', d=self.head_dim, repeat=repeat_shared_kv)
-            V = ein.repeat(V, 'b t h d -> b t (h repeat) d', d=self.head_dim, repeat=repeat_shared_kv)
-
         # Split projections into n_heads
-        Q = self._split_heads(Q)                 # (b * heads, t', head_dim)
-        K = self._split_heads(K)                 # (b * heads, t,  head_dim)
-        V = self._split_heads(V)                 # (b * heads, t,  head_dim)
+        Q = self._split_heads(Q)             # (b * heads, t', head_dim)
+        K = self._split_heads(K)             # (b * heads, t,  head_dim)
+        V = self._split_heads(V)             # (b * heads, t,  head_dim)
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
@@ -1130,10 +1124,10 @@ class MultiHeadAttention(Module):
         return out, A
 
     def _split_heads(self, X):
-        return ein.rearrange(X, 'b t h emb -> (b h) t emb', h=self.n_heads)
+        return ein.rearrange(X, 'b t h d -> (b h) t d', h=self.n_heads)
 
     def _merge_heads(self, X):
-        return ein.rearrange(X, '(b h) t emb -> b t (h emb)', h=self.n_heads)
+        return ein.rearrange(X, '(b h) t d -> b t (h d)', h=self.n_heads)
 
     def get_last_attn_weights(self):
         return ein.rearrange(self.attn_weights, '(b h) tt ts -> b h tt ts', h=self.n_heads)
@@ -1149,10 +1143,14 @@ class GroupedQueryAttention(MultiHeadAttention):
     https://arxiv.org/pdf/2305.13245v3
     """
 
-    def __init__(self, embed_dim, n_heads, groups, dropout=0.):  # implemented as feature of MultiHeadAttention
+    def __init__(self, embed_dim, n_heads, groups, dropout=0.):
         assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
         self.groups = groups
         super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups)
+
+    def _split_heads(self, X):
+        is_shared_kv = self.n_kv_heads == X.shape[2] != self.n_heads
+        return ein.repeat(X, 'b t h d -> (b h repeat) t d', d=self.head_dim, repeat=self.n_heads // self.n_kv_heads if is_shared_kv else 1)
 
     def __repr__(self):
         return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, groups={self.groups}): {self.n_params} params'
