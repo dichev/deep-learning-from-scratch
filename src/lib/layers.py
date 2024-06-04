@@ -1088,24 +1088,29 @@ class MultiHeadAttention(Module):
             attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
 
         # Project to smaller vectors
-        Q = query @ self.weight_q                # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
-        K = key @ self.weight_k                  # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
-        V = value @ self.weight_v                # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+        Q = query @ self.weight_q                          # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        K = key @ self.weight_k                            # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
+        V = value @ self.weight_v                          # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+
+        # Separate the heads
+        Q = Q.view(b, t_, self.n_heads, self.head_dim)     # (b, t', h, head_emb)
+        K = K.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
+        V = V.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
+
+        # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
+        if transform is not None:
+            Q, K, V = transform(Q, K, V)
 
         # Grouped Query Attention
         if self.n_kv_heads < self.n_heads:
             repeat_shared_kv = self.n_heads // self.n_kv_heads
-            K = ein.repeat(K, 'b t (h d) -> b t (h repeat d)', d=self.head_dim, repeat=repeat_shared_kv)
-            V = ein.repeat(V, 'b t (h d) -> b t (h repeat d)', d=self.head_dim, repeat=repeat_shared_kv)
+            K = ein.repeat(K, 'b t h d -> b t (h repeat) d', d=self.head_dim, repeat=repeat_shared_kv)
+            V = ein.repeat(V, 'b t h d -> b t (h repeat) d', d=self.head_dim, repeat=repeat_shared_kv)
 
         # Split projections into n_heads
         Q = self._split_heads(Q)                 # (b * heads, t', head_dim)
         K = self._split_heads(K)                 # (b * heads, t,  head_dim)
         V = self._split_heads(V)                 # (b * heads, t,  head_dim)
-
-        # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
-        if transform is not None:
-            Q, K, V = transform(Q, K, V)
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
@@ -1125,7 +1130,7 @@ class MultiHeadAttention(Module):
         return out, A
 
     def _split_heads(self, X):
-        return ein.rearrange(X, 'b t (h emb) -> (b h) t emb', h=self.n_heads)
+        return ein.rearrange(X, 'b t h emb -> (b h) t emb', h=self.n_heads)
 
     def _merge_heads(self, X):
         return ein.rearrange(X, '(b h) t emb -> b t (h emb)', h=self.n_heads)
@@ -1296,12 +1301,14 @@ class RotaryEncoding(Module):
         return freqs_complex   # (t, d/2)
 
     def forward(self, x, pos=0, clockwise=False):
-        b, t, d = x.shape
-        rotation = self.fixed_embeddings if not clockwise else self.fixed_embeddings.conj()
+        b, t, h, d = x.shape
+        rotation = self.fixed_embeddings.to(x.device)
+        if clockwise:
+            rotation = rotation.conj()
 
-        x = torch.view_as_complex(x.view(b, t, -1, 2))  # split in pairs of dims, and represent each two real numbers as complex number
-        x = x * rotation[pos:pos+t].to(x.device)        # rotate on the complex plane: x * e^{pos * theta * 1j}
-        x = torch.view_as_real(x).view(b, t, d)         # restore back to real numbers  (b, t, id//2) -> (b, t, d)
+        x = torch.view_as_complex(x.view(b, t, h, -1, 2))   # split in pairs of dims, and represent each two real numbers as complex number
+        x = x * rotation[pos:pos+t].view(1, t, 1, d//2)     # rotate on the complex plane: x * e^{pos * theta * 1j}
+        x = torch.view_as_real(x).view(b, t, h, d)          # restore back to real numbers  (b, t, h, id//2) -> (b, t, h, d)
         return x
 
     def plot(self):

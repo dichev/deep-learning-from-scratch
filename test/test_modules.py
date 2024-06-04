@@ -309,12 +309,13 @@ def test_positional_encodings_frequency():
 
 
 @pytest.mark.parametrize('t',  [1, 2, 50])
-@pytest.mark.parametrize('d',  [2, 8, 64])
+@pytest.mark.parametrize('heads',  [1, 4])
+@pytest.mark.parametrize('dim',  [2, 8, 32])
 @pytest.mark.parametrize('base_theta',  [10_000, 500_000])
-def test_positional_rotary_encodings(t, d, base_theta, batch_size=3):
-    x = torch.randn(batch_size, t, d)
+def test_positional_rotary_encodings(t, heads, dim, base_theta, batch_size=3):
+    x = torch.randn(batch_size, t, heads, dim)
 
-    encoder = RotaryEncoding(d, t, base_freq_theta=base_theta)
+    encoder = RotaryEncoding(dim, t, base_freq_theta=base_theta)
     x_rotated = encoder.forward(x, clockwise=False)
     x_restored = encoder.forward(x_rotated, clockwise=True)
 
