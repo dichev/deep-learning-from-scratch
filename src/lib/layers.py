@@ -1057,16 +1057,17 @@ class MultiHeadAttention(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0.):
+    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None):
         assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
         self.n_heads = n_heads
+        self.n_kv_heads = n_kv_heads if n_kv_heads is not None else n_heads  # used only by GroupedQueryAttention
         self.embed_dim = embed_dim
         self.head_dim = embed_dim // n_heads
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
-        self.weight_q = Param((embed_dim, embed_dim))  # not concatenated to weight_qkv for flexibility (while extending the class)
-        self.weight_k = Param((embed_dim, embed_dim))  # but the price is performance
-        self.weight_v = Param((embed_dim, embed_dim))  #
+        self.weight_q = Param((embed_dim, self.head_dim * self.n_heads))     # not concatenated to weight_qkv for flexibility (while extending the class)
+        self.weight_k = Param((embed_dim, self.head_dim * self.n_kv_heads))  # but the price is performance
+        self.weight_v = Param((embed_dim, self.head_dim * self.n_kv_heads))  #
         self.weight_o = Param((embed_dim, embed_dim))
         self.dropout = Dropout(dropout) if dropout > 0 else None
         self.reset_parameters()
@@ -1087,18 +1088,23 @@ class MultiHeadAttention(Module):
             attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
 
         # Project to smaller vectors
-        Q = query @ self.weight_q                # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
-        K = key @ self.weight_k                  # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
-        V = value @ self.weight_v                # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+        Q = query @ self.weight_q                          # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        K = key @ self.weight_k                            # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
+        V = value @ self.weight_v                          # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
-        # Split projections into n_heads
-        Q = self._split_heads(Q)                 # (b * heads, t', head_dim)
-        K = self._split_heads(K)                 # (b * heads, t,  head_dim)
-        V = self._split_heads(V)                 # (b * heads, t,  head_dim)
+        # Separate the heads
+        Q = Q.view(b, t_, self.n_heads, self.head_dim)     # (b, t', h, head_emb)
+        K = K.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
+        V = V.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
 
         # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
         if transform is not None:
             Q, K, V = transform(Q, K, V)
+
+        # Split projections into n_heads
+        Q = self._split_heads(Q)             # (b * heads, t', head_dim)
+        K = self._split_heads(K)             # (b * heads, t,  head_dim)
+        V = self._split_heads(V)             # (b * heads, t,  head_dim)
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
@@ -1118,16 +1124,37 @@ class MultiHeadAttention(Module):
         return out, A
 
     def _split_heads(self, X):
-        return ein.rearrange(X, 'b t (h emb) -> (b h) t emb', h=self.n_heads)
+        return ein.rearrange(X, 'b t h d -> (b h) t d', h=self.n_heads)
 
     def _merge_heads(self, X):
-        return ein.rearrange(X, '(b h) t emb -> b t (h emb)', h=self.n_heads)
+        return ein.rearrange(X, '(b h) t d -> b t (h d)', h=self.n_heads)
 
     def get_last_attn_weights(self):
         return ein.rearrange(self.attn_weights, '(b h) tt ts -> b h tt ts', h=self.n_heads)
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
+
+
+
+class GroupedQueryAttention(MultiHeadAttention):
+    """
+    Paper: GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints
+    https://arxiv.org/pdf/2305.13245v3
+    """
+
+    def __init__(self, embed_dim, n_heads, groups, dropout=0.):
+        assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
+        self.groups = groups
+        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups)
+
+    def _split_heads(self, X):
+        is_shared_kv = self.n_kv_heads == X.shape[2] != self.n_heads
+        return ein.repeat(X, 'b t h d -> (b h repeat) t d', d=self.head_dim, repeat=self.n_heads // self.n_kv_heads if is_shared_kv else 1)
+
+    def __repr__(self):
+        return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, groups={self.groups}): {self.n_params} params'
+
 
 
 class SparseMultiHeadAttention(MultiHeadAttention):
@@ -1272,12 +1299,14 @@ class RotaryEncoding(Module):
         return freqs_complex   # (t, d/2)
 
     def forward(self, x, pos=0, clockwise=False):
-        b, t, d = x.shape
-        rotation = self.fixed_embeddings if not clockwise else self.fixed_embeddings.conj()
+        b, t, h, d = x.shape
+        rotation = self.fixed_embeddings.to(x.device)
+        if clockwise:
+            rotation = rotation.conj()
 
-        x = torch.view_as_complex(x.view(b, t, -1, 2))  # split in pairs of dims, and represent each two real numbers as complex number
-        x = x * rotation[pos:pos+t].to(x.device)        # rotate on the complex plane: x * e^{pos * theta * 1j}
-        x = torch.view_as_real(x).view(b, t, d)         # restore back to real numbers  (b, t, id//2) -> (b, t, d)
+        x = torch.view_as_complex(x.view(b, t, h, -1, 2))   # split in pairs of dims, and represent each two real numbers as complex number
+        x = x * rotation[pos:pos+t].view(1, t, 1, d//2)     # rotate on the complex plane: x * e^{pos * theta * 1j}
+        x = torch.view_as_real(x).view(b, t, h, d)          # restore back to real numbers  (b, t, h, id//2) -> (b, t, h, d)
         return x
 
     def plot(self):

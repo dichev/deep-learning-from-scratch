@@ -1,7 +1,7 @@
 import pytest
 import torch
 from lib.layers import (Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm,
-                        DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention,
+                        DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention, GroupedQueryAttention,
                         PositionalEncoding, RotaryEncoding)
 from utils.other import paddings_mask
 import einops as ein
@@ -239,6 +239,56 @@ def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=Tru
     assert torch.allclose(Y1, Y2, rtol=1e-04, atol=1e-06)
 
 
+def test_grouped_query_attention():
+    emb_dim = 512
+    n_heads = 8
+    q = torch.randn(10, 3, 512)
+    k = torch.randn(10, 3, 512)
+    v = torch.randn(10, 3, 512)
+    head_dim = emb_dim // n_heads
+
+    # Grouped Query Attention (4 groups -> 2 kv heads for 8 query heads)
+    groups = 4
+    attn1 = MultiHeadAttention(emb_dim, n_heads)
+    attn2 = GroupedQueryAttention(emb_dim, n_heads, groups=groups)
+    attn1.weight_q.data[:] = attn2.weight_q.data[:]
+    attn1.weight_k.data[:] = attn2.weight_k.data[:].view(emb_dim, groups, head_dim).repeat(1, 1, 2).view(emb_dim, emb_dim)
+    attn1.weight_v.data[:] = attn2.weight_v.data[:].view(emb_dim, groups, head_dim).repeat(1, 1, 2).view(emb_dim, emb_dim)
+    attn1.weight_o.data[:] = attn2.weight_o.data[:]
+
+    y1 = attn1.forward(q, k, v)
+    y2 = attn2.forward(q, k, v)
+    assert torch.allclose(y1, y2, rtol=1e-04, atol=1e-06)
+
+
+    # Grouped Query Attention (1 group -> 1 kv head for 8 query heads) = Multi Query Attention
+    groups = 1
+    attn1 = MultiHeadAttention(emb_dim, n_heads)
+    attn2 = GroupedQueryAttention(emb_dim, n_heads, groups)  # Multi-query attention
+    attn1.weight_q.data[:] = attn2.weight_q.data[:]
+    attn1.weight_k.data[:] = attn2.weight_k.data[:].repeat(1, n_heads)
+    attn1.weight_v.data[:] = attn2.weight_v.data[:].repeat(1, n_heads)
+    attn1.weight_o.data[:] = attn2.weight_o.data[:]
+
+    y1 = attn1.forward(q, k, v)
+    y2 = attn2.forward(q, k, v)
+    assert torch.allclose(y1, y2, rtol=1e-04, atol=1e-06)
+
+
+    # Grouped Query Attention (8 groups -> 8 kv heads for 8 query heads) = Multi Head Attention
+    groups = 8
+    attn1 = MultiHeadAttention(emb_dim, n_heads)
+    attn2 = GroupedQueryAttention(emb_dim, n_heads, groups)  # Multi-head attention
+    attn2.weight_q.data[:] = attn1.weight_q.data[:]
+    attn2.weight_k.data[:] = attn1.weight_k.data[:]
+    attn2.weight_v.data[:] = attn1.weight_v.data[:]
+    attn2.weight_o.data[:] = attn1.weight_o.data[:]
+
+    y1 = attn1.forward(q, k, v)
+    y2 = attn2.forward(q, k, v)
+    assert torch.allclose(y1, y2, rtol=1e-04, atol=1e-06)
+
+
 def visualize_attn(attn_expected, attn_actual, title=''):
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
     ax1.matshow(attn_expected, vmin=0)
@@ -259,12 +309,13 @@ def test_positional_encodings_frequency():
 
 
 @pytest.mark.parametrize('t',  [1, 2, 50])
-@pytest.mark.parametrize('d',  [2, 8, 64])
+@pytest.mark.parametrize('heads',  [1, 4])
+@pytest.mark.parametrize('dim',  [2, 8, 32])
 @pytest.mark.parametrize('base_theta',  [10_000, 500_000])
-def test_positional_rotary_encodings(t, d, base_theta, batch_size=3):
-    x = torch.randn(batch_size, t, d)
+def test_positional_rotary_encodings(t, heads, dim, base_theta, batch_size=3):
+    x = torch.randn(batch_size, t, heads, dim)
 
-    encoder = RotaryEncoding(d, t, base_freq_theta=base_theta)
+    encoder = RotaryEncoding(dim, t, base_freq_theta=base_theta)
     x_rotated = encoder.forward(x, clockwise=False)
     x_restored = encoder.forward(x_rotated, clockwise=True)
 
