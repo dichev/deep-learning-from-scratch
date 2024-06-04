@@ -1057,16 +1057,17 @@ class MultiHeadAttention(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0.):
+    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None):
         assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
         self.n_heads = n_heads
+        self.n_kv_heads = n_kv_heads if n_kv_heads is not None else n_heads  # used only by GroupedQueryAttention
         self.embed_dim = embed_dim
         self.head_dim = embed_dim // n_heads
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
-        self.weight_q = Param((embed_dim, embed_dim))  # not concatenated to weight_qkv for flexibility (while extending the class)
-        self.weight_k = Param((embed_dim, embed_dim))  # but the price is performance
-        self.weight_v = Param((embed_dim, embed_dim))  #
+        self.weight_q = Param((embed_dim, self.head_dim * self.n_heads))     # not concatenated to weight_qkv for flexibility (while extending the class)
+        self.weight_k = Param((embed_dim, self.head_dim * self.n_kv_heads))  # but the price is performance
+        self.weight_v = Param((embed_dim, self.head_dim * self.n_kv_heads))  #
         self.weight_o = Param((embed_dim, embed_dim))
         self.dropout = Dropout(dropout) if dropout > 0 else None
         self.reset_parameters()
@@ -1128,6 +1129,31 @@ class MultiHeadAttention(Module):
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
+
+
+
+class GroupedQueryAttention(MultiHeadAttention):
+    """
+    Paper: GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints
+    https://arxiv.org/pdf/2305.13245v3
+    """
+
+    def __init__(self, embed_dim, n_heads, groups, dropout=0.):
+        assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
+        self.groups = groups
+        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups)
+
+    def _split_heads(self, X):
+        has_shared_heads = (X.shape[-1] != self.embed_dim)
+        heads_per_group = 1 if has_shared_heads else self.n_heads // self.groups
+        return ein.rearrange(X, 'b t (g h emb) -> b g h t emb', g=self.groups, h=heads_per_group)   # shared keys/values heads will be broadcasted:  1 -> self.n_heads // self.groups
+
+    def _merge_heads(self, X):
+        return ein.rearrange(X, 'b g h t emb -> b t (g h emb)', g=self.groups, h=self.n_heads // self.groups)
+
+    def __repr__(self):
+        return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, groups={self.groups}): {self.n_params} params'
+
 
 
 class SparseMultiHeadAttention(MultiHeadAttention):
