@@ -1,6 +1,6 @@
 import torch
 import einops as ein
-from lib.layers import Module, Linear, Embedding, MultiHeadAttention, SparseMultiHeadAttention, LayerNorm, RMSNorm, Dropout, ReLU, GELU, SwiGLU, Sequential, ModuleList, PositionalEncoding, RotaryEncoding, KVCache
+from lib.layers import Module, Linear, Embedding, MultiHeadAttention, GroupedQueryAttention, SparseMultiHeadAttention, LayerNorm, RMSNorm, Dropout, ReLU, GELU, SwiGLU, Sequential, ModuleList, PositionalEncoding, RotaryEncoding, KVCache
 from lib.functions.activations import softmax
 from models.recurrent_networks import Seq2Seq
 from collections import namedtuple
@@ -392,16 +392,19 @@ class LLaMA_TransformerBlock(Module):
     https://arxiv.org/pdf/2302.13971
     """
 
-    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, rotary_fn):
+    def __init__(self, input_size, hidden_size, attn_heads, attn_kv_groups, max_seq_len, rotary_fn):
         assert callable(rotary_fn) and not isinstance(rotary_fn, Module), f'Expecting callable rotary function (e.g. rotary_emb.forward), which is not a Module, got {rotary_fn}'
         self.norm1 = RMSNorm(input_size, eps=1e-5)
-        self.attn = MultiHeadAttention(input_size, attn_heads)
+        if not attn_kv_groups:
+            self.attn = MultiHeadAttention(input_size, attn_heads)
+        else:
+            self.attn = GroupedQueryAttention(input_size, attn_heads, groups=attn_kv_groups)
         self.rotary_fn = rotary_fn
         self.norm2 = RMSNorm(input_size, eps=1e-5)
 
         # [LLaMA-1 paper] "We use a dimension of 2/3 4d instead of 4d as in PaLM."
         expected_size = 2 * hidden_size           # typically there are two weight matrices
-        target_size = expected_size // 3          # but because SwiGLU there should be 3 weights matrices, which we want to be of similar size in total:
+        target_size = round(expected_size / 3)    # but because SwiGLU there should be 3 weights matrices, which we want to be of similar size in total:
         self.ff = Sequential(
             SwiGLU(input_size, 2 * target_size, bias=False),  # d -> [h,h] -> h
             Linear(target_size, input_size, bias=False),      # h ->  d
@@ -443,11 +446,11 @@ class LLaMA1(Module):
     https://arxiv.org/pdf/2302.13971
     """
 
-    def __init__(self, vocab_size=32_000, context_size=2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32):
+    def __init__(self, vocab_size=32_000, context_size=2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=0):
         self.emb = Embedding(vocab_size, embed_size)
         self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size)
         self.transformers = ModuleList(
-            LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
+            LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, attn_kv_groups, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
         )
         self.final_norm = RMSNorm(embed_size, eps=1e-5)
         self.out = Linear(embed_size, vocab_size, bias=False)
@@ -493,3 +496,20 @@ class LLaMA1(Module):
                 x = torch.cat((x, y), dim=1)
         seqs = torch.cat(seqs, dim=1)                  # (B, T)
         return seqs
+
+
+class LLaMA2(LLaMA1):
+    """
+    Paper: Llama 2: Open Foundation and Fine-Tuned Chat Models
+    https://arxiv.org/pdf/2307.09288
+    """
+    def __init__(self, vocab_size=32_000, context_size=2*2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=16):
+        # [LLaMA-2 paper] "To keep a similar overall parameter count across GQA and MQA,
+        # we increase the dimension of the feed-forward layers to compensate for the reduction in the attention layers"
+        if attn_kv_groups > 0:
+            heads_ratio = attn_heads // attn_kv_groups
+            mha_size = 4 * embed_size
+            gqa_size = 2 * embed_size + 2 * embed_size // heads_ratio
+            hidden_size += (mha_size - gqa_size)//2
+
+        super().__init__(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups)

@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 import math
 
-from models.transformer_networks import GPT2, GPT3, LLaMA1
+from models.transformer_networks import GPT2, GPT3, LLaMA1, LLaMA2
 from lib.functions.losses import cross_entropy
 from lib.functions.metrics import accuracy
 from lib.optimizers import AdamW
@@ -15,11 +15,13 @@ seed_global(1)
 
 
 # Hyperparams
+embed_size = 384
 context_size = 256
 batch_size = 64
 vocab_size = 300  # from which 256 tokens are reserved for character-level bytes
 epochs = 100
 learn_rate = 1e-3
+weight_decay = 1e-2
 device = 'cuda'
 
 
@@ -48,9 +50,10 @@ val_loader = DataLoader(val_data, batch_size=batch_size)
 
 # Models
 models = {
-    'GPT-2': GPT2(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6, dropout=.4),
-    'GPT-3': GPT3(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6, dropout=.4, local_attn_block_size=8),
-    'LLaMA-1': LLaMA1(vocab_size=vocab_size, context_size=context_size, embed_size=384, hidden_size=4*384, n_layers=6, attn_heads=6),
+    'GPT-2':     GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=.4),
+    'GPT-3':     GPT3(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=.4, local_attn_block_size=8),
+    'LLaMA-1': LLaMA1(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6),
+    'LLaMA-2': LLaMA2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, attn_kv_groups=3),
 }
 
 
@@ -96,7 +99,7 @@ def train(model, optimizer, loader, desc=''):
 for name, model in models.items():
     print(f'Training {name}')
     model.to(device)
-    optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=1e-4)
+    optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay)
 
     # Training
     for epoch in range(1, epochs+1):

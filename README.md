@@ -150,6 +150,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - GPT3 <sup>[*[34]*](#ref34 "Language Models are Few-Shot Learners")</sup>
 - LLaMA_TransformerBlock <sup>[*[35]*](#ref35 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 - LLaMA1 <sup>[*[35]*](#ref35 "LLaMA: Open and Efficient Foundation Language Models")</sup>
+- LLaMA2 <sup>[*[36]*](#ref36 "Llama 2: Open Foundation and Fine-Tuned Chat Models")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[25]*](#ref25 "Going deeper with convolutions")</sup>
@@ -211,6 +212,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 33. <a name="ref33" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
 34. <a name="ref34" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
 35. <a name="ref35" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
+36. <a name="ref36" href="https://arxiv.org/pdf/2307.09288">Llama 2: Open Foundation and Fine-Tuned Chat Models</a>
 
 <!-- auto-generated-end -->
 

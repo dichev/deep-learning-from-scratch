@@ -86,9 +86,12 @@ class Module:
             json.dump(network, f, indent=2)
 
     @property
-    def n_params(self):
-        num = sum(p.numel() for p in self.parameters(named=False))
+    def n_params(self) -> str:
+        num = self.count_params()
         return "{:,}".format(num)
+
+    def count_params(self) -> int:
+        return sum(p.numel() for p in self.parameters(named=False))
 
     def grad_norm(self):
         return torch.cat([param.grad.view(-1) for param in self.parameters(named=False)]).norm().item()

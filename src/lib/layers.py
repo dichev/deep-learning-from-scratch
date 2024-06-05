@@ -1097,30 +1097,30 @@ class MultiHeadAttention(Module):
         K = K.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
         V = V.view(b, t, self.n_kv_heads, self.head_dim)   # (b, t,  h, head_emb)
 
-        # Apply custom transformation on the projections before thr dot attention (e.g. rotary encoding)
+        # Apply custom transformation on the projections before heads splitting and dot attention (e.g. rotary encoding, KV cache)
         if transform is not None:
             Q, K, V = transform(Q, K, V)
 
         # Split projections into n_heads
-        Q = self._split_heads(Q)             # (b * heads, t', head_dim)
-        K = self._split_heads(K)             # (b * heads, t,  head_dim)
-        V = self._split_heads(V)             # (b * heads, t,  head_dim)
+        Q = self._split_heads(Q)                          # (b * heads, t', head_dim)
+        K = self._split_heads(K)                          # (b * heads, t,  head_dim)
+        V = self._split_heads(V)                          # (b * heads, t,  head_dim)
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask)
-        out = self._merge_heads(out)             # (b, t', emb)   <- concat the heads to emb
+        out = self._merge_heads(out)                      # (b, t', emb)   <- concat the heads to emb
 
         # Finally project the weighted values
-        out = out @ self.weight_o                # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        out = out @ self.weight_o                         # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
 
         return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
-        Z = Q @ K.mT / sqrt(self.head_dim)       # (bh, t', t)  <- (bh, t', head_dim)  @  (bh, head_dim, t)
+        Z = Q @ K.mT / sqrt(self.head_dim)                # (bh, t', t)  <- (bh, t', head_dim)  @  (bh, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
-        out = A @ V                              # (bh, t', head_dim)  <- (bh, t', t) @ (bh, t, head_dim)
+        out = A @ V                                       # (bh, t', head_dim)  <- (bh, t', t) @ (bh, t, head_dim)
         return out, A
 
     def _split_heads(self, X):
@@ -1153,7 +1153,7 @@ class GroupedQueryAttention(MultiHeadAttention):
         return ein.repeat(X, 'b t h d -> (b h repeat) t d', d=self.head_dim, repeat=self.n_heads // self.n_kv_heads if is_shared_kv else 1)
 
     def __repr__(self):
-        return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, groups={self.groups}): {self.n_params} params'
+        return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, n_kv_heads={self.n_kv_heads}, groups={self.groups}): {self.n_params} params'
 
 
 

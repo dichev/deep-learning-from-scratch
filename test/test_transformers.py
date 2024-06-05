@@ -1,6 +1,7 @@
 import pytest
 import torch
-from models.transformer_networks import LLaMA1
+from models.transformer_networks import LLaMA1, LLaMA2
+from lib.layers import MultiHeadAttention, GroupedQueryAttention
 from utils.rng import seed_global
 
 
@@ -16,3 +17,15 @@ def test_LLAMA_caching(prompt_size, batch_size):
     seed_global(1)
     tokens_not_cached = model.generate(prompt, max_tokens=context_size - prompt_size, use_cache=False)
     assert torch.allclose(tokens_cached, tokens_not_cached)
+
+
+@pytest.mark.parametrize('emb_size', [64, 128])
+@pytest.mark.parametrize('groups', [1, 2, 8, 16])
+@pytest.mark.parametrize('n_layers', [1, 2])
+def test_LLAMA_with_gqa_for_parameter_size_mismatch(emb_size, groups, n_layers):
+    model_mha = LLaMA2(vocab_size=1000, context_size=100, embed_size=emb_size, hidden_size=emb_size * 4, n_layers=n_layers, attn_heads=16, attn_kv_groups=0)
+    model_gqa = LLaMA2(vocab_size=1000, context_size=100, embed_size=emb_size, hidden_size=emb_size * 4, n_layers=n_layers, attn_heads=16, attn_kv_groups=groups)
+    assert isinstance(model_mha.transformers[0].attn, MultiHeadAttention)
+    assert isinstance(model_gqa.transformers[0].attn, GroupedQueryAttention)
+    assert abs(model_mha.count_params() - model_gqa.count_params()) <= emb_size * n_layers  # small difference is expected due to rounding in ff layers
+
