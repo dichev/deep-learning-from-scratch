@@ -4,7 +4,7 @@ import einops as ein
 from math import sqrt
 from matplotlib import pyplot as plt
 from lib.functions import init
-from lib.functions.activations import relu, gelu, tanh, sigmoid, softmax, swish
+from lib.functions.activations import relu, gelu, gelu_tanh_approx, tanh, sigmoid, softmax, swish
 from lib.functions.losses import entropy
 from lib.base import Param, Module, ModuleList, Sequential
 from utils.other import conv2d_calc_out_size, conv2d_pad_string_to_int, identity
@@ -804,7 +804,12 @@ class GELU(Module):
     Paper: Gaussian Error Linear Units (GELUs)
     https://arxiv.org/pdf/1606.08415v5
     """
+    def __init__(self, approx_tanh=False):
+        self.approx_tanh = approx_tanh
+
     def forward(self, x):
+        if self.approx_tanh:
+            return gelu_tanh_approx(x)
         return gelu(x)
 
 

@@ -235,13 +235,13 @@ class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but witho
 
     def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0.):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
-        self.attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout)
+        self.attn = MultiHeadAttention(input_size, attn_heads, bias=True, dropout=dropout)
         self.norm2 = LayerNorm(input_size)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size),
-            GELU(),
+            GELU(approx_tanh=True),  # using tanh approximation to reproduce exactly GPT2
             Linear(hidden_size, input_size),
-            Dropout(dropout)
+            Dropout(dropout) if dropout else None
         )
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
@@ -268,13 +268,13 @@ class GPT_SparseTransformerBlock(Module):
 
     def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0., local_attn_block_size=16):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
-        self.attn = SparseMultiHeadAttention(input_size, attn_heads, dropout, block_size=local_attn_block_size, causal=True)
+        self.attn = SparseMultiHeadAttention(input_size, attn_heads, dropout, bias=True, block_size=local_attn_block_size, causal=True)
         self.norm2 = LayerNorm(input_size)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size),
             GELU(),
             Linear(hidden_size, input_size),
-            Dropout(dropout)
+            Dropout(dropout) if dropout else None
         )
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
@@ -296,7 +296,7 @@ class GPT2(Module):
     https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
     """
 
-    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0.1):
+    def __init__(self, vocab_size=50_257, context_size=1024, embed_size=768, hidden_size=768*4, n_layers=12, attn_heads=12, dropout=0):  # GPT models doesn't have dropout possibly due underfitting
         self.emb = Embedding(vocab_size, embed_size)
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
@@ -316,10 +316,14 @@ class GPT2(Module):
         self.emb.weight.data.normal_(std=0.02)
         self.pos_emb.weight.data.normal_(std=0.01)
         [layer_norm.reset_parameters() for name, layer_norm in self.modules() if isinstance(layer_norm, LayerNorm)]
-        # GPT-2: "We scale the weights of residual layers at initialization by a factor of 1/√N where N is the number of residual layers"
         for name, param in self.transformers.parameters():
-            if 'weight' in name: param.data.normal_(std=0.02 / sqrt(2 * self.n_layers))  # check: just the projections, or also the ff
+            if 'weight' in name: param.data.normal_(std=0.02)
             elif 'bias' in name: param.data.zero_()
+
+        # GPT-2: "We scale the weights of residual layers at initialization by a factor of 1/√N where N is the number of residual layers"
+        for block in self.transformers:
+            block.attn.weight_o.data.normal_(std=0.02 / sqrt(2 * self.n_layers))    # multiply by 2 because there are two sums of two residual blocks for each layer
+            block.ff[2].weight.data.normal_(std=0.02 / sqrt(2 * self.n_layers))     # the goal is to keep the std around 1 before summation with skip connection
 
     def forward(self, x):
         B, T = x.shape
@@ -346,7 +350,7 @@ class GPT2(Module):
 
 
     @torch.no_grad()
-    def generate(self, x, max_tokens=10, use_cache=False):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner (see TransformerDecoder for such an implementation)
+    def generate(self, x, max_tokens=10, use_cache=False):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner
         seqs = []
         for i in range(max_tokens):
             z = self.forward(x)                        # (B, t, E)
