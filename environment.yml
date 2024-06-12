@@ -15,7 +15,6 @@ dependencies:
   - regex
   - scikit-learn
   - scipy
-  - seaborn
   - tensorboard
   - tqdm
   - gdown
@@ -29,3 +28,6 @@ dependencies:
   - pytorch_geometric
   - fsspec
   - einops
+  - tiktoken
+  - pip:
+      torcheval

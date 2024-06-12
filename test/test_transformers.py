@@ -13,9 +13,9 @@ def test_LLAMA_caching(prompt_size, batch_size):
     prompt = torch.randint(vocab_size, (batch_size, prompt_size)).to('cuda')
 
     seed_global(1)
-    tokens_cached = model.generate(prompt, max_tokens=context_size - prompt_size, use_cache=True)
+    tokens_cached = model.generate(prompt, max_tokens=context_size - prompt_size, use_cache=True, from_topk=20) # note on higher topk there could be difference due to floating point precision differences
     seed_global(1)
-    tokens_not_cached = model.generate(prompt, max_tokens=context_size - prompt_size, use_cache=False)
+    tokens_not_cached = model.generate(prompt, max_tokens=context_size - prompt_size, use_cache=False, from_topk=20)
     assert torch.allclose(tokens_cached, tokens_not_cached)
 
 

@@ -17,13 +17,25 @@ seed_global(1)
 # Hyperparams
 embed_size = 384
 context_size = 256
-batch_size = 64
+n_layers = 6
+attn_heads = 6
 vocab_size = 300  # from which 256 tokens are reserved for character-level bytes
+
+# Training config
+batch_size = 64
 epochs = 100
 learn_rate = 1e-3
 weight_decay = 1e-2
 device = 'cuda'
 
+
+# Models
+models = {  # stored in RAM
+    'GPT-2':     GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0),
+    'GPT-3':     GPT3(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0, local_attn_block_size=8),
+    'LLaMA-1': LLaMA1(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6),
+    'LLaMA-2': LLaMA2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, attn_kv_groups=3),
+}
 
 # Prepare data
 print('Data preprocessing..')
@@ -47,14 +59,6 @@ val_data = RandomTextDataset(encoded[split:], context_size)
 train_loader = DataLoader(train_data, batch_size=batch_size)
 val_loader = DataLoader(val_data, batch_size=batch_size)
 
-
-# Models
-models = {
-    'GPT-2':     GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0),
-    'GPT-3':     GPT3(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0, local_attn_block_size=8),
-    'LLaMA-1': LLaMA1(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6),
-    'LLaMA-2': LLaMA2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, attn_kv_groups=3),
-}
 
 
 @torch.no_grad()

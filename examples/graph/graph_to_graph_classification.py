@@ -61,8 +61,8 @@ def train(model, loader):
         cost.backward()
         optimizer.step()
 
-        loss += cost / n
-        acc += accuracy(z.argmax(dim=1), data.y.view(-1)) / n
+        loss += cost.item() / n
+        acc += accuracy(z.argmax(dim=1), data.y.view(-1)).item() / n
 
     return loss, acc
 

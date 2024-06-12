@@ -19,6 +19,7 @@ net.fit(X)
 
 
 # Visualize the patterns
+print('Visualizing patterns...')
 fig, ax = plt.subplots(N, 3, figsize=(5, N))
 for i, pattern in enumerate(patterns):
     pattern = np.array(pattern)

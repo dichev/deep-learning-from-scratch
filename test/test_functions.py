@@ -3,7 +3,7 @@ import torch
 from lib.functions.metrics import BLEU
 from lib.functions.activations import softmax, log_softmax, relu, silu, gelu, swish
 from utils.other import paddings_mask
-from torchtext.data.metrics import bleu_score
+from torcheval.metrics.functional import bleu_score
 import math
 
 
@@ -51,7 +51,7 @@ def test_BLEU(max_n):
     ]
 
     translations = [
-        'Translate me correctly',
+        'Translate me correctly, now',
         'Something for translation was written here',
         'This another test sentence is for evaluation',
         'The quick brown fox leaped over a lazy dog',
@@ -62,8 +62,6 @@ def test_BLEU(max_n):
     ]
 
     for y, y_hat in zip(targets, translations):
-        y, y_hat = y.split(), y_hat.split()
-        expected = bleu_score([y_hat], [[y]], max_n, weights.tolist())
-        actual = BLEU(y_hat, y, max_n)
-        # print(expected, actual)
+        expected = bleu_score([y_hat], [[y]], max_n, weights)
+        actual = BLEU(y_hat.split(), y.split(), max_n)
         assert math.isclose(expected, actual, rel_tol=1e-04, abs_tol=1e-06)

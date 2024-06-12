@@ -1,7 +1,7 @@
 import torch
 import math
 import warnings
-
+import sys
 
 def identity(n, sparse=False, device=None):
     if sparse:
@@ -23,7 +23,8 @@ def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
     width  = (W + (pad_left + pad_right) - dilation * (kernel_size - 1) - 1) / stride + 1
     height = (H + (pad_top + pad_bottom) - dilation * (kernel_size - 1) - 1) / stride + 1
     if width != int(width) or height != int(height):
-        warnings.warn(f'Caution: Input{list(X.shape)} - The expected output size after convolution ({width:.1f}x{height:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(width)}x{int(height)}')
+        if 'pytest' not in sys.modules:  # hide the warning at test time
+            warnings.warn(f'Caution: Input{list(X.shape)} - The expected output size after convolution ({width:.1f}x{height:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(width)}x{int(height)}')
     return int(width), int(height)
 
 def conv2d_pad_string_to_int(padding, kernel_size):
@@ -51,5 +52,7 @@ def sparse_slice(x, dim, end):
     return torch.sparse_coo_tensor(indices[:, mask], values[mask])
 
 
-def roundup_to_multiple(value, multiple):
-    return multiple * math.ceil(value / multiple)
+def to_power_of_2(value, max_multiple=256):
+    multiple = min(max_multiple, 2 ** int(math.log2(value)))
+    return round(value / multiple) * multiple
+

@@ -26,7 +26,7 @@ def relu(x):
 def gelu(x):  # x * F(x), where F is the cumulative normal distribution
     return x * 0.5 * (1 + torch.erf(x / sqrt(2)))  # ≈ sigmoid(1.702 * x)
 
-
+@torch.jit.script
 def gelu_tanh_approx(x):
     return x * 0.5 * (1 + torch.tanh(sqrt(2/torch.pi) * (x + 0.044715 * x**3)))
 

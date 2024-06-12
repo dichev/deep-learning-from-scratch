@@ -46,7 +46,7 @@ class RandomTextDataset(Dataset):
         return self.total_seq
 
     def __getitem__(self, idx):
-        i = torch.randint(self.data_size, size=(1,))
+        i = torch.randint(self.data_size-1, size=(1,))  # take care for over bound
         x = self.data[i:i+self.seq_len]
         y = self.data[i+1:i+self.seq_len+1]
         return x, y

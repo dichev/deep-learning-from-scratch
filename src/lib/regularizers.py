@@ -36,5 +36,5 @@ def grad_clip_norm_(params, max_norm):  # global norm, not layer-wise
         for grad in grads:
             grad *= max_norm / norm
 
-    return min(norm, max_norm)
+    return norm
 
