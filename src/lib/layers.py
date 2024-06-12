@@ -1057,18 +1057,25 @@ class MultiHeadAttention(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None):
+    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None, bias=False):
         assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
         self.n_heads = n_heads
         self.n_kv_heads = n_kv_heads if n_kv_heads is not None else n_heads  # used only by GroupedQueryAttention
         self.embed_dim = embed_dim
         self.head_dim = embed_dim // n_heads
+        self.has_bias = bias
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
         self.weight_q = Param((embed_dim, self.head_dim * self.n_heads))     # not concatenated to weight_qkv for flexibility (while extending the class)
         self.weight_k = Param((embed_dim, self.head_dim * self.n_kv_heads))  # but the price is performance
         self.weight_v = Param((embed_dim, self.head_dim * self.n_kv_heads))  #
         self.weight_o = Param((embed_dim, embed_dim))
+
+        self.bias_q = Param((1, self.head_dim * self.n_heads)) if bias else 0.
+        self.bias_k = Param((1, self.head_dim * self.n_kv_heads)) if bias else 0.
+        self.bias_v = Param((1, self.head_dim * self.n_kv_heads)) if bias else 0.
+        self.bias_o = Param((1, embed_dim)) if bias else 0.
+
         self.dropout = Dropout(dropout) if dropout > 0 else None
         self.reset_parameters()
 
@@ -1078,6 +1085,12 @@ class MultiHeadAttention(Module):
         init.xavier_uniform_(self.weight_k, *self.weight_k.shape)
         init.xavier_uniform_(self.weight_v, *self.weight_v.shape)
         init.xavier_uniform_(self.weight_o, *self.weight_o.shape)
+        if self.has_bias:
+            self.bias_q.data.zero_()
+            self.bias_k.data.zero_()
+            self.bias_v.data.zero_()
+            self.bias_o.data.zero_()
+
 
     def forward(self, query, key, value, attn_mask=None, transform=None, kv_cache=None):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
@@ -1088,9 +1101,9 @@ class MultiHeadAttention(Module):
             attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
 
         # Project to smaller vectors
-        Q = query @ self.weight_q                          # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
-        K = key @ self.weight_k                            # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
-        V = value @ self.weight_v                          # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
+        Q = query @ self.weight_q + self.bias_q            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        K = key @ self.weight_k + self.bias_k              # (b, t,  emb)   <- (b, t,  emb) @ (emb, emb)
+        V = value @ self.weight_v + self.bias_v            # (b, t,  emb)   <- (b, k,  emb) @ (emb, emb)
 
         # Separate the heads
         Q = Q.view(b, t_, self.n_heads, self.head_dim)     # (b, t', h, head_emb)
@@ -1111,7 +1124,7 @@ class MultiHeadAttention(Module):
         out = self._merge_heads(out)                      # (b, t', emb)   <- concat the heads to emb
 
         # Finally project the weighted values
-        out = out @ self.weight_o                         # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
+        out = out @ self.weight_o + self.bias_o           # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
 
         return out
 
@@ -1133,7 +1146,7 @@ class MultiHeadAttention(Module):
         return ein.rearrange(self.attn_weights, '(b h) tt ts -> b h tt ts', h=self.n_heads)
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}): {self.n_params} params'
+        return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}, bias={self.has_bias}): {self.n_params} params'
 
 
 
@@ -1143,10 +1156,10 @@ class GroupedQueryAttention(MultiHeadAttention):
     https://arxiv.org/pdf/2305.13245v3
     """
 
-    def __init__(self, embed_dim, n_heads, groups, dropout=0.):
+    def __init__(self, embed_dim, n_heads, groups, dropout=0., bias=False):
         assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
         self.groups = groups
-        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups)
+        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups, bias=bias)
 
     def _split_heads(self, X):
         is_shared_kv = self.n_kv_heads == X.shape[2] != self.n_heads
@@ -1163,9 +1176,9 @@ class SparseMultiHeadAttention(MultiHeadAttention):
     https://arxiv.org/pdf/1904.10509
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0., block_size=4, causal=True):
+    def __init__(self, embed_dim, n_heads, dropout=0., block_size=4, causal=True, bias=False):
         assert causal is True, 'Only causal masking is supported'
-        super(SparseMultiHeadAttention, self).__init__(embed_dim, n_heads, dropout)
+        super(SparseMultiHeadAttention, self).__init__(embed_dim, n_heads, dropout=dropout, bias=bias)
         self.block_size = block_size  # stride
         self.attn_local = DiagBlockAttention(block_size, dropout, causal)
         self.attn_global = ColumnBlockAttention(block_size, dropout, causal)
