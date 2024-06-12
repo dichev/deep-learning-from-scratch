@@ -350,12 +350,13 @@ class GPT2(Module):
 
 
     @torch.no_grad()
-    def generate(self, x, max_tokens=10, use_cache=False):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner
+    def generate(self, x, max_tokens=10, use_cache=False, from_topk=100):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner
         seqs = []
         for i in range(max_tokens):
             z = self.forward(x)                        # (B, t, E)
-            p = softmax(z[:, -1, :], dim=-1)           # just the last token
-            y = torch.multinomial(p, num_samples=1)    # (B, 1)
+            p = softmax(z[:, -1, :], dim=-1)           # just the last token's probs
+            topk = p.topk(k=from_topk, dim=-1)
+            y = torch.gather(topk.indices, index=topk.values.multinomial(1), dim=-1)  # (B, 1)
             x = torch.cat((x, y), dim=1)
             seqs.append(y)
         seqs = torch.cat(seqs, dim=1)                  # (B, T)
@@ -485,14 +486,15 @@ class LLaMA1(Module):
 
 
     @torch.no_grad()
-    def generate(self, x, max_tokens=10, use_cache=True):
+    def generate(self, x, max_tokens=10, use_cache=True, from_topk=100):
         batch_size, prompt_len = x.shape
         seqs = []
         pos = 0
         for i in range(max_tokens):
             z = self.forward(x, pos, use_cache)        # (B, t, E)
             p = softmax(z[:, -1, :], dim=-1)           # just the last token
-            y = torch.multinomial(p, num_samples=1)    # (B, 1)
+            topk = p.topk(k=from_topk, dim=-1)
+            y = topk.indices.gather(index=topk.values.multinomial(1), dim=-1)  # (B, 1)
             seqs.append(y)
             if use_cache:
                 x, pos = y, prompt_len + i
