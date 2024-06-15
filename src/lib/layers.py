@@ -1317,6 +1317,9 @@ class RotaryEncoding(Module):
         return freqs_complex   # (t, d/2)
 
     def forward(self, x, pos=0, clockwise=False):
+        if x.dtype is torch.bfloat16:  # complex numbers don't support bfloat16 (which is used in mixed-precision / autocasting)
+            return self.forward(x.float(), pos, clockwise).bfloat16()
+
         b, t, h, d = x.shape
         rotation = self.fixed_embeddings.to(x.device)
         if clockwise:

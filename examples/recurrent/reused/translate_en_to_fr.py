@@ -13,10 +13,17 @@ from lib.training import batches
 from preprocessing.text import clean_text
 from preprocessing.vocab import TextVocabulary
 
+
+
 # hyperparams
 IN_SEQ_LEN = 15
 OUT_SEQ_LEN = 16
 LABEL_SMOOTHING = 0.01
+
+speedup = True
+if speedup:
+    torch.set_float32_matmul_precision('high')  # use TFloat32 for operations outside the mixed-precision region
+
 
 # Prepare text data
 print('Data loading..')
@@ -60,13 +67,14 @@ def diagnostics():
 
 
 
-def train(model, optimizer, loader, batch_size):
+def train(model, optimizer, loader, batch_size, device):
     total_loss = total_acc = total_grad_norm = 0
     pbar = trange(N, desc=f'Epoch (batch_size={batch_size})')
     for i, (X, Y, batch_frac) in enumerate(loader):
         optimizer.zero_grad()
-        Z = model.forward(X, targets=Y)
-        cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX, label_smoothing=LABEL_SMOOTHING)
+        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=speedup):  # mixed precision to bfloat16
+            Z = model.forward(X, targets=Y)
+            cost = cross_entropy(Z, Y, logits=True, ignore_idx=PAD_IDX, label_smoothing=LABEL_SMOOTHING)
         cost.backward()
         grad_clip_norm_(model.parameters(), 1.)
         optimizer.step()
@@ -87,7 +95,7 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', 
 
     for epoch in range(1, epochs+1):
         loader = batches(X=text_encoded_en, y=text_encoded_fr, batch_size=batch_size, shuffle=True, device=device)  # todo: migrate to DataLoader
-        loss, acc, grad_norm, pbar = train(model, optimizer, loader, batch_size)
+        loss, acc, grad_norm, pbar = train(model, optimizer, loader, batch_size, device)
         pbar.desc = f'Epoch {epoch}/{epochs}'; pbar.set_postfix_str(f'{loss=:.3f}, {acc=:.3f}'); pbar.close()
 
 

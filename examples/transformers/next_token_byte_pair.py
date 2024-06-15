@@ -27,6 +27,9 @@ epochs = 100
 learn_rate = 1e-3
 weight_decay = 1e-2
 device = 'cuda'
+speedup = True
+if speedup:
+    torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
 
 
 # Models
@@ -77,8 +80,9 @@ def evaluate(model, loader, max_iter=None):
     losses, acc = [], []
     for i, (context, targets) in enumerate(loader):
         context, targets = context.to(device), targets.to(device)
-        logits = model(context)
-        loss = cross_entropy(logits, targets, logits=True)
+        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=speedup):  # mixed precision to bfloat16
+            logits = model(context)
+            loss = cross_entropy(logits, targets, logits=True)
         losses.append(loss)
         acc.append(accuracy(logits.argmax(dim=-1), targets))
         if max_iter and i >= max_iter: break
@@ -88,8 +92,9 @@ def evaluate(model, loader, max_iter=None):
 def train(model, optimizer, loader, desc=''):
     pbar = trange(len(loader), desc=desc)
     for context, targets in loader:
-        logits = model(context.to(device))
-        loss = cross_entropy(logits, targets.to(device), logits=True)
+        with torch.autocast(device_type=device, dtype=torch.bfloat16, enabled=speedup):  # mixed precision to bfloat16
+            logits = model(context.to(device))
+            loss = cross_entropy(logits, targets.to(device), logits=True)
         loss.backward()
         grad_clip_norm_(model.parameters(), 1.)
         optimizer.step()
