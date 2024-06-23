@@ -217,6 +217,13 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 <!-- auto-generated-end -->
 
 ## Installation
+### Local Setup
 ```
 conda env create --name dev --file=./environment.yml
+```
+### Docker Setup
+```
+docker build -t deep . 
+docker run --rm --gpus all --name deep deep 
+docker exec -it deep /bin/bash
 ```

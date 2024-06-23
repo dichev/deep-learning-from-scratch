@@ -1,0 +1,11 @@
+*.pyc
+/.idea
+/runs**/
+/src/stuff/
+*.ignore*
+
+/data/*/
+!data/images/
+!data/*.*/
+
+.git
