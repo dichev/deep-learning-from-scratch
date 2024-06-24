@@ -1062,13 +1062,14 @@ class MultiHeadAttention(Module):
     https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None, bias=False):
+    def __init__(self, embed_dim, n_heads, dropout=0., n_kv_heads=None, bias=False, flash=False):
         assert embed_dim % n_heads == 0, f'input_size {embed_dim} must be divisible by n_heads {n_heads}'
         self.n_heads = n_heads
         self.n_kv_heads = n_kv_heads if n_kv_heads is not None else n_heads  # used only by GroupedQueryAttention
         self.embed_dim = embed_dim
         self.head_dim = embed_dim // n_heads
         self.has_bias = bias
+        self.flash = flash
         self.attn_weights = None  # keep record of the last attention weights for visualization
 
         self.weight_q = Param((embed_dim, self.head_dim * self.n_heads))     # not concatenated to weight_qkv for flexibility (while extending the class)
@@ -1134,6 +1135,10 @@ class MultiHeadAttention(Module):
         return out
 
     def dot_product_attention(self, Q, K, V, attn_mask=None):
+        if self.flash:
+            # To ensure FlashAttention backend is used wrap in: with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
+            return F.scaled_dot_product_attention(Q, K, V, attn_mask=~attn_mask), None
+
         Z = Q @ K.mT / sqrt(self.head_dim)                # (bh, t', t)  <- (bh, t', head_dim)  @  (bh, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
@@ -1161,10 +1166,10 @@ class GroupedQueryAttention(MultiHeadAttention):
     https://arxiv.org/pdf/2305.13245v3
     """
 
-    def __init__(self, embed_dim, n_heads, groups, dropout=0., bias=False):
+    def __init__(self, embed_dim, n_heads, groups, dropout=0., bias=False, flash=False):
         assert n_heads % groups == 0, f'n_heads {n_heads} must be divisible by groups {groups}'
         self.groups = groups
-        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups, bias=bias)
+        super(GroupedQueryAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=groups, bias=bias, flash=flash)
 
     def _split_heads(self, X):
         is_shared_kv = self.n_kv_heads == X.shape[2] != self.n_heads

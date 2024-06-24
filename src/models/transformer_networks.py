@@ -348,6 +348,10 @@ class GPT2(Module):
         attn_weights = self.get_last_attn_weights().detach().cpu()
         plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
 
+    def flash_attention(self, enabled: bool):
+        for t in self.transformers:
+            t.attn.flash = enabled
+
 
     @torch.no_grad()
     def generate(self, x, max_tokens=10, use_cache=False, from_topk=100):  # note: caching of previous token hidden states is not implemented to keep the training code cleaner
@@ -484,6 +488,9 @@ class LLaMA1(Module):
         attn_weights = self.get_last_attn_weights().detach().cpu()
         plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
 
+    def flash_attention(self, enabled: bool):
+        for t in self.transformers:
+            t.attn.flash = enabled
 
     @torch.no_grad()
     def generate(self, x, max_tokens=10, use_cache=True, from_topk=100):
