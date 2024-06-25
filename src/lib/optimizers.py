@@ -213,17 +213,18 @@ class LR_Scheduler:
 
     def __init__(self, optimizer, decay=.99, min_lr=1e-5):
         self.optimizer = optimizer
+        self.steps = 0
         self.decay = decay
         self.min_lr = min_lr
+        self.max_lr = optimizer.lr
 
-    def step(self):  # must be called after each epoch, not after each batch
-        self.reduce_lr()
+    def step(self):  # must be called after each epoch
+        self.steps += 1
+        self.optimizer.lr = self.get_learn_rate(self.steps)
 
-    def reduce_lr(self):
-        optim = self.optimizer
-        if optim.lr > self.min_lr:
-            next_lr = optim.lr * self.decay  # using discrete (compounded) decay instead exp(-self.decay), because the epochs are not continuous
-            optim.lr = max(self.min_lr, next_lr)
+    def get_learn_rate(self, step):  # using discrete (compounded) decay instead exp(-self.decay), because the epochs are not continuous
+        lr = self.max_lr * self.decay ** step
+        return max(self.min_lr, lr)
 
 
 class LR_StepScheduler(LR_Scheduler):
@@ -231,12 +232,10 @@ class LR_StepScheduler(LR_Scheduler):
     def __init__(self, optimizer, step_size=10, decay=.99, min_lr=1e-5):
         super().__init__(optimizer, decay=decay, min_lr=min_lr)
         self.step_size = step_size
-        self.epoch = 0
 
-    def step(self):
-        self.epoch += 1
-        if self.epoch % self.step_size == 0:
-            self.reduce_lr()
+    def get_learn_rate(self, step):  # using discrete (compounded) decay instead exp(-self.decay), because the epochs are not continuous
+        lr = self.max_lr * self.decay ** (step // self.step_size)
+        return max(self.min_lr, lr)
 
 
 class LR_PlateauScheduler(LR_Scheduler):
@@ -244,15 +243,48 @@ class LR_PlateauScheduler(LR_Scheduler):
     def __init__(self, optimizer, patience=5, decay=.90, min_lr=1e-5, threshold=1e-5):
         super().__init__(optimizer, decay=decay, min_lr=min_lr)
         self.patience = patience
-        self.epoch = 0
+        self.steps = 0
         self.best = math.inf
+        self.checkpoint = 0
+        self.updated_steps = 0
         self.threshold = threshold
 
     def step(self, loss):
-        self.epoch += 1
+        self.steps += 1
         if loss < self.best - self.threshold:
             self.best = loss
-            self.epoch = 0
-        elif self.epoch > self.patience:
-            self.reduce_lr()
-            self.epoch = 0
+            self.checkpoint = self.steps
+        elif self.steps - self.checkpoint > self.patience:
+            self.updated_steps += 1
+            self.optimizer.lr = self.get_learn_rate(self.updated_steps)
+
+
+class LR_CosineDecayScheduler:
+
+    def __init__(self, optimizer, warmup_steps=20, decay_steps=200, min_lr=1e-5):
+        assert warmup_steps >= 0 and decay_steps > 0
+        self.optimizer = optimizer
+        self.steps = 0
+        self.min_lr = min_lr
+        self.max_lr = self.optimizer.lr  # that's also the warmup target
+        self.decay_steps = decay_steps
+        self.warmup_steps = warmup_steps
+        if warmup_steps > 0:  # importantly set the initial lr to min_lr (because the scheduler is called at the end of each epoch)
+            self.optimizer.lr = min_lr
+
+    def step(self):  # must be called after each epoch
+        self.steps += 1
+        self.optimizer.lr = self.get_learn_rate(self.steps)
+
+    def get_learn_rate(self, step):
+        if step <= self.warmup_steps:
+            return self.max_lr * step / self.warmup_steps
+
+        if step > self.warmup_steps + self.decay_steps:
+            return self.min_lr
+
+        decay_ratio = (step - self.warmup_steps) / self.decay_steps
+        cosine_decay = (1 + math.cos(decay_ratio * math.pi)) / 2
+        decayed_lr = self.min_lr + (self.max_lr - self.min_lr) * cosine_decay
+        return decayed_lr
+

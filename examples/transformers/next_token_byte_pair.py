@@ -6,7 +6,7 @@ import math
 from models.transformer_networks import GPT2, GPT3, LLaMA1, LLaMA2
 from lib.functions.losses import cross_entropy
 from lib.functions.metrics import accuracy
-from lib.optimizers import AdamW
+from lib.optimizers import AdamW, LR_CosineDecayScheduler
 from lib.regularizers import grad_clip_norm_
 from preprocessing.dataset import RandomTextDataset
 from preprocessing.vocab import BPETokenizer
@@ -24,7 +24,9 @@ vocab_size = 300  # from which 256 tokens are reserved for character-level bytes
 # Training config
 batch_size = 64
 epochs = 100
+warmup_epochs = 5
 learn_rate = 1e-3
+learn_rate_min = 1e-5
 weight_decay = 1e-2
 device = 'cuda'
 speedup = True
@@ -109,13 +111,15 @@ for name, model in models.items():
     print(f'Training {name}')
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, weight_decay_filter=r'weight')
+    lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_epochs, decay_steps=epochs-warmup_epochs, min_lr=learn_rate_min)
 
     # Training
     for epoch in range(1, epochs+1):
         train(model, optimizer, train_loader, desc=f'Epoch {epoch}/{epochs}')
         train_loss, train_acc = evaluate(model, train_loader)
         val_loss, val_acc = evaluate(model, val_loader)
-        print(f'Epoch {epoch}/{epochs} {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
+        print(f'Epoch {epoch}/{epochs} | lr={optimizer.lr:.5f} | {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
+        lr_scheduler.step()
         if epoch < 10 or epoch % 10 == 0:
             model.visualize_attn_weights(subtitle=f'{epoch=}')
             generate_random_text(model, max_tokens=100)
