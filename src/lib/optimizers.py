@@ -1,5 +1,6 @@
 import torch
 import math
+import re
 
 
 class Optimizer:
@@ -190,14 +191,17 @@ class AdamW(Adam):
     + Reduces zigzagging (momentum) - by averaging previous gradients
     + Decoupled (from the loss optimization) weight decay (that's better than Adams' L2 regularization, where the decay affects the adaptive learning rates) (see https://arxiv.org/abs/1706.03762)
     """
-    def __init__(self, parameters, lr, weight_decay=0, eps=1e-8, momentum=0.9, decay=0.999):
+    def __init__(self, parameters, lr, weight_decay=0, eps=1e-8, momentum=0.9, decay=0.999, weight_decay_filter=r''):
         super().__init__(parameters, lr, eps, momentum, decay)
         self.weight_decay = weight_decay
+        self._parameters_decayed = []
+        if weight_decay:
+            self._parameters_decayed = [(name, param) for name, param in self._parameters if (not weight_decay_filter or re.search(weight_decay_filter, name))]
 
     @torch.no_grad()
     def step(self):
         # First decay parameters independently (same as regularization)
-        for name, param in self._parameters:
+        for name, param in self._parameters_decayed:
             param -= self.lr * self.weight_decay * param
 
         # Then update parameters with the adapted learning rates

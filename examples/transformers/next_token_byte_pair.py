@@ -108,7 +108,7 @@ def train(model, optimizer, loader, desc=''):
 for name, model in models.items():
     print(f'Training {name}')
     model.to(device)
-    optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay)
+    optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, weight_decay_filter=r'weight')
 
     # Training
     for epoch in range(1, epochs+1):
