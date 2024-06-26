@@ -6,6 +6,7 @@ from data.edu_fineweb import DataLoaderLite, FineWebEduTokenizedDataset
 
 from models.transformer_networks import GPT2
 from lib.functions.losses import cross_entropy
+from lib.optimizers import AdamW, LR_CosineDecayScheduler
 from lib.optimizers import AdamW
 from lib.regularizers import grad_clip_norm_
 from utils.rng import seed_global
@@ -22,8 +23,9 @@ vocab_size = 50_304  # 50_257
 # Training config
 batch_size = 8
 epochs = 100
-learn_rate = 3e-4
-# todo: warmup
+warmup_steps = 5
+learn_rate = 6e-3
+learn_rate_min = 1e-5
 weight_decay = 0.1
 device = 'cuda'
 torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
@@ -41,6 +43,7 @@ model = GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_l
 model.to(device)
 model.flash_attention(True)
 optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, eps=1e-8, momentum=0.9, decay=0.95, weight_decay_filter=r'weight')
+lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_steps, decay_steps=epochs - warmup_steps, min_lr=learn_rate_min)
 # optimizer = torch.optim.AdamW(model.parameters(named=False), lr=learn_rate, weight_decay=weight_decay, fused=True)
 # model = torch.compile(model)
 
@@ -83,7 +86,8 @@ for step in (pbar := trange(steps)):
 
     # Logs and evaluation
     pbar.update()
-    pbar.set_postfix_str(f'tok/sek={(batch_size * context_size) / (time() - start_time):.1f} | {grad_norm=:.2f} | loss={loss:.4f} ')
+    pbar.set_postfix_str(f'tok/sek={(batch_size * context_size) / (time() - start_time):.1f} | lr={optimizer.lr:.5e} | {grad_norm=:.2f} | loss={loss:.4f} ')
+    lr_scheduler.step()
     if step % 100 == 0:
         val_loss = evaluate(model)
         print(f'\nStep {step+1}/{steps} {val_loss=:.4f}')
