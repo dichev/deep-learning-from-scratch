@@ -1,0 +1,83 @@
+"""
+Adapted from:
+https://github.com/karpathy/build-nanogpt
+"""
+
+import torch
+import numpy as np
+import os
+import subprocess
+
+SHARDS_TRAIN = 99
+SHARDS_VAL = 1
+DATA_ROOT = './data/edu_fineweb10B'
+TOKENIZE_SCRIPT = './data/fineweb_edu_tokenize.py'
+
+
+class FineWebEduTokenizedDataset:
+
+    def __init__(self, data_root=DATA_ROOT):
+        if not os.path.exists(data_root):
+            self.download_and_tokenize()
+
+        files = os.listdir(data_root)
+        self.train = sorted([f'{data_root}/{s}' for s in files if 'train' in s])
+        self.val   = sorted([f'{data_root}/{s}' for s in files if 'val' in s])
+        print(f"Found {len(self.train)} train shards and {len(self.val)} val shards")
+        assert len(self.train) == SHARDS_TRAIN and len(self.val) == SHARDS_VAL, f"Expecting {SHARDS_TRAIN}, {SHARDS_VAL} shards bug got {len(self.train), len(self.val)}"
+
+
+    def download_and_tokenize(self):
+        print(f"Downloading and tokenizing fineweb-edu. This will take some time..")
+        with subprocess.Popen(['python', TOKENIZE_SCRIPT]) as process:
+            process.wait()
+
+
+class DataLoaderLite:
+    def __init__(self, shards, B, T):
+        self.B = B
+        self.T = T
+        self.shards = shards
+        self.reset()
+
+    def reset(self):
+        self.current_shard = 0
+        self.tokens = self.load_tokens(self.shards[self.current_shard])
+        self.current_position = self.B * self.T
+
+    def next_batch(self):
+        B, T = self.B, self.T
+        buf = self.tokens[self.current_position : self.current_position+B*T+1]
+        x = (buf[:-1]).view(B, T)
+        y = (buf[1:]).view(B, T)
+        self.current_position += B * T
+
+        # if loading the next batch would be out of bounds, advance to next shard
+        if self.current_position + (B * T + 1) > len(self.tokens):
+            self.current_shard = (self.current_shard + 1) % len(self.shards)
+            self.tokens = self.load_tokens(self.shards[self.current_shard])
+            self.current_position = B * T
+
+        return x, y
+
+    def load_tokens(self, filename):
+        npt = np.load(filename)
+        npt = npt.astype(np.int32)
+        ptt = torch.tensor(npt, dtype=torch.long)
+        return ptt
+
+    def __len__(self):
+        approx_tokens = 10_000_000_000  # 10B
+        return approx_tokens // (self.B * self.T)
+
+
+
+
+if __name__ == '__main__':
+    data = FineWebEduTokenizedDataset()
+    train_loader = DataLoaderLite(data.train, B=8, T=1024)
+    val_loader = DataLoaderLite(data.val, B=8, T=1024)
+    context, targets = train_loader.next_batch()
+    print('Sample batch:')
+    print('context: ', context)
+    print('targets: ', targets)
