@@ -42,7 +42,6 @@ tokenizer = tiktoken.get_encoding("gpt2")
 # Models
 model = GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=n_layers, attn_heads=attn_heads)
 model.to(device)
-model.flash_attention(True)
 optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, eps=1e-8, momentum=0.9, decay=0.95, weight_decay_filter=r'weight')
 lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_steps, decay_steps=epochs - warmup_steps, min_lr=learn_rate_min)
 # optimizer = torch.optim.AdamW(model.parameters(named=False), lr=learn_rate, weight_decay=weight_decay, fused=True)
@@ -63,7 +62,7 @@ def evaluate(model, steps= 20):
     for i in range(steps):
         context, targets = val_loader.next_batch()
         with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
-            logits = model(context.to(device))
+            logits = model(context.to(device), flash=True)
             loss = cross_entropy(logits, targets.to(device), logits=True)
         losses += loss / steps
     return losses
@@ -77,11 +76,11 @@ for step in range(1, steps):
 
     # Training step
     loss_cum = 0
-    for i in (pbar := trange(batch_accum_steps, desc='Grad accumulate:')):
+    for i in (pbar := trange(batch_accum_steps, desc='Grad accumulate')):
         st = time.time()
         context, targets = train_loader.next_batch()
         with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
-            logits = model(context.to(device))
+            logits = model(context.to(device), flash=True)
             loss = cross_entropy(logits, targets.to(device), logits=True) / batch_accum_steps
         loss.backward()
         loss_cum += loss.item()
@@ -98,8 +97,6 @@ for step in range(1, steps):
     if step == 1 or step % 100 == 0 or step == steps:
         val_loss = evaluate(model)
         print(f'\nStep {step}/{steps} {val_loss=:.4f}')
-        model.flash_attention(False)
         generate_random_texts(model, prompt='Hello I am not AGI yet, but ')
         model.visualize_attn_weights(subtitle=f'{step=}')
-        model.flash_attention(True)
 
