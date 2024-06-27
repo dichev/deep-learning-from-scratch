@@ -1,14 +1,14 @@
 import torch
 from tqdm import trange
 import tiktoken
-from time import time
+import time
 from data.edu_fineweb import DataLoaderLite, FineWebEduTokenizedDataset
 
 from models.transformer_networks import GPT2
 from lib.functions.losses import cross_entropy
 from lib.optimizers import AdamW, LR_CosineDecayScheduler
-from lib.optimizers import AdamW
 from lib.regularizers import grad_clip_norm_
+from utils.other import format_seconds
 from utils.rng import seed_global
 seed_global(1)
 
@@ -22,6 +22,7 @@ vocab_size = 50_304  # 50_257
 
 # Training config
 batch_size = 8
+batch_accum_steps = 524288 // (batch_size * context_size)  # to approximate the GPT2's much larger batch size (~0.5M tokens)
 epochs = 100
 warmup_steps = 5
 learn_rate = 6e-3
@@ -70,27 +71,33 @@ def evaluate(model, steps= 20):
 
 # Training loop
 print(f'Training {model.__class__.__name__}')
-steps = len(train_loader)
-for step in (pbar := trange(steps)):
-    start_time = time()
+steps = len(train_loader) // batch_accum_steps
+for step in range(1, steps):
+    start_time = time.time()
 
     # Training step
-    context, targets = train_loader.next_batch()
-    with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
-        logits = model(context.to(device))
-        loss = cross_entropy(logits, targets.to(device), logits=True)
-    loss.backward()
+    loss_cum = 0
+    for i in (pbar := trange(batch_accum_steps, desc='Grad accumulate:')):
+        st = time.time()
+        context, targets = train_loader.next_batch()
+        with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
+            logits = model(context.to(device))
+            loss = cross_entropy(logits, targets.to(device), logits=True) / batch_accum_steps
+        loss.backward()
+        loss_cum += loss.item()
+        pbar.set_postfix_str(f'lr={optimizer.lr:.5e} | loss={loss*batch_accum_steps:.4f} | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
+
     grad_norm = grad_clip_norm_(model.parameters(), 1.)
     optimizer.step()
     optimizer.zero_grad()
+    lr_scheduler.step()
 
     # Logs and evaluation
-    pbar.update()
-    pbar.set_postfix_str(f'tok/sek={(batch_size * context_size) / (time() - start_time):.1f} | lr={optimizer.lr:.5e} | {grad_norm=:.2f} | loss={loss:.4f} ')
-    lr_scheduler.step()
-    if step % 100 == 0:
+    duration =  time.time() - start_time
+    print(f'Step {step}/{steps}: lr={optimizer.lr:.5e} | {grad_norm=:.2f} | loss={loss_cum:.4f} | tok/sek={batch_size * context_size * batch_accum_steps / duration:.1f} | duration={duration:.1f} sec | ETA: {format_seconds(duration * (steps-step))}')
+    if step == 1 or step % 100 == 0 or step == steps:
         val_loss = evaluate(model)
-        print(f'\nStep {step+1}/{steps} {val_loss=:.4f}')
+        print(f'\nStep {step}/{steps} {val_loss=:.4f}')
         model.flash_attention(False)
         generate_random_texts(model, prompt='Hello I am not AGI yet, but ')
         model.visualize_attn_weights(subtitle=f'{step=}')

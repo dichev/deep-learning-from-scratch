@@ -56,3 +56,10 @@ def to_power_of_2(value, max_multiple=256):
     multiple = min(max_multiple, 2 ** int(math.log2(value)))
     return round(value / multiple) * multiple
 
+
+def format_seconds(seconds):
+    seconds = round(seconds)
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    return f"{hours}h {minutes}m {seconds}s"
