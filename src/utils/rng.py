@@ -13,6 +13,24 @@ def seed_global(seed: int, deterministic=False):
         torch.use_deterministic_algorithms(True)
 
 
+def get_rng_states():
+    return {
+        'random': random.getstate(),
+        'numpy': np.random.get_state(),
+        'torch': torch.get_rng_state(),
+        'torch_cuda': torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,
+        'deterministic': torch.are_deterministic_algorithms_enabled()
+    }
+
+def set_rng_states(states):
+    random.setstate(states['random'])
+    np.random.set_state(states['numpy'])
+    torch.set_rng_state(states['torch'])
+    if torch.cuda.is_available():
+        torch.cuda.set_rng_state_all(states['torch_cuda'])
+    torch.use_deterministic_algorithms(states['deterministic'])
+
+
 def pick_uniform(arr, n=1, exclude=None):
     if exclude is not None:
         mask = np.ones(len(arr), dtype=bool)

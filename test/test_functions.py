@@ -3,8 +3,9 @@ import torch
 from lib.functions.metrics import BLEU
 from lib.functions.activations import softmax, log_softmax, relu, silu, gelu, swish
 from utils.other import paddings_mask
+from utils import rng
 from torcheval.metrics.functional import bleu_score
-import math
+import math, random, numpy as np
 
 
 @pytest.mark.parametrize('batch',  [1, 2, 5, 256])
@@ -65,3 +66,38 @@ def test_BLEU(max_n):
         expected = bleu_score([y_hat], [[y]], max_n, weights)
         actual = BLEU(y_hat.split(), y.split(), max_n)
         assert math.isclose(expected, actual, rel_tol=1e-04, abs_tol=1e-06)
+
+
+def test_rng_seed():
+    rng.seed_global(1)
+    rng_numbers_A = generate_random_numbers()
+
+    rng.seed_global(1)
+    rng_numbers_B = generate_random_numbers()
+
+    assert rng_numbers_A['random'] == rng_numbers_B['random']
+    assert rng_numbers_A['numpy'] == rng_numbers_B['numpy']
+    assert rng_numbers_A['torch'] == rng_numbers_B['torch']
+    assert rng_numbers_A['cuda'] == rng_numbers_B['cuda']
+
+
+def test_rng_states():
+    init_state = rng.get_rng_states()
+    rng_numbers_A = generate_random_numbers()
+
+    rng.set_rng_states(init_state)
+    rng_numbers_B = generate_random_numbers()
+
+    assert rng_numbers_A['random'] == rng_numbers_B['random']
+    assert rng_numbers_A['numpy'] == rng_numbers_B['numpy']
+    assert rng_numbers_A['torch'] == rng_numbers_B['torch']
+    assert rng_numbers_A['cuda'] == rng_numbers_B['cuda']
+
+
+def generate_random_numbers(n=10):
+    return {
+        'random': [random.random() for _ in range(n)],
+        'numpy': np.random.randn(n).tolist(),
+        'torch': torch.randn(n).tolist(),
+        'cuda': torch.cuda.FloatTensor(n).normal_().tolist() if torch.cuda.is_available() else None
+    }
