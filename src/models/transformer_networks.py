@@ -246,17 +246,17 @@ class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but witho
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
-    def forward(self, x):
-        x = x + self._self_attention(self.norm1(x))
+    def forward(self, x, flash=False):
+        x = x + self._self_attention(self.norm1(x), flash)
         x = x + self.ff(self.norm2(x))
         return x
 
-    def _self_attention(self, x):
+    def _self_attention(self, x, flash=False):
         B, T, E = x.shape
 
         # Attention mask
         attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, flash=flash)
         return v
 
 
@@ -279,13 +279,13 @@ class GPT_SparseTransformerBlock(Module):
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
-    def forward(self, x):
-        x = x + self._self_attention(self.norm1(x))
+    def forward(self, x, flash=False):
+        x = x + self._self_attention(self.norm1(x), flash)
         x = x + self.ff(self.norm2(x))
         return x
 
-    def _self_attention(self, x):
-        v = self.attn(query=x, key=x, value=x, attn_mask=None)  # SparseMultiHeadAttention is with causal mask by default
+    def _self_attention(self, x, flash):
+        v = self.attn(query=x, key=x, value=x, attn_mask=None, flash=flash)  # SparseMultiHeadAttention is with causal mask by default
         return v
 
 
@@ -325,7 +325,7 @@ class GPT2(Module):
             block.attn.weight_o.data.normal_(std=0.02 / sqrt(2 * self.n_layers))    # multiply by 2 because there are two sums of two residual blocks for each layer
             block.ff[2].weight.data.normal_(std=0.02 / sqrt(2 * self.n_layers))     # the goal is to keep the std around 1 before summation with skip connection
 
-    def forward(self, x):
+    def forward(self, x, flash=False):
         B, T = x.shape
         assert T <= self.context_size, f'the input sequence {T} exceeds the context size {self.context_size}'
         positions = torch.arange(T, device=x.device)
@@ -334,7 +334,7 @@ class GPT2(Module):
         x = self.emb(x) + self.pos_emb(positions)  # (B, T, emb) + (T, emb) -> (B, T, emb)
         x = self.dropout(x)
         for i, layer in enumerate(self.transformers):
-            x = layer(x)
+            x = layer(x, flash)
         x = self.final_norm(x)
 
         # Output token logits
@@ -347,10 +347,6 @@ class GPT2(Module):
     def visualize_attn_weights(self, batch_idx=0, subtitle=''):
         attn_weights = self.get_last_attn_weights().detach().cpu()
         plots.attention_heads_fast(attn_weights[batch_idx], title=f'Self-Attention {subtitle}')
-
-    def flash_attention(self, enabled: bool):
-        for t in self.transformers:
-            t.attn.flash = enabled
 
 
     @torch.no_grad()
@@ -423,17 +419,17 @@ class LLaMA_TransformerBlock(Module):
         self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
         self.cache_kv = KVCache()
 
-    def forward(self, x, start_pos=0, use_cache=False):
-        x = x + self._self_attention(self.norm1(x), start_pos, use_cache)
+    def forward(self, x, start_pos=0, use_cache=False, flash=False):
+        x = x + self._self_attention(self.norm1(x), start_pos, use_cache, flash)
         x = x + self.ff(self.norm2(x))
         return x
 
-    def _self_attention(self, x, start_pos, use_cache=False):
+    def _self_attention(self, x, start_pos, use_cache=False, flash=False):
         B, T, E = x.shape
 
         # Attention mask
         attn_mask = self.causal_mask[:T, :T].to(x.device) if T > 1 else None  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, transform=lambda q, k, v: self._rotary_and_cache(q, k, v, start_pos, use_cache))
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, flash=flash, transform=lambda q, k, v: self._rotary_and_cache(q, k, v, start_pos, use_cache))
         return v
 
     def _rotary_and_cache(self, q, k, v, pos, use_cache=False):
@@ -467,14 +463,14 @@ class LLaMA1(Module):
         self.n_layers, self.n_heads = n_layers, attn_heads
         self.vocab_size, self.context_size, self.embed_size, self.hidden_size = vocab_size, context_size, embed_size, hidden_size
 
-    def forward(self, x, start_pos=0, use_cache=False):
+    def forward(self, x, start_pos=0, use_cache=False, flash=False):
         B, T = x.shape
         assert start_pos+T <= self.context_size, f'the input sequence {start_pos+T} exceeds the context size {self.context_size}'
 
         # Decode each token
         x = self.emb(x)
         for i, layer in enumerate(self.transformers):
-            x = layer(x, start_pos, use_cache)
+            x = layer(x, start_pos, use_cache, flash)
         x = self.final_norm(x)
 
         # Output token logits
