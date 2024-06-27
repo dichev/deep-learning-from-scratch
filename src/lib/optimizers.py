@@ -24,6 +24,13 @@ class Optimizer:
             if param.grad is not None:
                 param.grad.zero_()
 
+    def state_dict(self):
+        return {k: v for k, v in vars(self).items() if not k.startswith('_parameters')}
+
+    def load_state_dict(self, state_dict):
+        for k, v in state_dict.items():
+            setattr(self, k, v)
+
 
 class SGD(Optimizer):
 
@@ -226,6 +233,13 @@ class LR_Scheduler:
         lr = self.max_lr * self.decay ** step
         return max(self.min_lr, lr)
 
+    def state_dict(self):
+        return {k: v for k, v in vars(self).items() if not k == 'optimizer'}
+
+    def load_state_dict(self, state_dict):
+        for k, v in state_dict.items():
+            setattr(self, k, v)
+
 
 class LR_StepScheduler(LR_Scheduler):
 
@@ -288,3 +302,9 @@ class LR_CosineDecayScheduler:
         decayed_lr = self.min_lr + (self.max_lr - self.min_lr) * cosine_decay
         return decayed_lr
 
+    def state_dict(self):
+        return {k: v for k, v in vars(self).items() if not k == 'optimizer'}
+
+    def load_state_dict(self, state_dict):
+        for k, v in state_dict.items():
+            setattr(self, k, v)

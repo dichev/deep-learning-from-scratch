@@ -75,8 +75,8 @@ class BatchNorm(Module):
         self.beta = Param(shape)
         self.gamma = Param(shape)
 
-        self.running_mean = torch.zeros(shape)
-        self.running_var = torch.ones(shape)
+        self.running_mean = self.register_buffer('running_mean', torch.zeros(shape))
+        self.running_var = self.register_buffer('running_var', torch.ones(shape))
         self.decay = 0.9
         self.size = size
         self.dims = batch_dims
@@ -93,6 +93,7 @@ class BatchNorm(Module):
         super().to(device)
         self.running_mean.data = self.running_mean.to(device)
         self.running_var.data = self.running_mean.to(device)
+        return self
 
     def forward(self, x):
         assert len(x.shape) == len(self.dims) + 1, f'Expect tensor with {len(self.dims) + 1} axis, but got {x.shape}'
@@ -101,8 +102,8 @@ class BatchNorm(Module):
         if torch.is_grad_enabled():
             mu, var, var_unbias = x.mean(dim=self.dims, keepdims=True), x.var(dim=self.dims, correction=0, keepdims=True), x.var(dim=self.dims, keepdims=True)
             with torch.no_grad():  # fix a memory leak in the computation graph (for var_unbias only)
-                self.running_mean = self.decay * self.running_mean + (1 - self.decay) * mu
-                self.running_var  = self.decay * self.running_var  + (1 - self.decay) * var_unbias
+                self.running_mean[:] = self.decay * self.running_mean + (1 - self.decay) * mu
+                self.running_var[:]  = self.decay * self.running_var  + (1 - self.decay) * var_unbias
         else:
             mu, var = self.running_mean, self.running_var
 

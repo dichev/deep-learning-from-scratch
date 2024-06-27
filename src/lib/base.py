@@ -32,13 +32,16 @@ class Module:
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-    def parameters(self, named=True, prefix='', deep=True):
+    def parameters(self, named=True, prefix='', deep=True, buffers=False):
         for key, val in vars(self).items():
             if isinstance(val, Module) and deep:
-                yield from val.parameters(named, prefix=f'{prefix + key}.')
+                yield from val.parameters(named, prefix=f'{prefix + key}.', deep=deep, buffers=buffers)
             elif type(val) is Param:   # don't use isinstance, because Param is a subclass of Tensor
                 if val.requires_grad:  # only trainable parameters
                     yield (prefix + key, val) if named else val
+            elif buffers and key == '_buffers':
+                for name, val in val.items():
+                    yield (prefix + name, val) if named else val
 
     def modules(self, named=True, prefix=''):
         for key, val in vars(self).items():
@@ -69,21 +72,19 @@ class Module:
                 for param_name, param in module.parameters(deep=False):
                     print(f'\t\t{name}.{param_name}', list(param.size()))
 
-    def export(self, filename='./runs/model.json'):
-        print('Export model to:', filename)
 
-        network = {'layers': []}
-        for name, module in self.modules():
-            layer = {
-                'type': module.__class__.__name__,
-                'name': name,
-            }
-            for param_name, param in module.parameters():
-                layer[param_name] = param.tolist()
-            network['layers'].append(layer)
+    def register_buffer(self, name, value):
+        self._buffers = getattr(self, '_buffers', {})
+        self._buffers[name] = value
+        return value
 
-        with open(filename, 'w') as f:
-            json.dump(network, f, indent=2)
+    def state_dict(self):
+        return {k: v for k, v in self.parameters(buffers=True)}
+
+    def load_state_dict(self, state_dict):
+        for name, param in self.parameters(buffers=True):
+            param.data[:] = state_dict[name]  # copy data, while validating its shape
+
 
     @property
     def n_params(self) -> str:

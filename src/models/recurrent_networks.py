@@ -133,6 +133,7 @@ class EchoStateNetwork(Module):
         # those parameters aren't moved because aren't trainable (required_grad=False)
         self.rnn.cell.weight.data = self.rnn.cell.weight.data.to(device)
         self.rnn.cell.bias.data = self.rnn.cell.bias.data.to(device)
+        return self
 
 
 class Encoder(Module):

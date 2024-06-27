@@ -1,11 +1,8 @@
 import pytest
 import torch
-from lib.layers import (Linear, Conv2d, Conv2dGroups, MaxPool2d, AvgPool2d, BatchNorm1d, BatchNorm2d, LocalResponseNorm,
-                        DotProductAttention, MultiHeadAttention, SparseMultiHeadAttention, GroupedQueryAttention,
-                        PositionalEncoding, RotaryEncoding)
+from lib.layers import *
 from utils.other import paddings_mask
 import einops as ein
-from math import sqrt
 from matplotlib import pyplot as plt
 
 @torch.no_grad()
