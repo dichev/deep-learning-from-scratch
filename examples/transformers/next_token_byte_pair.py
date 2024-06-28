@@ -118,7 +118,7 @@ for name, model in models.items():
         train(model, optimizer, train_loader, desc=f'Epoch {epoch}/{epochs}')
         train_loss, train_acc = evaluate(model, train_loader)
         val_loss, val_acc = evaluate(model, val_loader)
-        print(f'Epoch {epoch}/{epochs} | lr={optimizer.lr:.5f} | {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
+        print(f'Epoch {epoch}/{epochs} | lr={optimizer.lr:.5e} | {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
         lr_scheduler.step()
         if epoch < 10 or epoch % 10 == 0:
             model.visualize_attn_weights(subtitle=f'{epoch=}')
