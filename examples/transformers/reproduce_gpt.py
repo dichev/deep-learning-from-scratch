@@ -24,10 +24,9 @@ vocab_size = 50_304  # 50_257
 # Training config
 batch_size = 8
 batch_accum_steps = 524288 // (batch_size * context_size)  # to approximate the GPT2's much larger batch size (~0.5M tokens)
-epochs = 100
-warmup_steps = 5
 learn_rate = 6e-3
-learn_rate_min = 1e-5
+learn_rate_min = 6e-5
+warmup_steps = 715
 weight_decay = 0.1
 device = 'cuda'
 torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
@@ -44,13 +43,14 @@ data = FineWebEduTokenizedDataset(data_root='./data/edu_fineweb10B')
 train_loader = DataLoaderLite(data.train, batch_size, context_size)
 val_loader = DataLoaderLite(data.val, batch_size, context_size)
 tokenizer = tiktoken.get_encoding("gpt2")
-
+steps = len(train_loader) // batch_accum_steps
+assert steps == 19073  # expected steps for 1 epoch
 
 # Models
 model = GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=n_layers, attn_heads=attn_heads)
 model.to(device)
 optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, eps=1e-8, momentum=0.9, decay=0.95, weight_decay_filter=r'weight')
-lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_steps, decay_steps=epochs - warmup_steps, min_lr=learn_rate_min)
+lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_steps, decay_steps=steps - warmup_steps, min_lr=learn_rate_min)
 # optimizer = torch.optim.AdamW(model.parameters(named=False), lr=learn_rate, weight_decay=weight_decay, fused=True)
 # model = torch.compile(model)
 
@@ -112,7 +112,6 @@ if checkpoint_step > 0:
 
 # Training loop
 print(f'Training...')
-steps = len(train_loader) // batch_accum_steps
 for step in range(1 + checkpoint_step, steps):
     start_time = time.time()
 
