@@ -38,12 +38,12 @@ class DataLoaderLite:
         self.B = B
         self.T = T
         self.shards = shards
+        self.current_shard = 0
+        self.current_position = 0
         self.reset()
 
     def reset(self):
-        self.current_shard = 0
-        self.tokens = self.load_tokens(self.shards[self.current_shard])
-        self.current_position = self.B * self.T
+        self.set_state(0, 0)
 
     def next_batch(self):
         B, T = self.B, self.T
@@ -65,6 +65,14 @@ class DataLoaderLite:
         npt = npt.astype(np.int32)
         ptt = torch.tensor(npt, dtype=torch.long)
         return ptt
+
+    def get_state(self):
+        return {'shard': self.current_shard, 'position': self.current_position}
+
+    def set_state(self, shard, position):
+        self.current_shard = shard
+        self.current_position = position
+        self.tokens = self.load_tokens(self.shards[self.current_shard])
 
     def __len__(self):
         approx_tokens = 10_000_000_000  # 10B

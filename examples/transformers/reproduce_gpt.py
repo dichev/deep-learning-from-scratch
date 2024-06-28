@@ -2,6 +2,7 @@ import torch
 from tqdm import trange
 import tiktoken
 import time
+import os
 from data.edu_fineweb import DataLoaderLite, FineWebEduTokenizedDataset
 
 from models.transformer_networks import GPT2
@@ -9,7 +10,7 @@ from lib.functions.losses import cross_entropy
 from lib.optimizers import AdamW, LR_CosineDecayScheduler
 from lib.regularizers import grad_clip_norm_
 from utils.other import format_seconds
-from utils.rng import seed_global
+from utils.rng import seed_global, set_rng_states, get_rng_states
 seed_global(1)
 
 
@@ -30,6 +31,12 @@ learn_rate_min = 1e-5
 weight_decay = 0.1
 device = 'cuda'
 torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
+
+# Reproducing
+checkpoint_step = 0  # load check point from here
+checkpoint_every = 1000  # steps
+checkpoint_dir = './runs/checkpoints'
+os.makedirs(checkpoint_dir, exist_ok=True)
 
 
 # Data
@@ -53,6 +60,7 @@ def generate_random_texts(model, prompt: str, attempts=5, max_tokens=50, use_cac
     prompt_tokens = torch.tensor([tokenizer.encode(prompt)]).expand(attempts, -1).to(device)
     outputs = model.generate(prompt_tokens, max_tokens, use_cache)
     for tokens in outputs:
+        tokens = tokens[tokens<=tokenizer.max_token_value]  # because the vocab size was extended from 50_257 to 50_304
         print(f'[{prompt}]' + tokenizer.decode(tokens.tolist()))
 
 @torch.no_grad()
@@ -67,16 +75,50 @@ def evaluate(model, steps= 20):
         losses += loss / steps
     return losses
 
+@torch.no_grad()
+def save_checkpoint(step, loss):
+    path = f'{checkpoint_dir}/reproduce-gpt_step_{step:05}.pt'
+    print(f'Saving checkpoint at {step=}...')
+    torch.save({
+        'step': step,
+        'loss': loss,
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'lr_scheduler': lr_scheduler.state_dict(),
+        'seed': {  # to reproduce from the same seed state (very useful for debugging)
+            'train_loader': train_loader.get_state(),
+            'val_loader': val_loader.get_state(),
+            'rng': get_rng_states(),
+        }
+    }, path)
+
+
+@torch.no_grad()
+def load_checkpoint(step):
+    print(f'Loading checkpoints at {step=}..')
+    state = torch.load(f'{checkpoint_dir}/reproduce-gpt_step_{step:05}.pt')
+    model.load_state_dict(state['model'])
+    optimizer.load_state_dict(state['optimizer'])
+    lr_scheduler.load_state_dict(state['lr_scheduler'])
+    train_loader.set_state(**state['seed']['train_loader'])
+    val_loader.set_state(**state['seed']['val_loader'])
+    set_rng_states(state['seed']['rng'])
+    print(f'Loaded checkpoint from step {state["step"]} (loss = {state["loss"]:.4f})')
+
+
+# Load checkpoint
+if checkpoint_step > 0:
+    load_checkpoint(checkpoint_step)
 
 # Training loop
-print(f'Training {model.__class__.__name__}')
+print(f'Training...')
 steps = len(train_loader) // batch_accum_steps
-for step in range(1, steps):
+for step in range(1 + checkpoint_step, steps):
     start_time = time.time()
 
     # Training step
     loss_cum = 0
-    for i in (pbar := trange(batch_accum_steps, desc='Grad accumulate')):
+    for i in (pbar := trange(batch_accum_steps, desc=f'Step {step}/{steps} (Grad accumulate)')):
         st = time.time()
         context, targets = train_loader.next_batch()
         with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
@@ -92,11 +134,15 @@ for step in range(1, steps):
     lr_scheduler.step()
 
     # Logs and evaluation
-    duration =  time.time() - start_time
+    duration = time.time() - start_time
     print(f'Step {step}/{steps}: lr={optimizer.lr:.5e} | {grad_norm=:.2f} | loss={loss_cum:.4f} | tok/sek={batch_size * context_size * batch_accum_steps / duration:.1f} | duration={duration:.1f} sec | ETA: {format_seconds(duration * (steps-step))}')
-    if step == 1 or step % 100 == 0 or step == steps:
+    if step in [1, 2, 5, 10, 50, 100, steps] or step % checkpoint_every == 0:
         val_loss = evaluate(model)
-        print(f'\nStep {step}/{steps} {val_loss=:.4f}')
+        print(f'Step {step}/{steps} {val_loss=:.4f}')
         generate_random_texts(model, prompt='Hello I am not AGI yet, but ')
         model.visualize_attn_weights(subtitle=f'{step=}')
+
+        save_checkpoint(step, loss_cum)
+        # load_checkpoint(step=1) # for debugging
+
 
