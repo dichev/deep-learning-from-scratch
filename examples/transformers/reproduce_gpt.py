@@ -122,6 +122,7 @@ for step in range(1 + checkpoint_step, steps):
 
     # Training step
     loss_cum = 0
+    optimizer.zero_grad()
     for i in (pbar := trange(batch_accum_steps, desc=f'Step {step}/{steps} (Grad accumulate)', leave=False)):
         st = time.time()
         context, targets = train_loader.next_batch()
@@ -133,9 +134,10 @@ for step in range(1 + checkpoint_step, steps):
         pbar.set_postfix_str(f'loss={loss*batch_accum_steps:.4f} | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
 
     grad_norm = grad_clip_norm_(model.parameters(), 1.)
-    optimizer.step()
-    optimizer.zero_grad()
     lr_scheduler.step()
+    optimizer.step()
+
+
 
     # Logs and evaluation
     duration = time.time() - start_time

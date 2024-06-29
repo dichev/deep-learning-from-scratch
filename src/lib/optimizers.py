@@ -283,7 +283,7 @@ class LR_CosineDecayScheduler:
         self.max_lr = self.optimizer.lr  # that's also the warmup target
         self.decay_steps = decay_steps
         self.warmup_steps = warmup_steps
-        if warmup_steps > 0:  # importantly set the initial lr to min_lr (because the scheduler is called at the end of each epoch)
+        if warmup_steps > 0:  # importantly set the initial lr to min_lr (in case the scheduler was called after optimizer.step)
             self.optimizer.lr = min_lr
 
     def step(self):  # must be called after each epoch
