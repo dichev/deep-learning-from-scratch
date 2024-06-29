@@ -159,7 +159,7 @@ class LayerNorm(Module):
         self.scale.fill_(1)
 
     def forward(self, a):  # "a" are all pre-activations of the layer
-        mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True)
+        mu, var = a.mean(dim=-1, keepdim=True), a.var(dim=-1, keepdim=True, correction=0)
         a = (a - mu) / (var + self.eps).sqrt()
         a = self.scale * a + self.shift
         return a
