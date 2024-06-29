@@ -2,7 +2,9 @@ import torch
 from tqdm import trange
 import tiktoken
 import time
+from datetime import datetime
 import os
+from torch.utils.tensorboard import SummaryWriter
 from data.edu_fineweb import DataLoaderLite, FineWebEduTokenizedDataset
 
 from models.transformer_networks import GPT2
@@ -24,7 +26,7 @@ vocab_size = 50_304  # 50_257
 # Training config
 batch_size = 8
 batch_accum_steps = 524288 // (batch_size * context_size)  # to approximate the GPT2's much larger batch size (~0.5M tokens)
-learn_rate = 6e-3
+learn_rate = 6e-4
 learn_rate_min = 6e-5
 warmup_steps = 715
 weight_decay = 0.1
@@ -36,6 +38,7 @@ checkpoint_step = 0  # load check point from here
 checkpoint_every = 1000  # steps
 checkpoint_dir = './runs/checkpoints'
 os.makedirs(checkpoint_dir, exist_ok=True)
+writer = SummaryWriter(f'runs/GPT_Reproduce - {datetime.now().strftime("%b%d %H-%M-%S")}', flush_secs=2)
 
 
 # Data
@@ -109,6 +112,8 @@ def load_checkpoint(step):
 # Load checkpoint
 if checkpoint_step > 0:
     load_checkpoint(checkpoint_step)
+print(f'Initial val loss: {evaluate(model):.4f}')
+
 
 # Training loop
 print(f'Training...')
@@ -117,7 +122,7 @@ for step in range(1 + checkpoint_step, steps):
 
     # Training step
     loss_cum = 0
-    for i in (pbar := trange(batch_accum_steps, desc=f'Step {step}/{steps} (Grad accumulate)')):
+    for i in (pbar := trange(batch_accum_steps, desc=f'Step {step}/{steps} (Grad accumulate)', leave=False)):
         st = time.time()
         context, targets = train_loader.next_batch()
         with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
@@ -125,7 +130,7 @@ for step in range(1 + checkpoint_step, steps):
             loss = cross_entropy(logits, targets.to(device), logits=True) / batch_accum_steps
         loss.backward()
         loss_cum += loss.item()
-        pbar.set_postfix_str(f'lr={optimizer.lr:.5e} | loss={loss*batch_accum_steps:.4f} | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
+        pbar.set_postfix_str(f'loss={loss*batch_accum_steps:.4f} | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
 
     grad_norm = grad_clip_norm_(model.parameters(), 1.)
     optimizer.step()
@@ -134,10 +139,15 @@ for step in range(1 + checkpoint_step, steps):
 
     # Logs and evaluation
     duration = time.time() - start_time
-    print(f'Step {step}/{steps}: lr={optimizer.lr:.5e} | {grad_norm=:.2f} | loss={loss_cum:.4f} | tok/sek={batch_size * context_size * batch_accum_steps / duration:.1f} | duration={duration:.1f} sec | ETA: {format_seconds(duration * (steps-step))}')
+    print(f'\rStep {step}/{steps}: lr={optimizer.lr:.5e} | {grad_norm=:.4f} | loss={loss_cum:.6f} | tok/sek={batch_size * context_size * batch_accum_steps / duration:.1f} | duration={duration:.1f} sec | ETA: {format_seconds(duration * (steps-step))}')
+    writer.add_scalar('t/Learn rate', optimizer.lr, step)
+    writer.add_scalar('t/Train Loss', loss_cum, step)
+    writer.add_scalar('a/Gradients Norm', grad_norm, step)
+    writer.add_scalar('a/Weights Norm', model.weight_norm(), step)
     if step in [1, 2, 5, 10, 50, 100, steps] or step % checkpoint_every == 0:
         val_loss = evaluate(model)
-        print(f'Step {step}/{steps} {val_loss=:.4f}')
+        print(f'Step {step}/{steps}: {val_loss=:.4f}')
+        writer.add_scalar('t/Val loss', val_loss, step)
         generate_random_texts(model, prompt='Hello I am not AGI yet, but ')
         model.visualize_attn_weights(subtitle=f'{step=}')
 
