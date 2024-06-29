@@ -128,10 +128,11 @@ for step in range(1 + checkpoint_step, steps):
         context, targets = train_loader.next_batch()
         with torch.autocast(device_type=device, dtype=torch.bfloat16):  # mixed precision to bfloat16
             logits = model(context.to(device), flash=True)
-            loss = cross_entropy(logits, targets.to(device), logits=True) / batch_accum_steps
+            loss = cross_entropy(logits, targets.to(device), logits=True)
+        loss = loss / batch_accum_steps
+        loss_cum += loss.detach()
         loss.backward()
-        loss_cum += loss.item()
-        pbar.set_postfix_str(f'loss={loss*batch_accum_steps:.4f} | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
+        pbar.set_postfix_str(f'{loss_cum=:.4f}(+{loss:.4f}) | tok/sek={batch_size * context_size / (time.time() - st) :.1f} w/o update')
 
     grad_norm = grad_clip_norm_(model.parameters(), 1.)
     lr_scheduler.step()
