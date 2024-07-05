@@ -63,3 +63,11 @@ def format_seconds(seconds):
     minutes = (seconds % 3600) // 60
     seconds = seconds % 60
     return f"{hours}h {minutes}m {seconds}s"
+
+
+# Preserves public methods when compiling non-nn.Module objects
+def custom_compile(model, wrap_methods=[]):
+    compiled = torch.compile(model)
+    for method in wrap_methods:
+        setattr(compiled, method, getattr(model, method))
+    return compiled

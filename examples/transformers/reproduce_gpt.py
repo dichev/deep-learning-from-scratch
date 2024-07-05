@@ -11,7 +11,7 @@ from models.transformer_networks import GPT2
 from lib.functions.losses import cross_entropy
 from lib.optimizers import AdamW, LR_CosineDecayScheduler
 from lib.regularizers import grad_clip_norm_
-from utils.other import format_seconds
+from utils.other import format_seconds, custom_compile
 from utils.rng import seed_global, set_rng_states, get_rng_states
 seed_global(1)
 
@@ -31,6 +31,7 @@ learn_rate_min = 6e-5
 warmup_steps = 715
 weight_decay = 0.1
 device = 'cuda'
+compiled = False
 torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
 
 # Reproducing
@@ -113,6 +114,12 @@ def load_checkpoint(step):
 if checkpoint_step > 0:
     load_checkpoint(checkpoint_step)
 print(f'Initial val loss: {evaluate(model):.4f}')
+
+
+# pytorch.compile
+if compiled:
+    model = custom_compile(model, wrap_methods=['state_dict', 'load_state_dict', 'parameters', 'generate',  'weight_norm', 'visualize_attn_weights'])
+
 
 
 # Training loop
