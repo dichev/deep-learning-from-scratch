@@ -1102,9 +1102,13 @@ class MultiHeadAttention(Module):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
-        assert attn_mask is None or attn_mask.shape == (t_, t) or (attn_mask.ndim == 3 and attn_mask.shape[0] == b*self.n_heads), f'Expected attn_mask shape {t_, t} or {b*self.n_heads, t_, t}, but got {attn_mask.shape}'
-        if attn_mask is not None and attn_mask.shape == (t_, t):
-            attn_mask = attn_mask.view(1, t_, t)  # to be broadcasted to (b*heads, t', t)
+        if attn_mask is not None:
+            if attn_mask.shape == (t_, t):
+                attn_mask = attn_mask.view(1, 1, t_, t)
+            elif attn_mask.ndim == 3 and attn_mask.shape[0] == b*self.n_heads:
+                attn_mask = attn_mask.view(b, self.n_heads, *attn_mask.shape[1:])
+            else:
+                f'Expected attn_mask shape {t_, t} or {b * self.n_heads, t_, t}, but got {attn_mask.shape}'
 
         # Project to smaller vectors
         Q = query @ self.weight_q + self.bias_q            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
@@ -1121,9 +1125,9 @@ class MultiHeadAttention(Module):
             Q, K, V = transform(Q, K, V)
 
         # Split projections into n_heads
-        Q = self._split_heads(Q)                          # (b * heads, t', head_dim)
-        K = self._split_heads(K)                          # (b * heads, t,  head_dim)
-        V = self._split_heads(V)                          # (b * heads, t,  head_dim)
+        Q = self._split_heads(Q)                          # (b, h, t', head_dim)
+        K = self._split_heads(K)                          # (b, h, t,  head_dim)
+        V = self._split_heads(V)                          # (b, h, t,  head_dim)
 
         # Compute attention (heads are considered batches)
         out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask, flash)
@@ -1139,21 +1143,21 @@ class MultiHeadAttention(Module):
             # To ensure FlashAttention backend is used wrap in: with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
             return F.scaled_dot_product_attention(Q, K, V, attn_mask=~attn_mask), None
 
-        Z = Q @ K.mT / sqrt(self.head_dim)                # (bh, t', t)  <- (bh, t', head_dim)  @  (bh, head_dim, t)
+        Z = Q @ K.mT / sqrt(self.head_dim)                # (b, h, t', t)  <- (b, h, t', head_dim)  @  (b, h, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
         if self.dropout:
             A = self.dropout.forward(A)
-        out = A @ V                                       # (bh, t', head_dim)  <- (bh, t', t) @ (bh, t, head_dim)
+        out = A @ V                                       # (b, h, t', head_dim)  <- (b, h, t', t) @ (b, h, t, head_dim)
         return out, A
 
     def _split_heads(self, X):
-        return ein.rearrange(X, 'b t h d -> (b h) t d', h=self.n_heads)
+        return ein.rearrange(X, 'b t h d -> b h t d', h=self.n_heads)
 
     def _merge_heads(self, X):
-        return ein.rearrange(X, '(b h) t d -> b t (h d)', h=self.n_heads)
+        return ein.rearrange(X, 'b h t d -> b t (h d)', h=self.n_heads)
 
     def get_last_attn_weights(self):
-        return ein.rearrange(self.attn_weights, '(b h) tt ts -> b h tt ts', h=self.n_heads)
+        return self.attn_weights
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.embed_dim}, n_heads={self.n_heads}, bias={self.has_bias}): {self.n_params} params'
@@ -1173,7 +1177,7 @@ class GroupedQueryAttention(MultiHeadAttention):
 
     def _split_heads(self, X):
         is_shared_kv = self.n_kv_heads == X.shape[2] != self.n_heads
-        return ein.repeat(X, 'b t h d -> (b h repeat) t d', d=self.head_dim, repeat=self.n_heads // self.n_kv_heads if is_shared_kv else 1)
+        return ein.repeat(X, 'b t h d -> b (h repeat) t d', d=self.head_dim, repeat=self.n_heads // self.n_kv_heads if is_shared_kv else 1)
 
     def __repr__(self):
         return f'GroupedQueryAttention({self.embed_dim}, n_heads={self.n_heads}, n_kv_heads={self.n_kv_heads}, groups={self.groups}): {self.n_params} params'
@@ -1216,6 +1220,11 @@ class SparseMultiHeadAttention(MultiHeadAttention):
 
         return out, (A_local, A_global)
 
+    def _split_heads(self, X):
+        return ein.rearrange(X, 'b t h d -> (b h) t d', h=self.n_heads)
+
+    def _merge_heads(self, X):
+        return ein.rearrange(X, '(b h) t d -> b t (h d)', h=self.n_heads)
 
     @torch.no_grad()
     def get_last_attn_weights(self):
