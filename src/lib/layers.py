@@ -935,13 +935,13 @@ class DiagBlockAttention(Module):
     https://arxiv.org/pdf/1904.10509
     """
 
-    def __init__(self, block_size=4, dropout=0., causal=True):
-        assert causal is True, 'Only causal masking is supported'
+    def __init__(self, block_size=4, dropout=0.):
         self.block_size = block_size  # stride
         self.dropout = Dropout(dropout) if dropout > 0 else None
 
-    def forward(self, Q, K, V):  # local diagonal blocks
+    def forward(self, Q, K, V, is_causal=True):  # local diagonal blocks
         b, t, e = Q.shape
+        assert is_causal is True, 'Only causal masking is supported'
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
         K_T = K.mT
@@ -998,14 +998,14 @@ class ColumnBlockAttention(Module):
     https://arxiv.org/pdf/1904.10509
     """
 
-    def __init__(self, block_size=4, dropout=0., causal=True):
-        assert causal is True, 'Only causal masking is supported'
+    def __init__(self, block_size=4, dropout=0.):
         self.block_size = block_size  # stride
         self.dropout = Dropout(dropout) if dropout > 0 else None
 
 
-    def forward(self, Q, K, V):  # global columns strided by block_size
+    def forward(self, Q, K, V, is_causal=True):  # global columns strided by block_size
         b, t, e = Q.shape
+        assert is_causal is True, 'Only causal masking is supported'
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         assert t % self.block_size == 0, f'The sequence length {t} is not divisible by the block size {self.block_size}'
         K_T = K.mT
@@ -1098,17 +1098,11 @@ class MultiHeadAttention(Module):
             self.bias_o.data.zero_()
 
 
-    def forward(self, query, key, value, attn_mask=None, flash=False, transform=None, kv_cache=None):
+    def forward(self, query, key, value, attn_mask=None, flash=False, transform=None, kv_cache=None, is_causal=False):
         (b, t_, emb), (b, t, k_dim), (b, t, v_dim) = query.shape, key.shape, value.shape
         assert query.shape[0] == key.shape[0] == value.shape[0], f'Expected same batch_size but got {query.shape=}, {key.shape=}, {value.shape=}'
         assert (b, t) == key.shape[:-1] == value.shape[:-1], f'Expected same number of key-values pairs of key {query.shape} and value {value.shape}'
-        if attn_mask is not None:
-            if attn_mask.shape == (t_, t):
-                attn_mask = attn_mask.view(1, 1, t_, t)
-            elif attn_mask.ndim == 3 and attn_mask.shape[0] == b*self.n_heads:
-                attn_mask = attn_mask.view(b, self.n_heads, *attn_mask.shape[1:])
-            else:
-                f'Expected attn_mask shape {t_, t} or {b * self.n_heads, t_, t}, but got {attn_mask.shape}'
+        attn_mask = self._adapt_attn_mask((b, self.n_heads, t_, t), attn_mask, flash, is_causal, query.device)
 
         # Project to smaller vectors
         Q = query @ self.weight_q + self.bias_q            # (b, t', emb)   <- (b, t', emb) @ (emb, emb)
@@ -1130,7 +1124,7 @@ class MultiHeadAttention(Module):
         V = self._split_heads(V)                          # (b, h, t,  head_dim)
 
         # Compute attention (heads are considered batches)
-        out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask, flash)
+        out, self.attn_weights = self.dot_product_attention(Q, K, V, attn_mask, is_causal, flash)
         out = self._merge_heads(out)                      # (b, t', emb)   <- concat the heads to emb
 
         # Finally project the weighted values
@@ -1138,10 +1132,12 @@ class MultiHeadAttention(Module):
 
         return out
 
-    def dot_product_attention(self, Q, K, V, attn_mask=None, flash=False):
+    def dot_product_attention(self, Q, K, V, attn_mask=None, is_causal=False, flash=False):
         if flash:
+            assert attn_mask is None, "FlashAttention2 doesn't support custom attn_mask, you should use is_causal=True"  # however the other optimized backends will work with: attn_mask=~attn_mask
+            self.attn_weights = None
             # To ensure FlashAttention backend is used wrap in: with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
-            return F.scaled_dot_product_attention(Q, K, V, attn_mask=~attn_mask), None
+            return F.scaled_dot_product_attention(Q, K, V, is_causal=True, attn_mask=attn_mask), None
 
         Z = Q @ K.mT / sqrt(self.head_dim)                # (b, h, t', t)  <- (b, h, t', head_dim)  @  (b, h, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
@@ -1155,6 +1151,27 @@ class MultiHeadAttention(Module):
 
     def _merge_heads(self, X):
         return ein.rearrange(X, 'b h t d -> b t (h d)', h=self.n_heads)
+
+    def _adapt_attn_mask(self, shape, attn_mask=None, flash=False, is_causal=False, device=None):  # handle special cases and do some validations
+        (b, h, t_, t) = shape
+
+        if is_causal and attn_mask is not None:
+            raise Exception('Expected either attn_mask or is_causal, but got them both')
+
+        elif attn_mask is not None:
+            if attn_mask.shape == (t_, t):
+                attn_mask = attn_mask.view(1, 1, t_, t)
+            elif attn_mask.ndim == 3 and attn_mask.shape[0] == b * h:
+                attn_mask = attn_mask.view(b, h, *attn_mask.shape[1:])
+            elif attn_mask.ndim == 4:
+                pass  # good
+            else:
+                f'Expected attn_mask shape {t_, t} or {b * h, t_, t}, but got {attn_mask.shape}'
+
+        elif is_causal and not flash and t_ > 1:  # for flash attention, we don't need to create an attention mask
+            attn_mask = torch.triu(torch.ones(t_, t), diagonal=1).bool().view(1, 1, t_, t).to(device)  # can be cached
+
+        return attn_mask
 
     def get_last_attn_weights(self):
         return self.attn_weights
@@ -1190,15 +1207,15 @@ class SparseMultiHeadAttention(MultiHeadAttention):
     https://arxiv.org/pdf/1904.10509
     """
 
-    def __init__(self, embed_dim, n_heads, dropout=0., block_size=4, causal=True, bias=False):
-        assert causal is True, 'Only causal masking is supported'
+    def __init__(self, embed_dim, n_heads, dropout=0., block_size=4, bias=False):
         super(SparseMultiHeadAttention, self).__init__(embed_dim, n_heads, dropout=dropout, bias=bias)
         self.block_size = block_size  # stride
-        self.attn_local = DiagBlockAttention(block_size, dropout, causal)
-        self.attn_global = ColumnBlockAttention(block_size, dropout, causal)
+        self.attn_local = DiagBlockAttention(block_size, dropout)
+        self.attn_global = ColumnBlockAttention(block_size, dropout)
 
-    def dot_product_attention(self, Q, K, V, attn_mask=None, flash=False):
-        assert attn_mask is None, f'Custom attention mask is not supported, will be applying just the casual mask'
+    def dot_product_attention(self, Q, K, V, attn_mask=None, is_causal=True, flash=False):
+        assert is_causal is True, 'Only causal masking is supported'
+        assert attn_mask is None, f'Custom attention mask is not supported, will be applying just the causal mask'
         assert not flash, f'Flash attention is not supported for SparseMultiHeadAttention'
         assert Q.shape == K.shape == V.shape, f'Expecting same shape of Q{Q.shape}, K{K.shape}, V{V.shape}'
         b, t, e = Q.shape
@@ -1225,6 +1242,12 @@ class SparseMultiHeadAttention(MultiHeadAttention):
 
     def _merge_heads(self, X):
         return ein.rearrange(X, '(b h) t d -> b t (h d)', h=self.n_heads)
+
+    def _adapt_attn_mask(self, shape, attn_mask=None, flash=False, is_causal=False, device=None):
+        assert is_causal is True, 'Only causal masking is supported'
+        assert attn_mask is None, f'Custom attention mask is not supported, will be applying just the causal mask'
+        return None
+
 
     @torch.no_grad()
     def get_last_attn_weights(self):

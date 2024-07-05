@@ -214,7 +214,7 @@ def test_sparse_multi_head_attention(block_size, seq_len, n_heads, visualize=Tru
     sparse_attention.weight_v.data[:] = attention.weight_v.data.clone()
     sparse_attention.weight_o.data[:] = attention.weight_o.data.clone()
 
-    Y2 = sparse_attention.forward(Q, K, V)
+    Y2 = sparse_attention.forward(Q, K, V, is_causal=True)
     A2 = sparse_attention.get_last_attn_weights()
 
     # simulate the sparsed attention with two heads for each pattern

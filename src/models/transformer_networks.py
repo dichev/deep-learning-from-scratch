@@ -233,7 +233,7 @@ class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but witho
     https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf
     """
 
-    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0.):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads, dropout=0.):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
         self.attn = MultiHeadAttention(input_size, attn_heads, bias=True, dropout=dropout)
         self.norm2 = LayerNorm(input_size)
@@ -244,7 +244,6 @@ class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but witho
             Dropout(dropout) if dropout else None
         )
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
     def forward(self, x, flash=False):
         x = x + self._self_attention(self.norm1(x), flash)
@@ -252,12 +251,7 @@ class GPT_TransformerBlock(Module):  # Same as TransformerDecoderLayer but witho
         return x
 
     def _self_attention(self, x, flash=False):
-        B, T, E = x.shape
-
-        # Attention mask
-        attn_mask = self.causal_mask[:T, :T].to(x.device)  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, flash=flash)
-        return v
+        return self.attn(query=x, key=x, value=x, is_causal=True, flash=flash)
 
 
 class GPT_SparseTransformerBlock(Module):
@@ -266,9 +260,9 @@ class GPT_SparseTransformerBlock(Module):
     https://arxiv.org/pdf/1904.10509
     """
 
-    def __init__(self, input_size, hidden_size, attn_heads, max_seq_len, dropout=0., local_attn_block_size=16):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads, dropout=0., local_attn_block_size=16):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
-        self.attn = SparseMultiHeadAttention(input_size, attn_heads, dropout, bias=True, block_size=local_attn_block_size, causal=True)
+        self.attn = SparseMultiHeadAttention(input_size, attn_heads, dropout, bias=True, block_size=local_attn_block_size)
         self.norm2 = LayerNorm(input_size)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size),
@@ -277,7 +271,6 @@ class GPT_SparseTransformerBlock(Module):
             Dropout(dropout) if dropout else None
         )
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
 
     def forward(self, x, flash=False):
         x = x + self._self_attention(self.norm1(x), flash)
@@ -285,8 +278,7 @@ class GPT_SparseTransformerBlock(Module):
         return x
 
     def _self_attention(self, x, flash):
-        v = self.attn(query=x, key=x, value=x, attn_mask=None, flash=flash)  # SparseMultiHeadAttention is with causal mask by default
-        return v
+        return self.attn(query=x, key=x, value=x, is_causal=True, flash=flash)
 
 
 
@@ -301,7 +293,7 @@ class GPT2(Module):
         self.pos_emb = Embedding(context_size, embed_size)
         self.dropout = Dropout(dropout)
         self.transformers = ModuleList(
-            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout) for _ in range(n_layers)
+            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout) for _ in range(n_layers)
         )
         self.final_norm = LayerNorm(embed_size)
 
@@ -378,8 +370,8 @@ class GPT3(GPT2):
         # GPT-3: "we use alternating dense and locally banded sparse attention patterns in the layers of the transformer, similar to the Sparse Transformer"
         assert n_layers % 2 == 0, f'number of layers must be even'
         self.transformers = ModuleList([
-            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout),
-            GPT_SparseTransformerBlock(embed_size, hidden_size, attn_heads, max_seq_len=context_size, dropout=dropout, local_attn_block_size=local_attn_block_size),
+            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout),
+            GPT_SparseTransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout, local_attn_block_size=local_attn_block_size),
         ] for _ in range(n_layers//2))
 
         self.final_norm = LayerNorm(embed_size)
@@ -397,7 +389,7 @@ class LLaMA_TransformerBlock(Module):
     https://arxiv.org/pdf/2302.13971
     """
 
-    def __init__(self, input_size, hidden_size, attn_heads, attn_kv_groups, max_seq_len, rotary_fn):
+    def __init__(self, input_size, hidden_size, attn_heads, attn_kv_groups, rotary_fn):
         assert callable(rotary_fn) and not isinstance(rotary_fn, Module), f'Expecting callable rotary function (e.g. rotary_emb.forward), which is not a Module, got {rotary_fn}'
         self.norm1 = RMSNorm(input_size, eps=1e-5)
         if not attn_kv_groups:
@@ -416,7 +408,6 @@ class LLaMA_TransformerBlock(Module):
         )
 
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
-        self.causal_mask = torch.triu(torch.ones(max_seq_len, max_seq_len), diagonal=1).bool()
         self.cache_kv = KVCache()
 
     def forward(self, x, start_pos=0, use_cache=False, flash=False):
@@ -425,12 +416,7 @@ class LLaMA_TransformerBlock(Module):
         return x
 
     def _self_attention(self, x, start_pos, use_cache=False, flash=False):
-        B, T, E = x.shape
-
-        # Attention mask
-        attn_mask = self.causal_mask[:T, :T].to(x.device) if T > 1 else None  # restrict to attend only to the previous tokens to avoid information leakage and preserve the autoregression
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, flash=flash, transform=lambda q, k, v: self._rotary_and_cache(q, k, v, start_pos, use_cache))
-        return v
+        return self.attn(query=x, key=x, value=x, is_causal=True, flash=flash, transform=lambda q, k, v: self._rotary_and_cache(q, k, v, start_pos, use_cache))
 
     def _rotary_and_cache(self, q, k, v, pos, use_cache=False):
         q = self.rotary_fn(q, pos)
@@ -455,7 +441,7 @@ class LLaMA1(Module):
         self.emb = Embedding(vocab_size, embed_size)
         self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size)
         self.transformers = ModuleList(
-            LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, attn_kv_groups, max_seq_len=context_size, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
+            LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, attn_kv_groups, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
         )
         self.final_norm = RMSNorm(embed_size, eps=1e-5)
         self.out = Linear(embed_size, vocab_size, bias=False)
