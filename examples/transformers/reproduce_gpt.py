@@ -38,7 +38,7 @@ checkpoint_step = 0  # load check point from here
 checkpoint_every = 1000  # steps
 checkpoint_dir = './runs/checkpoints'
 os.makedirs(checkpoint_dir, exist_ok=True)
-writer = SummaryWriter(f'runs/GPT_Reproduce - {datetime.now().strftime("%b%d %H-%M-%S")}', flush_secs=2)
+writer = SummaryWriter(f'runs/GPT_Reproduce step={checkpoint_step} - {datetime.now().strftime("%b%d %H-%M-%S")}', flush_secs=2)
 
 
 # Data
@@ -47,15 +47,13 @@ train_loader = DataLoaderLite(data.train, batch_size, context_size)
 val_loader = DataLoaderLite(data.val, batch_size, context_size)
 tokenizer = tiktoken.get_encoding("gpt2")
 steps = len(train_loader) // batch_accum_steps
-assert steps == 19073  # expected steps for 1 epoch
+assert steps == 19073 # expected steps for 1 epoch
 
 # Models
 model = GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=n_layers, attn_heads=attn_heads)
 model.to(device)
 optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, eps=1e-8, momentum=0.9, decay=0.95, weight_decay_filter=r'weight')
 lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_steps, decay_steps=steps - warmup_steps, min_lr=learn_rate_min)
-# optimizer = torch.optim.AdamW(model.parameters(named=False), lr=learn_rate, weight_decay=weight_decay, fused=True)
-# model = torch.compile(model)
 
 
 @torch.no_grad()
@@ -66,8 +64,9 @@ def generate_random_texts(model, prompt: str, attempts=5, max_tokens=50, use_cac
         tokens = tokens[tokens<=tokenizer.max_token_value]  # because the vocab size was extended from 50_257 to 50_304
         print(f'[{prompt}]' + tokenizer.decode(tokens.tolist()))
 
+
 @torch.no_grad()
-def evaluate(model, steps= 20):
+def evaluate(model, steps = batch_accum_steps):
     losses = 0
     val_loader.reset()
     for i in range(steps):
@@ -77,6 +76,7 @@ def evaluate(model, steps= 20):
             loss = cross_entropy(logits, targets.to(device), logits=True)
         losses += loss / steps
     return losses
+
 
 @torch.no_grad()
 def save_checkpoint(step, loss):
@@ -117,7 +117,7 @@ print(f'Initial val loss: {evaluate(model):.4f}')
 
 # Training loop
 print(f'Training...')
-for step in range(1 + checkpoint_step, steps):
+for step in range(1 + checkpoint_step, steps + 1):
     start_time = time.time()
 
     # Training step
@@ -151,10 +151,8 @@ for step in range(1 + checkpoint_step, steps):
         val_loss = evaluate(model)
         print(f'Step {step}/{steps}: {val_loss=:.4f}')
         writer.add_scalar('t/Val loss', val_loss, step)
-        generate_random_texts(model, prompt='Hello I am not AGI yet, but ')
+        generate_random_texts(model, prompt='Neural networks are')
         model.visualize_attn_weights(subtitle=f'{step=}')
 
         save_checkpoint(step, loss_cum)
-        # load_checkpoint(step=1) # for debugging
-
-
+        # load_checkpoint(step=1)  # for debugging

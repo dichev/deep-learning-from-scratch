@@ -77,6 +77,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - LR_Scheduler
 - LR_StepScheduler
 - LR_PlateauScheduler
+- LR_CosineDecayScheduler
 
 
 ### Models / Networks
@@ -226,4 +227,8 @@ conda env create --name dev --file=./environment.yml
 docker build -t deep . 
 docker run --rm --gpus all --name deep deep 
 docker exec -it deep /bin/bash
+```
+```
+# For debugging use:
+docker run -v .:/deep-learning --rm --gpus all --name deep deep
 ```
