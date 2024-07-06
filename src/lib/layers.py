@@ -1137,7 +1137,7 @@ class MultiHeadAttention(Module):
             assert attn_mask is None, "FlashAttention2 doesn't support custom attn_mask, you should use is_causal=True"  # however the other optimized backends will work with: attn_mask=~attn_mask
             self.attn_weights = None
             # To ensure FlashAttention backend is used wrap in: with torch.nn.attention.sdpa_kernel(SDPBackend.FLASH_ATTENTION):
-            return F.scaled_dot_product_attention(Q, K, V, is_causal=True, attn_mask=attn_mask), None
+            return F.scaled_dot_product_attention(Q, K, V, is_causal=is_causal, attn_mask=attn_mask), None
 
         Z = Q @ K.mT / sqrt(self.head_dim)                # (b, h, t', t)  <- (b, h, t', head_dim)  @  (b, h, head_dim, t)
         A = softmax(Z, dim=-1, ignore_mask=attn_mask)
