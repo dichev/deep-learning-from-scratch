@@ -28,26 +28,26 @@ class TransformerEncoderLayer(Module):
         self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
 
-    def forward(self, x, attn_mask):
+    def forward(self, x, attn_mask, flash=False):
         B, T, E = x.shape
 
         if self.norm_first:
-            x = x + self._self_attention(self.norm1(x), attn_mask)
+            x = x + self._self_attention(self.norm1(x), attn_mask, flash)
             x = x + self.norm2(self.ff(x))
         else:
-            x = self.norm1(x + self._self_attention(x, attn_mask))
+            x = self.norm1(x + self._self_attention(x, attn_mask, flash))
             x = self.norm2(x + self.ff(x))
 
         return x
 
-    def _self_attention(self, x, attn_mask):
-        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask)
+    def _self_attention(self, x, attn_mask, flash):
+        v = self.attn(query=x, key=x, value=x, attn_mask=attn_mask, flash=flash)
         return v
 
 
 class TransformerEncoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, gelu_activation=True, scale_up_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, gelu_activation=True, scale_up_embeddings=False, flash=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
@@ -61,6 +61,7 @@ class TransformerEncoder(Module):
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
         self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
         self.n_heads = attn_heads
+        self.flash = flash
 
     def forward(self, x):
         B, T = x.shape
@@ -70,7 +71,7 @@ class TransformerEncoder(Module):
         x = self.emb(x) * self.emb_scale_factor
         x = self.pos_emb(x)
         for i, layer in enumerate(self.layers):
-            x = layer(x, attn_mask)
+            x = layer(x, attn_mask, flash=self.flash)
 
         if self.norm_first:
             x = self.final_norm(x)
@@ -103,35 +104,35 @@ class TransformerDecoderLayer(Module):
         self.norm_first = norm_first
         self.input_size, self.hidden_size, self.out_size = input_size, hidden_size, input_size
 
-    def forward(self, x, attn_mask, memory, memory_attn_pad_mask=None, x_cached=None):
+    def forward(self, x, attn_mask, memory, memory_attn_pad_mask=None, x_cached=None, flash=False):
         B, T, E = x.shape
 
         if self.norm_first:
-            x = x + self._self_attention(self.norm1(x), attn_mask, self.norm1(x_cached) if x_cached is not None else None)  # apply normalization also to the cached targets during autoregressive inference
-            x = x + self._cross_attention(self.norm2(x), memory, memory_attn_pad_mask)
+            x = x + self._self_attention(self.norm1(x), attn_mask, flash, self.norm1(x_cached) if x_cached is not None else None)  # apply normalization also to the cached targets during autoregressive inference
+            x = x + self._cross_attention(self.norm2(x), memory, memory_attn_pad_mask, flash)
             x = x + self.ff(self.norm3(x))
         else:
-            x = self.norm1(x + self._self_attention(x, attn_mask, x_cached))
-            x = self.norm2(x + self._cross_attention(x, memory, memory_attn_pad_mask))
+            x = self.norm1(x + self._self_attention(x, attn_mask, flash, x_cached))
+            x = self.norm2(x + self._cross_attention(x, memory, memory_attn_pad_mask, flash))
             x = self.norm3(x + self.ff(x))
 
         return x
 
-    def _self_attention(self, x, attn_mask, x_cached=None):
+    def _self_attention(self, x, attn_mask, flash, x_cached=None):
         if x_cached is None:
             x_cached = x  # the cached targets are used only during autoregressive inference
-        v = self.attn(query=x, key=x_cached, value=x_cached, attn_mask=attn_mask)
+        v = self.attn(query=x, key=x_cached, value=x_cached, attn_mask=attn_mask, flash=flash)
         return v
 
-    def _cross_attention(self, x, memory, attn_mask):
-        v = self.cross_attn(query=x, key=memory, value=memory, attn_mask=attn_mask)
+    def _cross_attention(self, x, memory, attn_mask, flash):
+        v = self.cross_attn(query=x, key=memory, value=memory, attn_mask=attn_mask, flash=flash)
         return v
 
 
 
 class TransformerDecoder(Module):
 
-    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False, gelu_activation=True, scale_up_embeddings=False):
+    def __init__(self, vocab_size, embed_size, hidden_size, n_layers=6, padding_idx=0, attn_heads=8, dropout=0.1, max_seq_len=1000, norm_first=True, tied_embeddings=False, gelu_activation=True, scale_up_embeddings=False, flash=False):
         self.emb = Embedding(vocab_size, embed_size, padding_idx)
         self.pos_emb = PositionalEncoding(embed_size, max_seq_len, dropout, mixed=True)
         self.layers = ModuleList([
@@ -149,6 +150,7 @@ class TransformerDecoder(Module):
         self.vocab_size, self.embed_size, self.hidden_size = vocab_size, embed_size, hidden_size
         self.emb_scale_factor = sqrt(self.embed_size) if scale_up_embeddings else 1
         self.n_heads = attn_heads
+        self.flash = flash
 
 
     def forward(self, tgt, context: Context):
@@ -164,7 +166,7 @@ class TransformerDecoder(Module):
         tgt = self.emb(tgt) * self.emb_scale_factor    # (B, T, emb)
         tgt = self.pos_emb(tgt)                        # (B, T, emb)
         for i, layer in enumerate(self.layers):
-            tgt = layer(tgt, attn_mask, context.memory, context.memory_attn_pad_mask)
+            tgt = layer(tgt, attn_mask, context.memory, context.memory_attn_pad_mask, flash=self.flash)
 
         if self.norm_first:
             tgt = self.final_norm(tgt)
