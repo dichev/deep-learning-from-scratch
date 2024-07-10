@@ -56,11 +56,12 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - KVCache
 - PositionalEncoding <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
 - RotaryEncoding <sup>[*[18]*](#ref18 "RoFormer: Enhanced Transformer with Rotary Position Embedding")</sup>
+- PatchEmbedding <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
 
 `lib.autoencoders` [➜](src/lib/autoencoders.py)
 - MatrixFactorization
 - AutoencoderLinear
-- Word2Vec <sup>[*[19]*](#ref19 "Efficient Estimation of Word Representations in Vector Space")</sup>
+- Word2Vec <sup>[*[20]*](#ref20 "Efficient Estimation of Word Representations in Vector Space")</sup>
 
 
 ### Optimizers
@@ -73,7 +74,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - RMSProp
 - AdaDelta
 - Adam
-- AdamW <sup>[*[20]*](#ref20 "Decoupled Weight Decay Regularization")</sup>
+- AdamW <sup>[*[21]*](#ref21 "Decoupled Weight Decay Regularization")</sup>
 - LR_Scheduler
 - LR_StepScheduler
 - LR_PlateauScheduler
@@ -105,35 +106,35 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - EchoStateNetwork
 - Encoder
 - Decoder
-- Seq2Seq <sup>[*[21]*](#ref21 "Sequence to Sequence Learning with Neural Networks")</sup>
+- Seq2Seq <sup>[*[22]*](#ref22 "Sequence to Sequence Learning with Neural Networks")</sup>
 
 `models.convolutional_networks` [➜](src/models/convolutional_networks.py)
 - SimpleCNN
 - SimpleFullyCNN
-- LeNet5 <sup>[*[22]*](#ref22 "Gradient-based learning applied to document recognition")</sup>
+- LeNet5 <sup>[*[23]*](#ref23 "Gradient-based learning applied to document recognition")</sup>
 - AlexNet <sup>[*[4]*](#ref4 "ImageNet Classification with Deep Convolutional Neural Networks")</sup>
-- NetworkInNetwork <sup>[*[23]*](#ref23 "Network In Network")</sup>
-- VGG16 <sup>[*[24]*](#ref24 "Very Deep Convolutional Networks for Large-Scale Image Recognition")</sup>
-- GoogLeNet <sup>[*[25]*](#ref25 "Going deeper with convolutions")</sup>
+- NetworkInNetwork <sup>[*[24]*](#ref24 "Network In Network")</sup>
+- VGG16 <sup>[*[25]*](#ref25 "Very Deep Convolutional Networks for Large-Scale Image Recognition")</sup>
+- GoogLeNet <sup>[*[26]*](#ref26 "Going deeper with convolutions")</sup>
 - DeepPlainCNN
 
 `models.residual_networks` [➜](src/models/residual_networks.py)
-- ResNet34 <sup>[*[26]*](#ref26 "Deep Residual Learning for Image Recognition")</sup>
-- ResNet50 <sup>[*[26]*](#ref26 "Deep Residual Learning for Image Recognition")</sup>
-- ResNeXt50 <sup>[*[27]*](#ref27 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
-- SEResNet50 <sup>[*[28]*](#ref28 "Squeeze-and-Excitation Networks")</sup>
-- SEResNeXt50 <sup>[*[28]*](#ref28 "Squeeze-and-Excitation Networks")</sup>
-- DenseNet121 <sup>[*[29]*](#ref29 "Densely Connected Convolutional Networks")</sup>
+- ResNet34 <sup>[*[27]*](#ref27 "Deep Residual Learning for Image Recognition")</sup>
+- ResNet50 <sup>[*[27]*](#ref27 "Deep Residual Learning for Image Recognition")</sup>
+- ResNeXt50 <sup>[*[28]*](#ref28 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
+- SEResNet50 <sup>[*[29]*](#ref29 "Squeeze-and-Excitation Networks")</sup>
+- SEResNeXt50 <sup>[*[29]*](#ref29 "Squeeze-and-Excitation Networks")</sup>
+- DenseNet121 <sup>[*[30]*](#ref30 "Densely Connected Convolutional Networks")</sup>
 
 `models.graph_networks` [➜](src/models/graph_networks.py)
 - GCN <sup>[*[8]*](#ref8 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
 - GraphSAGE <sup>[*[9]*](#ref9 "Inductive Representation Learning on Large Graphs")</sup>
-- GIN <sup>[*[30]*](#ref30 "How Powerful are Graph Neural Networks?")</sup>
+- GIN <sup>[*[31]*](#ref31 "How Powerful are Graph Neural Networks?")</sup>
 - DiffPoolNet <sup>[*[10]*](#ref10 "Hierarchical Graph Representation Learning with Differentiable Pooling")</sup>
 
 `models.attention_networks` [➜](src/models/attention_networks.py)
-- RecurrentAttention <sup>[*[31]*](#ref31 "Recurrent Models of Visual Attention")</sup>
-- SpatialTransformer <sup>[*[32]*](#ref32 "Spatial Transformer Networks")</sup>
+- RecurrentAttention <sup>[*[32]*](#ref32 "Recurrent Models of Visual Attention")</sup>
+- SpatialTransformer <sup>[*[33]*](#ref33 "Spatial Transformer Networks")</sup>
 - SpatialTransformerNet
 - AttentionEncoder <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
 - AttentionDecoder <sup>[*[14]*](#ref14 "Neural Machine Translation by Jointly Learning to Align and Translate")</sup>
@@ -145,22 +146,23 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - TransformerDecoderLayer
 - TransformerDecoder
 - Transformer <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
-- GPT_TransformerBlock <sup>[*[33]*](#ref33 "Language Models are Unsupervised Multitask Learners")</sup>
+- VisionTransformer <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
+- GPT_TransformerBlock <sup>[*[34]*](#ref34 "Language Models are Unsupervised Multitask Learners")</sup>
 - GPT_SparseTransformerBlock <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
-- GPT2 <sup>[*[33]*](#ref33 "Language Models are Unsupervised Multitask Learners")</sup>
-- GPT3 <sup>[*[34]*](#ref34 "Language Models are Few-Shot Learners")</sup>
-- LLaMA_TransformerBlock <sup>[*[35]*](#ref35 "LLaMA: Open and Efficient Foundation Language Models")</sup>
-- LLaMA1 <sup>[*[35]*](#ref35 "LLaMA: Open and Efficient Foundation Language Models")</sup>
-- LLaMA2 <sup>[*[36]*](#ref36 "Llama 2: Open Foundation and Fine-Tuned Chat Models")</sup>
+- GPT2 <sup>[*[34]*](#ref34 "Language Models are Unsupervised Multitask Learners")</sup>
+- GPT3 <sup>[*[35]*](#ref35 "Language Models are Few-Shot Learners")</sup>
+- LLaMA_TransformerBlock <sup>[*[36]*](#ref36 "LLaMA: Open and Efficient Foundation Language Models")</sup>
+- LLaMA1 <sup>[*[36]*](#ref36 "LLaMA: Open and Efficient Foundation Language Models")</sup>
+- LLaMA2 <sup>[*[37]*](#ref37 "Llama 2: Open Foundation and Fine-Tuned Chat Models")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
-- Inception <sup>[*[25]*](#ref25 "Going deeper with convolutions")</sup>
-- ResBlock <sup>[*[26]*](#ref26 "Deep Residual Learning for Image Recognition")</sup>
-- ResBottleneckBlock <sup>[*[26]*](#ref26 "Deep Residual Learning for Image Recognition")</sup>
-- ResNeXtBlock <sup>[*[27]*](#ref27 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
-- DenseLayer <sup>[*[29]*](#ref29 "Densely Connected Convolutional Networks")</sup>
-- DenseBlock <sup>[*[29]*](#ref29 "Densely Connected Convolutional Networks")</sup>
-- DenseTransition <sup>[*[29]*](#ref29 "Densely Connected Convolutional Networks")</sup>
+- Inception <sup>[*[26]*](#ref26 "Going deeper with convolutions")</sup>
+- ResBlock <sup>[*[27]*](#ref27 "Deep Residual Learning for Image Recognition")</sup>
+- ResBottleneckBlock <sup>[*[27]*](#ref27 "Deep Residual Learning for Image Recognition")</sup>
+- ResNeXtBlock <sup>[*[28]*](#ref28 "Aggregated Residual Transformations for Deep Neural Networks")</sup>
+- DenseLayer <sup>[*[30]*](#ref30 "Densely Connected Convolutional Networks")</sup>
+- DenseBlock <sup>[*[30]*](#ref30 "Densely Connected Convolutional Networks")</sup>
+- DenseTransition <sup>[*[30]*](#ref30 "Densely Connected Convolutional Networks")</sup>
 
 
 ### Example usages
@@ -196,24 +198,25 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 16. <a name="ref16" href="https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf">Attention Is All You Need</a>
 17. <a name="ref17" href="https://arxiv.org/pdf/2305.13245v3">GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints</a>
 18. <a name="ref18" href="https://arxiv.org/pdf/2104.09864">RoFormer: Enhanced Transformer with Rotary Position Embedding</a>
-19. <a name="ref19" href="https://arxiv.org/pdf/1301.3781.pdf">Efficient Estimation of Word Representations in Vector Space</a>
-20. <a name="ref20" href="https://arxiv.org/pdf/1711.05101">Decoupled Weight Decay Regularization</a>
-21. <a name="ref21" href="https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf">Sequence to Sequence Learning with Neural Networks</a>
-22. <a name="ref22" href="https://hal.science/hal-03926082/document">Gradient-based learning applied to document recognition</a>
-23. <a name="ref23" href="https://arxiv.org/pdf/1312.4400.pdf">Network In Network</a>
-24. <a name="ref24" href="https://arxiv.org/pdf/1409.1556.pdf">Very Deep Convolutional Networks for Large-Scale Image Recognition</a>
-25. <a name="ref25" href="https://arxiv.org/pdf/1409.4842.pdf?">Going deeper with convolutions</a>
-26. <a name="ref26" href="https://arxiv.org/pdf/1512.03385.pdf">Deep Residual Learning for Image Recognition</a>
-27. <a name="ref27" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf">Aggregated Residual Transformations for Deep Neural Networks</a>
-28. <a name="ref28" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Networks</a>
-29. <a name="ref29" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf">Densely Connected Convolutional Networks</a>
-30. <a name="ref30" href="https://arxiv.org/pdf/1810.00826v3.pdf">How Powerful are Graph Neural Networks?</a>
-31. <a name="ref31" href="https://arxiv.org/pdf/1406.6247.pdf">Recurrent Models of Visual Attention</a>
-32. <a name="ref32" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
-33. <a name="ref33" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
-34. <a name="ref34" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
-35. <a name="ref35" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
-36. <a name="ref36" href="https://arxiv.org/pdf/2307.09288">Llama 2: Open Foundation and Fine-Tuned Chat Models</a>
+19. <a name="ref19" href="https://arxiv.org/pdf/2010.11929">An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale</a>
+20. <a name="ref20" href="https://arxiv.org/pdf/1301.3781.pdf">Efficient Estimation of Word Representations in Vector Space</a>
+21. <a name="ref21" href="https://arxiv.org/pdf/1711.05101">Decoupled Weight Decay Regularization</a>
+22. <a name="ref22" href="https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf">Sequence to Sequence Learning with Neural Networks</a>
+23. <a name="ref23" href="https://hal.science/hal-03926082/document">Gradient-based learning applied to document recognition</a>
+24. <a name="ref24" href="https://arxiv.org/pdf/1312.4400.pdf">Network In Network</a>
+25. <a name="ref25" href="https://arxiv.org/pdf/1409.1556.pdf">Very Deep Convolutional Networks for Large-Scale Image Recognition</a>
+26. <a name="ref26" href="https://arxiv.org/pdf/1409.4842.pdf?">Going deeper with convolutions</a>
+27. <a name="ref27" href="https://arxiv.org/pdf/1512.03385.pdf">Deep Residual Learning for Image Recognition</a>
+28. <a name="ref28" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Xie_Aggregated_Residual_Transformations_CVPR_2017_paper.pdf">Aggregated Residual Transformations for Deep Neural Networks</a>
+29. <a name="ref29" href="https://arxiv.org/pdf/1709.01507.pdf">Squeeze-and-Excitation Networks</a>
+30. <a name="ref30" href="https://openaccess.thecvf.com/content_cvpr_2017/papers/Huang_Densely_Connected_Convolutional_CVPR_2017_paper.pdf">Densely Connected Convolutional Networks</a>
+31. <a name="ref31" href="https://arxiv.org/pdf/1810.00826v3.pdf">How Powerful are Graph Neural Networks?</a>
+32. <a name="ref32" href="https://arxiv.org/pdf/1406.6247.pdf">Recurrent Models of Visual Attention</a>
+33. <a name="ref33" href="https://arxiv.org/pdf/1506.02025.pdf">Spatial Transformer Networks</a>
+34. <a name="ref34" href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a>
+35. <a name="ref35" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
+36. <a name="ref36" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
+37. <a name="ref37" href="https://arxiv.org/pdf/2307.09288">Llama 2: Open Foundation and Fine-Tuned Chat Models</a>
 
 <!-- auto-generated-end -->
 

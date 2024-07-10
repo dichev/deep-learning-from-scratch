@@ -458,24 +458,11 @@ class Conv2d(Module):
         N, C, W, H, = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
-        """
-        # cross-correlation between batch images and filters:
-        k = self.kernel_size
-        Y = torch.zeros((N, self.out_channels, out_size, out_size), device=X.device)  # (N, C_out, W_out, H_out)
-        for h in range(out_size):
-            for w in range(out_size):
-                for c in range(self.out_channels):
-                    patches = X[:, :, w:w+k, h:h+k].reshape(N, -1)
-                    kernel = self.weight[c].flatten()
-                    bias = self.bias[c]
-                    Y[:, c, w, h] = patches @ kernel + bias
-        """
-
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
-        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)         # (N, kernel_size_flat, patches)
-        kernel = self.weight.reshape(self.out_channels, -1)                               # * (channels, kernel_size_flat)
-        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                         # -> (N, channels, patches)
-        Y = convolution.reshape(N, self.out_channels, W_out, H_out)                      # (N, channels, out_width, out_height)
+        patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)  # (N, kernel_size_flat, patches)
+        kernel = self.weight.reshape(self.out_channels, -1)                                # * (channels, kernel_size_flat)
+        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                  # -> (N, channels, patches)
+        Y = convolution.reshape(N, self.out_channels, W_out, H_out)                        # (N, channels, out_width, out_height)
         if self.has_bias:
             Y += self.bias.reshape(1, -1, 1, 1)
 
@@ -1385,3 +1372,26 @@ class RotaryEncoding(Module):
             x = torch.ones(1, t, d)
             plots.rotary_encoded_vectors(x, self.forward(x), max_plots=6)
 
+
+class PatchEmbedding(Module):
+    """
+    Paper: An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale
+    https://arxiv.org/pdf/2010.11929
+    """
+
+    def __init__(self, patch_size, embed_size, in_channels):
+        self.patch_size, self.embed_size, self.in_channels = patch_size, embed_size, in_channels
+        self.n_pixels = in_channels * patch_size * patch_size  # sequence of pixels for each patch
+
+        # Note: Convolution with stride=kernel_size=patch_size is the same as splitting into patches and projecting linearly
+        self.conv = Conv2d(in_channels, out_channels=embed_size, kernel_size=patch_size, stride=patch_size, padding=0)
+
+    def forward(self, X):
+        (B, C, W, H), P = X.shape, self.patch_size
+        assert W == H and W % P == 0
+        T = (H // P) * (W // P)
+
+        # Project and flatten to embed size:
+        x = self.conv(X)                        # (B, E, W//P, H//P)
+        x = x.view(B, self.embed_size, T).mT    # (B, T, E)
+        return x
