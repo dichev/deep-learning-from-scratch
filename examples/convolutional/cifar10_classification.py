@@ -10,13 +10,16 @@ from lib.functions.losses import cross_entropy
 from lib.functions.metrics import accuracy
 from lib import optimizers
 from lib.functions.activations import softmax
-from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
 from utils import plots
+
+from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
+from models.transformer_networks import VisionTransformer
+from models.residual_networks import ResNet50, SEResNet50, SEResNeXt50
 
 # hyperparams & settings
 EPOCHS = 10
-BATCH_SIZE = 16
-LEARN_RATE = 0.001
+BATCH_SIZE = 64
+LEARN_RATE = 0.0001
 DEVICE = 'cuda'
 SEED_DATA = 1111  # always reuse the same data seed for reproducibility and to avoid validation data leakage into the training set
 
@@ -42,8 +45,14 @@ models = {
     'LeNet-5':   (LeNet5(n_classes=10), T.Grayscale(num_output_channels=1)),
     'AlexNet':   (AlexNet(n_classes=10), T.Resize((227, 227), antialias=True)),  # well, yeah..
     'NetworkInNetwork':   (NetworkInNetwork(n_classes=10), T.Resize((227, 227), antialias=True)),
-    'VGG-16':   (VGG16(n_classes=10), T.Resize((224, 224))),
+    # 'VGG-16':   (VGG16(n_classes=10), T.Resize((224, 224))),  # reduce the batch_size
     'GoogLeNet': (GoogLeNet(n_classes=10), T.Resize((224, 224))),
+
+    'ResNet50': (ResNet50(n_classes=10), T.Resize((224, 224))),
+    'SEResNet50': (SEResNet50(n_classes=10), T.Resize((224, 224))),
+    'SEResNeXt50': (SEResNeXt50(n_classes=10), T.Resize((224, 224))),
+
+    'VisionTransformer': (VisionTransformer(n_classes=10, img_size=224, patch_size=28, in_channels=3), T.Resize((224, 224))),
 }
 
 
@@ -86,7 +95,7 @@ def train(model, loader, transform):
 # Training loop
 for model_name, (model, transform) in models.items():
     model.to(DEVICE)
-    optimizer = optimizers.SGD(model.parameters(), lr=LEARN_RATE)
+    optimizer = optimizers.AdamW(model.parameters(), lr=LEARN_RATE)
     print(model.summary())
     print(f'Fit {len(train_dataset)} training samples in model: {model}')
 
