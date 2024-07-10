@@ -3,12 +3,15 @@ import re
 import torch
 from torch._C import _disabled_torch_function_impl
 from abc import abstractmethod
+from typing import Callable
 
 class Param(torch.Tensor):
-    def __new__(cls, size, device=None, requires_grad=True):
+    def __new__(cls, size, device=None, requires_grad=True, init: Callable = None):
         assert requires_grad, 'Parameters are expected to have gradients'
 
         data = torch.empty(size, device=device)
+        if init is not None:
+            init(data)
         instance = torch.Tensor._make_subclass(cls, data, requires_grad)
         return instance
 
