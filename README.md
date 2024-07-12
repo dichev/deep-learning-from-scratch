@@ -146,7 +146,6 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - TransformerDecoderLayer
 - TransformerDecoder
 - Transformer <sup>[*[16]*](#ref16 "Attention Is All You Need")</sup>
-- VisionTransformer <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
 - GPT_TransformerBlock <sup>[*[34]*](#ref34 "Language Models are Unsupervised Multitask Learners")</sup>
 - GPT_SparseTransformerBlock <sup>[*[15]*](#ref15 "Generating Long Sequences with Sparse Transformers")</sup>
 - GPT2 <sup>[*[34]*](#ref34 "Language Models are Unsupervised Multitask Learners")</sup>
@@ -154,6 +153,9 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - LLaMA_TransformerBlock <sup>[*[36]*](#ref36 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 - LLaMA1 <sup>[*[36]*](#ref36 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 - LLaMA2 <sup>[*[37]*](#ref37 "Llama 2: Open Foundation and Fine-Tuned Chat Models")</sup>
+
+`models.visual_transformers` [➜](src/models/visual_transformers.py)
+- VisionTransformer <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[26]*](#ref26 "Going deeper with convolutions")</sup>

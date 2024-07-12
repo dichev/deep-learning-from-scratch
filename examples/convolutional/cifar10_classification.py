@@ -13,7 +13,7 @@ from lib.functions.activations import softmax
 from utils import plots
 
 from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
-from models.transformer_networks import VisionTransformer
+from models.visual_transformers import VisionTransformer
 from models.residual_networks import ResNet50, SEResNet50, SEResNeXt50
 
 # hyperparams & settings

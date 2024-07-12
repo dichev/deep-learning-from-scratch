@@ -22,6 +22,7 @@ whitelist = {
         'src/models/graph_networks.py',
         'src/models/attention_networks.py',
         'src/models/transformer_networks.py',
+        'src/models/visual_transformers.py',
         'src/models/blocks/convolutional_blocks.py',
     ],
     "Example usages": [
