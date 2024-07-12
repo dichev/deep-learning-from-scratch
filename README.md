@@ -156,6 +156,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 
 `models.visual_transformers` [➜](src/models/visual_transformers.py)
 - VisionTransformer <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
+- VisionTransformerConvStem <sup>[*[38]*](#ref38 "Early Convolutions Help Transformers See Better")</sup>
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[26]*](#ref26 "Going deeper with convolutions")</sup>
@@ -219,6 +220,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 35. <a name="ref35" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
 36. <a name="ref36" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
 37. <a name="ref37" href="https://arxiv.org/pdf/2307.09288">Llama 2: Open Foundation and Fine-Tuned Chat Models</a>
+38. <a name="ref38" href="https://arxiv.org/pdf/2106.14881">Early Convolutions Help Transformers See Better</a>
 
 <!-- auto-generated-end -->
 

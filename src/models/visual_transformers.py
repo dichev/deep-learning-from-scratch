@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Param, Module, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding
+from lib.layers import Param, Module, Sequential, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding, Conv2d, BatchNorm2d, ReLU
 from models.transformer_networks import TransformerEncoderLayer
 
 
@@ -15,7 +15,7 @@ class VisionTransformer(Module):  # ViT
         self.max_seq_len = self.n_patches + 1  # +1 for the cls token
 
         self.cls_emb = Param((1, 1, embed_size))  # as in BERT
-        self.emb = PatchEmbedding(patch_size, embed_size, in_channels)
+        self.emb = PatchEmbedding(patch_size, embed_size, in_channels)  # aka patchify stem
         self.pos_emb = Embedding(self.max_seq_len, embed_size)
         self.dropout = Dropout(dropout)
         self.layers = ModuleList([
@@ -57,4 +57,31 @@ class VisionTransformer(Module):  # ViT
     def get_last_attn_weights(self):
         attn_weights = torch.stack([layer.attn.get_last_attn_weights() for layer in self.layers], dim=1)
         return attn_weights  # (b, n_layers, n_heads, t, t)
+
+
+
+class VisionTransformerConvStem(VisionTransformer):
+    """
+    Paper: Early Convolutions Help Transformers See Better
+    https://arxiv.org/pdf/2106.14881
+    """
+
+    def __init__(self, n_classes, img_size=224, patch_size=16, in_channels=3, embed_size=768, hidden_size=4*768, n_layers=12-1, attn_heads=8, dropout=0.1):
+        super().__init__(n_classes, img_size, patch_size, in_channels, embed_size, hidden_size, n_layers, attn_heads, dropout)
+        assert img_size == 224 and patch_size == 16, 'Expected img_size=224 and patch_size=16'
+        C, E = in_channels, embed_size
+
+        # Replace the projected patches with a convolutional stem (note there  should be one less transformer layer to compensate for the computation cost):
+        self.emb = Sequential(                                                                                 # in:   3, 224, 224
+            Conv2d(in_channels=C,    out_channels=E//8, kernel_size=3, stride=2, padding=1, bias=False),       # ->   48, 112, 112
+            BatchNorm2d(E//8), ReLU(),
+            Conv2d(in_channels=E//8, out_channels=E//4, kernel_size=3, stride=2, padding=1, bias=False),       # ->   96,  56,  56
+            BatchNorm2d(E//4), ReLU(),
+            Conv2d(in_channels=E//4, out_channels=E//2, kernel_size=3, stride=2, padding=1, bias=False),       # ->  192,  28,  28
+            BatchNorm2d(E//2), ReLU(),
+            Conv2d(in_channels=E//2, out_channels=E,    kernel_size=3, stride=2, padding=1, bias=False),       # ->  384,  14,  14
+            BatchNorm2d(E), ReLU(),
+            Conv2d(in_channels=E,    out_channels=E,    kernel_size=1, stride=1, padding=0, bias=True),        # ->  384,  14,  14
+            lambda x: x.flatten(start_dim=2).mT                                                                # ->  14*14, 384      # <- matching to ViT's patchify stem
+        )
 
