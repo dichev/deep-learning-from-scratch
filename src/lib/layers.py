@@ -93,7 +93,7 @@ class BatchNorm(Module):
     def to(self, device):
         super().to(device)
         self.running_mean.data = self.running_mean.to(device)
-        self.running_var.data = self.running_mean.to(device)
+        self.running_var.data = self.running_var.to(device)
         return self
 
     def forward(self, x):
