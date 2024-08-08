@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import einops as ein
 
 
 def affine_grid(transform_matrix, out_size):
@@ -70,29 +71,11 @@ def transform_image(img, grid, interpolation='bilinear'):  # that's a differenti
     return x_sampled
 
 
-#
-# import torch.nn.functional as F
-# grid_check = F.affine_grid(theta, U.size(), align_corners=True)
-# x_sampled_check = F.grid_sample(U, grid_check, align_corners=True, mode='bilinear', padding_mode='zeros')
-# assert grid_source.shape == grid_check.shape and torch.allclose(grid_source, grid_check, rtol=1e-4, atol=1e-4)
-# assert x_sampled_check.shape == x_sampled.shape and torch.allclose(x_sampled_check, x_sampled, rtol=1e-5, atol=1e-5)
-#
-#
-# return x_sampled_check
+def window_partition(x, window_size):
+    windows = ein.rearrange(x, 'b c (h size_h) (w size_w) -> b (h w) c size_h size_w', size_h=window_size, size_w=window_size)
+    return windows  # B, C, H, W  ->  B, N, C, M, M
 
-# x = torch.ones(1, 1, 28, 30).float()
-# y = SpatialTransformer(in_channels=x.shape[1], test=True).forward(x)
-# x = torch.ones(2, 1, 28, 30).float()
-# y = SpatialTransformer(in_channels=x.shape[1], test=True).forward(x)
-# x = torch.ones(1, 2, 28, 30).float()
-# y = SpatialTransformer(in_channels=x.shape[1], test=True).forward(x)
-# x = torch.ones(3, 2, 28, 30).float()
-# y = SpatialTransformer(in_channels=x.shape[1], test=True).forward(x)
-#
-# x = torch.arange(28*28).view(1,1,28,28).float()
-# y = SpatialTransformer(in_channels=x.shape[1]).forward(x)
-# # todo: test with non-identy theta
-# theta = torch.tensor([[
-#     [1.0, 0.0, 0.0000],
-#     [0.0, 1.0, 0.0000],
-# ]]) * 1.1
+
+def window_reverse(windows, window_size, height, width):
+    x = ein.rearrange(windows, 'b (h w) c size_h size_w -> b c (h size_h) (w size_w)', h=height // window_size, w=width // window_size)
+    return x  # B, N, C, M, M  ->  B, C, H, W

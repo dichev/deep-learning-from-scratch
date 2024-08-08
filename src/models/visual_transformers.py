@@ -1,6 +1,8 @@
 import torch
-from lib.layers import Param, Module, Sequential, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding, Conv2d, BatchNorm2d, ReLU
+import einops as ein
+from lib.layers import Param, Module, Sequential, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding, Conv2d, BatchNorm2d, ReLU, MultiHeadAttention, GELU
 from models.transformer_networks import TransformerEncoderLayer
+from utils.images import window_partition, window_reverse
 
 
 class VisionTransformer(Module):  # ViT
@@ -34,7 +36,7 @@ class VisionTransformer(Module):  # ViT
         self.pos_emb.weight.data.normal_(std=.02)
 
     def forward(self, X, flash=False):
-        B, C, W, H = X.shape
+        B, C, H, W = X.shape
         T = self.n_patches
         positions = torch.arange(T+1, device=X.device)
 
@@ -85,3 +87,79 @@ class VisionTransformerConvStem(VisionTransformer):
             lambda x: x.flatten(start_dim=2).mT                                                                # ->  14*14, 384      # <- matching to ViT's patchify stem
         )
 
+
+
+class SwinTransformerBlock(Module):
+    def __init__(self, embed_size, hidden_size, attn_heads, window_size=7, dropout=0.):
+        self.window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
+        self.window_size = window_size
+        # self.shifted_window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
+        # todo relative positions
+
+    def forward(self, x, flash=False):
+        B, C, H, W = x.shape
+        M = self.window_size
+
+        x = window_partition(x, window_size=M)                                           # B, N, C, M, M
+        x = ein.rearrange(x, 'b n c m1 m2 -> (b n) (m1 m2) c')                   # B, T, C       (as tokens)
+        x = self.window_transformer(x, attn_mask=None, flash=flash)
+
+        # self.shifted_window_transformer(x, flash) # todo some shape gymnastics
+        x = ein.rearrange(x, '(b n) (m1 m2) c -> b n c m1 m2', b=B, m1=M, m2=M)  # B, T, C       (as tokens)
+        x = window_reverse(x, window_size=M, height=H, width=W)                          # B, C, H, W
+
+        return x
+
+
+class SwinTransformer(Module):  # Shifted windows transformer (Swin-T version)
+    """
+    Paper: Swin Transformer: Hierarchical Vision Transformer using Shifted Windows
+    https://arxiv.org/pdf/2103.14030
+    """
+
+    def __init__(self, n_classes, img_size=224, patch_size=4, window_size=7, in_channels=3, embed_size=96, hidden_size=4*768, n_layers=12, attn_heads=8, dropout=0.1):
+        assert img_size % patch_size == 0, f'Image size({img_size}) must be divisible by patch size({patch_size})'
+        self.n_patches = (img_size // patch_size)**2
+        C = embed_size
+
+        # in contrast to the paper implementation, here the patches are processed on their img dim (B, C, H, W) through the layers
+        self.layers = ModuleList([
+
+            # stage1
+            PatchEmbedding(patch_size=4, in_channels=3, embed_size=C, keep_img_dim=True),      # 3, 224, 224  -> C, 56, 56
+            [SwinTransformerBlock(embed_size=C, hidden_size=4*C, attn_heads=C//32, window_size=7) for _ in range(6)],
+
+            # stage2
+            PatchEmbedding(patch_size=2, in_channels=C, embed_size=2*C, keep_img_dim=True),    # C, 56, 56   ->  2C, 28, 28
+            [SwinTransformerBlock(embed_size=2*C, hidden_size=4*2*C, attn_heads=2*C//32, window_size=7) for _ in range(2)],
+
+            # stage3
+            PatchEmbedding(patch_size=2, in_channels=2*C, embed_size=4*C, keep_img_dim=True),  # 2C, 28, 28  ->  4C, 14, 14
+            [SwinTransformerBlock(embed_size=4*C, hidden_size=4*4*C, attn_heads=4*C//32, window_size=7) for _ in range(6)],
+
+            # stage4
+            PatchEmbedding(patch_size=2, in_channels=4*C, embed_size=8*C, keep_img_dim=True),  # 4C, 14, 14  -> 8C, 7, 7
+            [SwinTransformerBlock(embed_size=8*C, hidden_size=4*8*C, attn_heads=8*C//32, window_size=7) for _ in range(2)],
+        ])
+        self.final_norm = LayerNorm(8*C)
+        self.out = Linear(8*C, n_classes)
+
+        self.patch_size, self.window_size, self.img_size, self.in_channels = patch_size, window_size, img_size, in_channels
+        self.embed_size, self.hidden_size, self.n_layers, self.attn_heads = embed_size, hidden_size, n_layers, attn_heads
+
+
+    def forward(self, X, flash=False):
+        B, C, H, W = X.shape
+        T = self.n_patches
+
+        # Transformers
+        for i, layer in enumerate(self.layers):
+            X = layer(X)  # todo: , flash=flash
+
+        x = X.flatten(start_dim=2).mT   # B, C, H, W   ->  B, C, HW  ->  B, T, C
+        x = self.final_norm(x)                      # (B, T, emb)
+
+        # Classify only by the class token:
+        x = x.mean(dim=1) # todo use avg pool
+        y = self.out(x)                       # (B, n_classes)
+        return y

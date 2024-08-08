@@ -455,7 +455,7 @@ class Conv2d(Module):
             init.kaiming_normal_relu_(self.bias, 1)
 
     def forward(self, X):
-        N, C, W, H, = X.shape
+        N, C, W, H = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
@@ -1379,12 +1379,13 @@ class PatchEmbedding(Module):
     https://arxiv.org/pdf/2010.11929
     """
 
-    def __init__(self, patch_size, embed_size, in_channels):
+    def __init__(self, patch_size, embed_size, in_channels, keep_img_dim=False, bias=True):  # todo: flip order of embed_size / in_channels
         self.patch_size, self.embed_size, self.in_channels = patch_size, embed_size, in_channels
         self.n_pixels = in_channels * patch_size * patch_size  # sequence of pixels for each patch
 
         # Note: Convolution with stride=kernel_size=patch_size is the same as splitting into patches and projecting linearly
-        self.conv = Conv2d(in_channels, out_channels=embed_size, kernel_size=patch_size, stride=patch_size, padding=0)
+        self.proj = Conv2d(in_channels, out_channels=embed_size, kernel_size=patch_size, stride=patch_size, padding=0, bias=bias)
+        self.keep_dim = keep_img_dim
 
     def forward(self, X):
         (B, C, W, H), P = X.shape, self.patch_size
@@ -1392,6 +1393,8 @@ class PatchEmbedding(Module):
         T = (H // P) * (W // P)
 
         # Project and flatten to embed size:
-        x = self.conv(X)                        # (B, E, W//P, H//P)
-        x = x.view(B, self.embed_size, T).mT    # (B, T, E)
+        x = self.proj(X)                     # (B, C, W, H) -> (B, E, W//P, H//P)
+        if not self.keep_dim:
+            x = x.flatten(start_dim=2).mT    # (B, T, E)
         return x
+
