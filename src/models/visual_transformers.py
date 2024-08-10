@@ -90,16 +90,37 @@ class VisionTransformerConvStem(VisionTransformer):
 
 
 class SwinTransformerBlock(Module):
-    def __init__(self, embed_size, hidden_size, attn_heads, window_size=7, dropout=0.):
+    def __init__(self, embed_size, hidden_size, attn_heads, img_size, window_size=7, dropout=0.):
         self.window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
         self.shifted_window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
+
+        self.img_size = img_size
         self.window_size = window_size
+        self.shift_size = self.window_size // 2
+        self.cached_attn_mask, _ = self.generate_shifted_attn_masks()
         # todo relative positions
+
+    def generate_shifted_attn_masks(self):
+        H = W = self.img_size
+        M = self.window_size
+        N = H // M * W // M
+
+        # Generate tiles for each window, with specific pattern for the shifted edges (i.e. A, B, C regions from the paper)
+        img_zones = torch.arange(N).view(H // M, W // M).repeat_interleave(M, dim=0).repeat_interleave(M, dim=1)
+        img_zones[:, -self.shift_size:] += N
+        img_zones[-self.shift_size:] += N*2
+
+        # Generate attention mask for each window respecting the shifted patterns
+        patterns = window_partition(img_zones.view(1, 1, H, W), window_size=M).view(N, M * M)
+        attn_mask = patterns.unsqueeze(1) != patterns.unsqueeze(2)  # compare values along repeated rows and cols
+
+        return attn_mask, img_zones  # N, M*M, M*M
 
     def forward(self, x, flash=False):
         B, C, H, W = x.shape
         M = self.window_size
-        shift_size = self.window_size // 2
+        N = H // M * W // M
+        shift_size = self.shift_size
 
         # Self-attention using regular non-overlapped windows
         x = window_partition(x, window_size=M)                                           # B, N, C, M, M
@@ -112,9 +133,10 @@ class SwinTransformerBlock(Module):
         x = x.roll((-shift_size, -shift_size), dims=(-2, -1))                            # B, C, H, W    (cyclic shift on H, W for efficient batching)+
         x = window_partition(x, window_size=M)                                           # B, N, C, M, M
         x = ein.rearrange(x, 'b n c m1 m2 -> (b n) (m1 m2) c')                   # B, T, C       (as tokens)
-        x = self.shifted_window_transformer(x, attn_mask=None, flash=flash)        # TODO: handle attention masks
+        attn_mask = self.cached_attn_mask.unsqueeze(0).repeat_interleave(B, dim=0).view(B*N, 1, M*M, M*M)  # 1 is for n_attn_heads
+        x = self.shifted_window_transformer(x, attn_mask=attn_mask.to(x.device), flash=flash)
         x = ein.rearrange(x, '(b n) (m1 m2) c -> b n c m1 m2', b=B, m1=M, m2=M)  # B, C, H, W
-        x = window_reverse(x, window_size=M, height=H, width=W)  # B, C, H, W
+        x = window_reverse(x, window_size=M, height=H, width=W)                          # B, C, H, W
         x = x.roll((shift_size, shift_size), dims=(-2, -1))
 
         return x
@@ -136,19 +158,19 @@ class SwinTransformer(Module):  # Shifted windows transformer (Swin-T version)
 
             # stage1
             PatchEmbedding(patch_size=4, in_channels=3, embed_size=C, keep_img_dim=True),      # 3, 224, 224  -> C, 56, 56    # todo they apply norm to patch emb / patch merge
-            [SwinTransformerBlock(embed_size=C, hidden_size=4*C, attn_heads=C//32, window_size=7) for _ in range(6)],  # todo: what are the params? dropout?
+            [SwinTransformerBlock(embed_size=C, hidden_size=4*C, attn_heads=C//32, img_size=56, window_size=7) for _ in range(6)],  # todo: what are the params? dropout?
 
             # stage2
             PatchEmbedding(patch_size=2, in_channels=C, embed_size=2*C, keep_img_dim=True),    # C, 56, 56   ->  2C, 28, 28
-            [SwinTransformerBlock(embed_size=2*C, hidden_size=4*2*C, attn_heads=2*C//32, window_size=7) for _ in range(2)],
+            [SwinTransformerBlock(embed_size=2*C, hidden_size=4*2*C, attn_heads=2*C//32, img_size=28, window_size=7) for _ in range(2)],
 
             # stage3
             PatchEmbedding(patch_size=2, in_channels=2*C, embed_size=4*C, keep_img_dim=True),  # 2C, 28, 28  ->  4C, 14, 14
-            [SwinTransformerBlock(embed_size=4*C, hidden_size=4*4*C, attn_heads=4*C//32, window_size=7) for _ in range(6)],
+            [SwinTransformerBlock(embed_size=4*C, hidden_size=4*4*C, attn_heads=4*C//32, img_size=14, window_size=7) for _ in range(6)],
 
             # stage4
             PatchEmbedding(patch_size=2, in_channels=4*C, embed_size=8*C, keep_img_dim=True),  # 4C, 14, 14  -> 8C, 7, 7
-            [SwinTransformerBlock(embed_size=8*C, hidden_size=4*8*C, attn_heads=8*C//32, window_size=7) for _ in range(2)],
+            [SwinTransformerBlock(embed_size=8*C, hidden_size=4*8*C, attn_heads=8*C//32, img_size=7, window_size=7) for _ in range(2)],
         ])
         self.final_norm = LayerNorm(8*C)
         self.out = Linear(8*C, n_classes)
