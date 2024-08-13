@@ -90,6 +90,11 @@ class VisionTransformerConvStem(VisionTransformer):
 
 
 class SwinTransformerBlock(Module):
+    """
+    Paper: Swin Transformer: Hierarchical Vision Transformer using Shifted Windows
+    https://arxiv.org/pdf/2103.14030
+    """
+
     def __init__(self, embed_size, hidden_size, attn_heads, img_size, window_size=7, dropout=0.):
         self.window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout,
                                                           norm_first=True, gelu_activation=True,
@@ -101,7 +106,6 @@ class SwinTransformerBlock(Module):
         self.window_size = window_size
         self.shift_size = self.window_size // 2
         self.cached_attn_mask, _ = self.generate_shifted_attn_masks()
-        # todo relative positions
 
     def generate_shifted_attn_masks(self):
         H = W = self.img_size
@@ -151,49 +155,42 @@ class SwinTransformer(Module):  # Shifted windows transformer (Swin-T version)
     https://arxiv.org/pdf/2103.14030
     """
 
-    def __init__(self, n_classes, img_size=224, patch_size=4, window_size=7, in_channels=3, embed_size=96, hidden_size=4*768, n_layers=12, attn_heads=8, dropout=0.1):
-        assert img_size % patch_size == 0, f'Image size({img_size}) must be divisible by patch size({patch_size})'
-        self.n_patches = (img_size // patch_size)**2
+    def __init__(self, n_classes, embed_size=96, n_layers=(2, 2, 6, 2), dropout=0.1):
         C = embed_size
 
         # in contrast to the paper implementation, here the patches are processed on their img dim (B, C, H, W) through the layers
         self.layers = ModuleList([
-
             # stage1
-            PatchEmbedding(patch_size=4, in_channels=3, embed_size=C, keep_img_dim=True),      # 3, 224, 224  -> C, 56, 56    # todo they apply norm to patch emb / patch merge
-            [SwinTransformerBlock(embed_size=C, hidden_size=4*C, attn_heads=C//32, img_size=56, window_size=7) for _ in range(6)],  # todo: what are the params? dropout?
+            PatchEmbedding(patch_size=4, in_channels=3, embed_size=C, keep_img_dim=True),      # 3, 224, 224  -> C, 56, 56
+            [SwinTransformerBlock(embed_size=C, hidden_size=4*C, attn_heads=C//32, img_size=56, window_size=7, dropout=dropout) for _ in range(n_layers[0])],
 
             # stage2
             PatchEmbedding(patch_size=2, in_channels=C, embed_size=2*C, keep_img_dim=True),    # C, 56, 56   ->  2C, 28, 28
-            [SwinTransformerBlock(embed_size=2*C, hidden_size=4*2*C, attn_heads=2*C//32, img_size=28, window_size=7) for _ in range(2)],
+            [SwinTransformerBlock(embed_size=2*C, hidden_size=4*2*C, attn_heads=2*C//32, img_size=28, window_size=7, dropout=dropout) for _ in range(n_layers[1])],
 
             # stage3
             PatchEmbedding(patch_size=2, in_channels=2*C, embed_size=4*C, keep_img_dim=True),  # 2C, 28, 28  ->  4C, 14, 14
-            [SwinTransformerBlock(embed_size=4*C, hidden_size=4*4*C, attn_heads=4*C//32, img_size=14, window_size=7) for _ in range(6)],
+            [SwinTransformerBlock(embed_size=4*C, hidden_size=4*4*C, attn_heads=4*C//32, img_size=14, window_size=7, dropout=dropout) for _ in range(n_layers[2])],
 
             # stage4
             PatchEmbedding(patch_size=2, in_channels=4*C, embed_size=8*C, keep_img_dim=True),  # 4C, 14, 14  -> 8C, 7, 7
-            [SwinTransformerBlock(embed_size=8*C, hidden_size=4*8*C, attn_heads=8*C//32, img_size=7, window_size=7) for _ in range(2)],
+            [SwinTransformerBlock(embed_size=8*C, hidden_size=4*8*C, attn_heads=8*C//32, img_size=7, window_size=7, dropout=dropout) for _ in range(n_layers[3])],
         ])
         self.final_norm = LayerNorm(8*C)
         self.out = Linear(8*C, n_classes)
 
-        self.patch_size, self.window_size, self.img_size, self.in_channels = patch_size, window_size, img_size, in_channels
-        self.embed_size, self.hidden_size, self.n_layers, self.attn_heads = embed_size, hidden_size, n_layers, attn_heads
-
-
     def forward(self, X, flash=False):
         B, C, H, W = X.shape
-        T = self.n_patches
 
         # Transformers
         for i, layer in enumerate(self.layers):
-            X = layer(X)  # todo: , flash=flash
+            X = layer(X)
 
-        x = X.flatten(start_dim=2).mT   # B, C, H, W   ->  B, C, HW  ->  B, T, C
-        x = self.final_norm(x)                      # (B, T, emb)
+        x = X.flatten(start_dim=2).mT         # B, C, H, W   ->  B, C, HW  ->  B, T, C
+        x = self.final_norm(x)                # B, T, C
 
         # Classify only by the class token:
-        x = x.mean(dim=1) # todo use avg pool
-        y = self.out(x)                       # (B, n_classes)
+        x = x.mean(dim=1)                     # B, C  (avg pool over T)
+        y = self.out(x)                       # B, n_classes
         return y
+
