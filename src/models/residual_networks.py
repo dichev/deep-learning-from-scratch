@@ -44,8 +44,8 @@ class ResNet34(Module):
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)
@@ -101,8 +101,8 @@ class ResNet50(Module):
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)
@@ -158,8 +158,8 @@ class ResNeXt50(Module):  # same computations/params as ResNet-50, but more chan
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)
@@ -220,8 +220,8 @@ class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)

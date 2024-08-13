@@ -32,7 +32,7 @@ class Inception(Module):
             self.branch3.forward(x),
             self.branch4.forward(x),
         ]
-        x = torch.cat(features, dim=1)  # 4 x (N, C, W, H) ->  (N, 4*C, W, H)
+        x = torch.cat(features, dim=1)  # 4 x (N, C, H, W) ->  (N, 4*C, H, W)
         x = torch.relu(x)  # it might be attached outside the module
         return x
 
@@ -207,7 +207,7 @@ class DenseBlock(Module):  # with bottleneck
     def forward(self, x):
         for layer in self.layers:
             y = layer.forward(x)
-            x = torch.cat((y, x), dim=1)  # concatenate the skip connection  (N, C, W, H) -> (N, C + n*k, W, H)
+            x = torch.cat((y, x), dim=1)  # concatenate the skip connection  (N, C, H, W) -> (N, C + n*k, H, W)
         return x
 
     def __repr__(self):

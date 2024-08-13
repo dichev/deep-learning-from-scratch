@@ -49,7 +49,7 @@ class SimpleFullyCNN(Module):  # can be used to "convolve" the classifier across
         self.n_classes = n_classes
 
     def forward(self, x):
-        N, C, W, H = x.shape
+        N, C, H, W = x.shape
         x = self.conv1.forward(x)
         x = relu(x)
         x = self.pool1.forward(x)
@@ -85,8 +85,8 @@ class LeNet5(Module):
         self.f7 = Linear(input_size=84, output_size=n_classes)              # ->  # ->  n_classes(10)
 
     def forward(self, x):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (1, 32, 32), f'Expected input shape {(1, 32, 32)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (1, 32, 32), f'Expected input shape {(1, 32, 32)} but got {(C, H, W)}'
 
         A, S = 1.7159, 2/3
 
@@ -144,8 +144,8 @@ class AlexNet(Module):
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, H, W)}'
 
         x = self.features.forward(x, verbose)
         x = self.classifier.forward(x, verbose)
@@ -193,8 +193,8 @@ class NetworkInNetwork(Module):
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 227, 227), f'Expected input shape {(3, 227, 227)} but got {(C, H, W)}'
 
         x = self.classifier.forward(x, verbose)
         # x = softmax(x)
@@ -239,8 +239,8 @@ class VGG16(Module):
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.features.forward(x, verbose)
         x = self.classifier.forward(x, verbose)
@@ -290,8 +290,8 @@ class GoogLeNet(Module):  # Inception modules
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)
@@ -339,8 +339,8 @@ class DeepPlainCNN(Module):  # used for comparison to ResNet-18
         )
 
     def forward(self, x, verbose=False):
-        N, C, W, H = x.shape
-        assert (C, W, H) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, W, H)}'
+        N, C, H, W = x.shape
+        assert (C, H, W) == (3, 224, 224), f'Expected input shape {(3, 224, 224)} but got {(C, H, W)}'
 
         x = self.stem.forward(x, verbose)
         x = self.body.forward(x, verbose)

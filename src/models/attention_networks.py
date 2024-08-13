@@ -37,7 +37,7 @@ class RecurrentAttention(Module):
         self.head_loc = Linear(512, 2)
 
     def forward(self, x, loc=None):
-        B, C, W, H = x.shape
+        B, C, H, W = x.shape
 
         if loc is None:  # start in random location by default
             loc = torch.Tensor(B, 2).uniform_(-1, 1).to(x.device)
@@ -71,15 +71,15 @@ class RecurrentAttention(Module):
         return a, locs
 
     def glimpse_sensor(self, x, loc, k=3):
-        B, C, W, H = x.shape
-        assert W == H and C == 1, f'Supports only square images with single channel, but got: {x.shape}'
+        B, C, H, W = x.shape
+        assert H == W and C == 1, f'Supports only square images with single channel, but got: {x.shape}'
         assert loc.shape == (B, 2), f'Expected batched loc of shape (B, 2), but got: {loc.shape}'
 
         # paper: glimpse locations were encoded as real-valued (x, y) in the range [-1, 1]
         coords = self.denormalize_loc(loc, W)
 
         # Extract the largest patch on specified coords
-        imgs = x.view(B, W, H)
+        imgs = x.view(B, H, W)
         size = self.focus_size * 2 ** (k-1)
         imgs_padded = TF.pad(imgs, size // 2)
         patches_K = batched_crop_on_different_positions(imgs_padded, coords, size)
