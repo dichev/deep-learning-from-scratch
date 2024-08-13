@@ -16,10 +16,10 @@ Context = namedtuple('Context', ['memory', 'memory_attn_pad_mask', 'cached_targe
 
 class TransformerEncoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True, attn_layer=None):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
         self.norm2 = LayerNorm(input_size)
-        self.attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout)
+        self.attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout) if attn_layer is None else attn_layer
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size),
             GELU() if gelu_activation else ReLU(),
@@ -89,12 +89,12 @@ class TransformerEncoder(Module):
 
 class TransformerDecoderLayer(Module):
 
-    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
+    def __init__(self, input_size, hidden_size, attn_heads=1, dropout=0., norm_first=True, gelu_activation=True, attn_layer=None):  # norm_first=True to avoid tuning warm-up learning rate (see https://arxiv.org/pdf/2002.04745v1.pdf)
         self.norm1 = LayerNorm(input_size)
         self.norm2 = LayerNorm(input_size)
         self.norm3 = LayerNorm(input_size)
 
-        self.attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout)
+        self.attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout) if attn_layer is None else attn_layer
         self.cross_attn = MultiHeadAttention(input_size, attn_heads, dropout=dropout)
         self.ff = Sequential(  # Position-wise (per token)
             Linear(input_size, hidden_size),

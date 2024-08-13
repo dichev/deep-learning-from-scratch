@@ -320,4 +320,43 @@ def test_positional_rotary_encodings(t, heads, dim, base_theta, batch_size=3):
     assert torch.allclose(x, x_restored, rtol=1e-04, atol=1e-06)
 
 
+def test_relative_positional_bias_grid():
+    H, W = 2, 3
+    rel_bias = RelativePositionBias2d(img_height=H, img_width=W, n_heads=1)
+    rel_bias.relative_pos.data[:] = torch.arange((2 * H - 1) * (2 * W - 1)).view((2 * H - 1), (2 * W - 1))
+
+    rel_encodings = rel_bias.get_bias_grid()
+    expected = torch.tensor([[
+        [ 7,  6,  5,  2,  1,  0],
+        [ 8,  7,  6,  3,  2,  1],
+        [ 9,  8,  7,  4,  3,  2],
+        [12, 11, 10,  7,  6,  5],
+        [13, 12, 11,  8,  7,  6],
+        [14, 13, 12,  9,  8,  7]
+    ]])
+    assert torch.equal(rel_encodings, expected)
+
+    def validate(a, b):
+        a = torch.tensor(a).view(-1, 1)
+        b = torch.tensor(b).view(-1, 1)
+        A = a @ a.T * rel_encodings  # the bias is multiplied to comply with the test
+        B = b @ b.T * rel_encodings
+        return A.norm() == B.norm()
+
+    assert validate(
+        [[1, 0, 0], [1, 0, 0]],  # H x W
+        [[0, 0, 1], [0, 0, 1]]
+    )
+    assert not validate(
+        [[1, 1, 0], [1, 0, 0]],
+        [[0, 0, 1], [0, 0, 1]]
+    )
+    assert validate(
+        [[1, 2, 0], [1, 2, 0]],
+        [[0, 1, 2], [0, 1, 2]]
+    )
+    assert not validate(
+        [[1, 2, 0], [1, 2, 0]],
+        [[2, 0, 1], [0, 1, 2]]
+    )
 

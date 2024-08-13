@@ -13,7 +13,7 @@ from lib.functions.activations import softmax
 from utils import plots
 
 from models.convolutional_networks import SimpleCNN, LeNet5, AlexNet, NetworkInNetwork, VGG16, GoogLeNet
-from models.visual_transformers import VisionTransformer, VisionTransformerConvStem
+from models.visual_transformers import VisionTransformer, VisionTransformerConvStem, SwinTransformer
 from models.residual_networks import ResNet50, SEResNet50, SEResNeXt50
 
 # hyperparams & settings
@@ -54,6 +54,7 @@ models = {
 
     'VisionTransformer': (VisionTransformer(n_classes=10, img_size=224, patch_size=16, in_channels=3, n_layers=6, attn_heads=8, embed_size=384, hidden_size=4*384), T.Resize((224, 224))),
     'VisionTransformerConvStem': (VisionTransformerConvStem(n_classes=10, img_size=224, patch_size=16, in_channels=3, n_layers=6-1, attn_heads=8, embed_size=384, hidden_size=4 * 384), T.Resize((224, 224))),
+    'SwinTransformer': (SwinTransformer(n_classes=10, embed_size=96, n_layers=(2, 2, 3, 2)), T.Resize((224, 224))),
 }
 
 

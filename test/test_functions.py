@@ -4,6 +4,7 @@ from lib.functions.metrics import BLEU
 from lib.functions.activations import softmax, log_softmax, relu, silu, gelu, swish
 from utils.other import paddings_mask
 from utils import rng
+from utils.images import window_partition, window_reverse
 from torcheval.metrics.functional import bleu_score
 import math, random, numpy as np
 
@@ -101,3 +102,28 @@ def generate_random_numbers(n=10):
         'torch': torch.randn(n).tolist(),
         'cuda': torch.cuda.FloatTensor(n).normal_().tolist() if torch.cuda.is_available() else None
     }
+
+
+def test_windows():
+    B, C, H, W = 2, 3, 8, 12
+    win_size = 4
+
+    a = torch.tensor(
+        [[0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2],
+         [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2],
+         [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2],
+         [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2],
+         [3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5],
+         [3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5],
+         [3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5],
+         [3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5]]
+    )
+    b = a.view(1, 1, 8, 12).expand(B, C, H, W)
+    b_win = window_partition(b, win_size)   # B, C, H, W   ->  B, N, C, H/win_size, W/win_size
+
+    # assert all tensor elements across the same dim are equal
+    assert torch.all(b_win[0, :, 0].sum(dim=[-2, -1]) == torch.tensor([0, 1, 2, 3, 4, 5]) * win_size * win_size)
+
+    b_reverse = window_reverse(b_win, window_size=win_size, height=H, width=W)
+    assert torch.all(b == b_reverse)
+
