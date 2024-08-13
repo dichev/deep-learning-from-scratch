@@ -1,6 +1,6 @@
 import torch
 import einops as ein
-from lib.layers import Param, Module, Sequential, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding, Conv2d, BatchNorm2d, ReLU, MultiHeadAttention, GELU
+from lib.layers import Param, Module, Sequential, Linear, Embedding, LayerNorm, Dropout, ModuleList, PatchEmbedding, Conv2d, BatchNorm2d, ReLU, RelativeWindowAttention
 from models.transformer_networks import TransformerEncoderLayer
 from utils.images import window_partition, window_reverse
 
@@ -91,9 +91,12 @@ class VisionTransformerConvStem(VisionTransformer):
 
 class SwinTransformerBlock(Module):
     def __init__(self, embed_size, hidden_size, attn_heads, img_size, window_size=7, dropout=0.):
-        self.window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
-        self.shifted_window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout, norm_first=True, gelu_activation=True)
-
+        self.window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout,
+                                                          norm_first=True, gelu_activation=True,
+                                                          attn_layer=RelativeWindowAttention(embed_size, attn_heads, window_size, dropout))
+        self.shifted_window_transformer = TransformerEncoderLayer(embed_size, hidden_size, attn_heads, dropout,
+                                                                  norm_first=True, gelu_activation=True,
+                                                                  attn_layer=RelativeWindowAttention(embed_size, attn_heads, window_size, dropout))
         self.img_size = img_size
         self.window_size = window_size
         self.shift_size = self.window_size // 2

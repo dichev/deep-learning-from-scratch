@@ -1191,6 +1191,28 @@ class GroupedQueryAttention(MultiHeadAttention):
 
 
 
+class RelativeWindowAttention(MultiHeadAttention):
+
+    def __init__(self, embed_dim, n_heads, window_size, dropout=0., bias=False):
+        self.window_size = window_size
+        self.n_patches = window_size * window_size
+        self.relative_pos = RelativePositionBias2d(window_size, window_size, n_heads)
+        super(RelativeWindowAttention, self).__init__(embed_dim, n_heads, dropout, n_kv_heads=None, bias=bias)
+
+    def dot_product_attention(self, Q, K, V, attn_mask=None, is_causal=False, flash=False):
+        assert not flash, f'Flash Attention is not implemented'
+        assert self.n_patches == Q.shape[-2] == K.shape[-2]
+        B = self.relative_pos.get_bias_grid()
+
+        # Attention with relative position bias
+        Z = Q @ K.mT / sqrt(self.head_dim) + B            # (b, h, t', t)  <- (b, h, t', head_dim)  @  (b, h, head_dim, t) + (t', t)
+        A = softmax(Z, dim=-1, ignore_mask=attn_mask)
+        if self.dropout:
+            A = self.dropout.forward(A)
+        out = A @ V                                       # (b, h, t', head_dim)  <- (b, h, t', t) @ (b, h, t, head_dim)
+        return out, A
+
+
 class SparseMultiHeadAttention(MultiHeadAttention):
     """
     Paper: Generating Long Sequences with Sparse Transformers
@@ -1395,6 +1417,49 @@ class PatchEmbedding(Module):
         # Project and flatten to embed size:
         x = self.proj(X)                     # (B, C, W, H) -> (B, E, W//P, H//P)
         if not self.keep_dim:
-            x = x.flatten(start_dim=2).mT    # (B, T, E)
+            x = x.flatten(start_dim=2).mT    # (B, T, C)
         return x
 
+
+class RelativePositionBias2d(Module):
+    """
+    Paper: Swin Transformer: Hierarchical Vision Transformer using Shifted Windows
+    https://arxiv.org/pdf/2103.14030
+    """
+
+    def __init__(self, img_height, img_width, n_heads=1):
+        self.height = img_height
+        self.width = img_width
+        self.max_i = 2 * img_height - 1
+        self.max_j = 2 * img_width - 1
+        self.relative_pos = Param((n_heads, self.max_i, self.max_j))   # B_hat                                 (n_heads, 2*H-1, 2*W-1)
+        self.rel_grid_i, self.rel_grid_j = self.generate_grid()        # B = B_hat[:, rel_grid_i, rel_grid_j]  (n_heads, H*W, H*W)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        self.relative_pos.normal_(std=.02)
+
+    def generate_grid(self):
+        H, W = self.height, self.width
+        max_i, max_j = self.max_i, self.max_j
+
+        # generate coords on 2D image
+        rows, cols = torch.arange(H), torch.arange(W)
+        grid = torch.stack(torch.meshgrid(rows, cols, indexing='ij'), dim=-1)  # H, W, ij
+
+        # flatten and subtract (with broadcasting) to generate QxK grid with relative indices
+        rel_grid = grid.view(H*W, 1, 2) - grid.view(1, H*W, 2)            # H*W, H*W, ij
+
+        # shift the relative indices to be only positive (i.e. [-2, -1, 0, 1, 2] -> [0, 1, 2, 3, 4])
+        rel_grid_i = rel_grid[..., 0] + max_i//2                          # H*W, H*W
+        rel_grid_j = rel_grid[..., 1] + max_j//2                          # H*W, H*W
+
+        assert len(rel_grid_i.unique()) == max_i and len(rel_grid_j.unique()) == max_j
+        return rel_grid_i, rel_grid_j
+
+    def get_bias_grid(self):
+        return self.relative_pos[:, self.rel_grid_i, self.rel_grid_j]     # (n_heads, H*W, H*W)
+
+    def forward(self, x):
+        return x + self.get_bias_grid()
