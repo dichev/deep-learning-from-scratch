@@ -45,3 +45,13 @@ def sample_from(probs, n=1, exclude=None):
         probs[exclude] = 0.
         probs = probs / probs.sum()
     return np.random.choice(len(probs), n, p=probs)
+
+
+def trunc_normal_sample(n_shape=(1, ), mu=0, sig=1, a=-2, b=2):
+    U = torch.distributions.Uniform(0, 1)
+    N = torch.distributions.Normal(0, 1)
+    p = U.rsample(n_shape)
+    Fa, Fb = N.cdf(torch.tensor([a, b]))
+    p_trunk = N.icdf(Fa + p * (Fb - Fa)) * sig + mu
+    return p_trunk
+
