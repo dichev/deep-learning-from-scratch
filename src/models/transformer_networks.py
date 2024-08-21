@@ -440,9 +440,9 @@ class LLaMA1(Module):
     https://arxiv.org/pdf/2302.13971
     """
 
-    def __init__(self, vocab_size=32_000, context_size=2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=0):
+    def __init__(self, vocab_size=32_000, context_size=2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=0, rotary_base_freq=10_000):
         self.emb = Embedding(vocab_size, embed_size)
-        self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size)
+        self.rotary_emb = RotaryEncoding(embed_size//attn_heads, max_seq_len=context_size, base_freq_theta=rotary_base_freq)
         self.transformers = ModuleList(
             LLaMA_TransformerBlock(embed_size, hidden_size, attn_heads, attn_kv_groups, rotary_fn=self.rotary_emb.forward) for _ in range(n_layers)
         )
@@ -501,7 +501,7 @@ class LLaMA2(LLaMA1):
     Paper: Llama 2: Open Foundation and Fine-Tuned Chat Models
     https://arxiv.org/pdf/2307.09288
     """
-    def __init__(self, vocab_size=32_000, context_size=2*2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=16):
+    def __init__(self, vocab_size=32_000, context_size=2*2048, embed_size=4096, hidden_size=4096*4, n_layers=32, attn_heads=32, attn_kv_groups=16, rotary_base_freq=10_000):
         # [LLaMA-2 paper] "To keep a similar overall parameter count across GQA and MQA,
         # we increase the dimension of the feed-forward layers to compensate for the reduction in the attention layers"
         if attn_kv_groups > 0:
@@ -510,4 +510,14 @@ class LLaMA2(LLaMA1):
             gqa_size = 2 * embed_size + 2 * embed_size // heads_ratio
             hidden_size += (mha_size - gqa_size)//2
 
-        super().__init__(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups)
+        super().__init__(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups, rotary_base_freq)
+
+
+
+class LLaMA3(LLaMA2):
+    """
+    Paper: The Llama 3 Herd of Models
+    https://arxiv.org/pdf/2407.21783
+    """
+    def __init__(self, vocab_size=128_000, context_size=2*2048, embed_size=4096, hidden_size=4096*4, n_layers=126, attn_heads=128, attn_kv_groups=8, rotary_base_freq=500_000):
+        super().__init__(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups, rotary_base_freq)

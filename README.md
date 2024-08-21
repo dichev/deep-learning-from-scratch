@@ -155,10 +155,11 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - LLaMA_TransformerBlock <sup>[*[37]*](#ref37 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 - LLaMA1 <sup>[*[37]*](#ref37 "LLaMA: Open and Efficient Foundation Language Models")</sup>
 - LLaMA2 <sup>[*[38]*](#ref38 "Llama 2: Open Foundation and Fine-Tuned Chat Models")</sup>
+- LLaMA3 <sup>[*[39]*](#ref39 "The Llama 3 Herd of Models")</sup>
 
 `models.visual_transformers` [➜](src/models/visual_transformers.py)
 - VisionTransformer <sup>[*[19]*](#ref19 "An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale")</sup>
-- VisionTransformerConvStem <sup>[*[39]*](#ref39 "Early Convolutions Help Transformers See Better")</sup>
+- VisionTransformerConvStem <sup>[*[40]*](#ref40 "Early Convolutions Help Transformers See Better")</sup>
 - SwinTransformerBlock <sup>[*[20]*](#ref20 "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows")</sup>
 - SwinTransformer <sup>[*[20]*](#ref20 "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows")</sup>
 
@@ -225,7 +226,8 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 36. <a name="ref36" href="https://arxiv.org/pdf/2005.14165">Language Models are Few-Shot Learners</a>
 37. <a name="ref37" href="https://arxiv.org/pdf/2302.13971">LLaMA: Open and Efficient Foundation Language Models</a>
 38. <a name="ref38" href="https://arxiv.org/pdf/2307.09288">Llama 2: Open Foundation and Fine-Tuned Chat Models</a>
-39. <a name="ref39" href="https://arxiv.org/pdf/2106.14881">Early Convolutions Help Transformers See Better</a>
+39. <a name="ref39" href="https://arxiv.org/pdf/2407.21783">The Llama 3 Herd of Models</a>
+40. <a name="ref40" href="https://arxiv.org/pdf/2106.14881">Early Convolutions Help Transformers See Better</a>
 
 <!-- auto-generated-end -->
 
