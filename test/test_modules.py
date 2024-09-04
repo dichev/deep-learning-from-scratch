@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 @pytest.mark.parametrize('padding',  [0, 1, 2, 3])
 @pytest.mark.parametrize('kernel',   [1, 3, 5, 7])
 def test_conv2d(kernel, padding, stride, dilation):
-    N, C_out, C_in, W, H = 10, 4, 3, 100, 100
+    N, C_out, C_in, H, W = 10, 4, 3, 100, 100
     A = torch.nn.Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation)
     B = Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation)
 
@@ -23,7 +23,7 @@ def test_conv2d(kernel, padding, stride, dilation):
         B.bias[:] = A.bias.detach().clone()
 
     # compare the convolutions
-    input = torch.randn(N, C_in, W, H)
+    input = torch.randn(N, C_in, H, W)
     expected = A(input)
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
@@ -34,7 +34,7 @@ def test_conv2d(kernel, padding, stride, dilation):
 @pytest.mark.parametrize('out_channels', [8, 4])
 @pytest.mark.parametrize('groups',   [1, 2, 4])
 def test_conv2d_groups(in_channels, out_channels, groups):
-    N, C_out, C_in, W, H = 10, in_channels, out_channels, 100, 100
+    N, C_out, C_in, H, W = 10, in_channels, out_channels, 100, 100
     kernel, padding, stride, dilation = 3, 1, 1, 1
     A = torch.nn.Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
     B = Conv2dGroups(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, groups=groups)
@@ -50,7 +50,7 @@ def test_conv2d_groups(in_channels, out_channels, groups):
             B.convs[g].bias[:] = A.bias[group].detach().clone()
 
     # compare the convolutions
-    input = torch.randn(N, C_in, W, H)
+    input = torch.randn(N, C_in, H, W)
     expected = A(input)
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
@@ -61,11 +61,11 @@ def test_conv2d_groups(in_channels, out_channels, groups):
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding, kernel',  [(0, 1), (0, 3), (0, 5), (1, 3), (2, 5)])
 def test_max_pool2d(kernel, padding, stride, dilation):
-    N, C, W, H = 10, 3, 100, 100
+    N, C, H, W = 10, 3, 100, 100
     A = torch.nn.MaxPool2d(kernel, stride=stride, padding=padding, dilation=dilation)
     B = MaxPool2d(kernel, stride=stride, padding=padding, dilation=dilation)
 
-    input = torch.randn(N, C, W, H)
+    input = torch.randn(N, C, H, W)
     expected = A(input)
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
@@ -74,11 +74,11 @@ def test_max_pool2d(kernel, padding, stride, dilation):
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding, kernel',  [(0, 1), (0, 3), (0, 5), (1, 3), (2, 5)])
 def test_avg_pool2d(kernel, padding, stride):
-    N, C, W, H = 10, 3, 100, 100
+    N, C, H, W = 10, 3, 100, 100
     A = torch.nn.AvgPool2d(kernel, stride=stride, padding=padding)
     B = AvgPool2d(kernel, stride=stride, padding=padding)
 
-    input = torch.randn(N, C, W, H)
+    input = torch.randn(N, C, H, W)
     expected = A(input)
     output = B.forward(input)
     assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)

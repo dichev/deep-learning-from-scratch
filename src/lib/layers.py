@@ -131,13 +131,13 @@ class BatchNorm1d(BatchNorm):
 class BatchNorm2d(BatchNorm):
 
     def __init__(self, size):
-        super().__init__(size, batch_dims=(0, 2, 3))  # note here N, W, H are all considered to be from the batch dim
+        super().__init__(size, batch_dims=(0, 2, 3))  # note here N, H, W are all considered to be from the batch dim
 
     def forward(self, x):
         assert len(x.shape) == 4, f'BatchNorm2d layer requires 4D input, but got: {x.shape}'
-        N, C, W, H = x.shape
+        N, C, H, W = x.shape
         assert C == self.size, f'Expected {self.size} channels from the input, but got {C}'
-        assert max(N, W, H) > 1 or not torch.is_grad_enabled(), 'BatchNorm2d layer requires at least 2 samples'
+        assert max(N, H, W) > 1 or not torch.is_grad_enabled(), 'BatchNorm2d layer requires at least 2 samples'
         return super().forward(x)
 
 
@@ -215,13 +215,13 @@ class LocalResponseNorm(Module):  # Inter-channel: https://miro.medium.com/v2/re
         self.k = k          # bias, avoids division by zero
 
     def forward(self, x):
-        B, C, W, H = x.shape
+        B, C, H, W = x.shape
         n = self.size
 
         a_sq = (x**2).view(B, 1, C, W * H)  # square earlier and adapt the shape for unfolding
         a_sq = F.unfold(a_sq, kernel_size=(n, 1), padding=(n//2, 0))    # (B, window, patches)
-        a_sq_sum = a_sq.view(B, n, C, W, H).sum(dim=1)          # (B, C  W, H)
-        x = x / (self.k + (self.alpha / n) * a_sq_sum) ** self.beta     # (B, C, W, H)
+        a_sq_sum = a_sq.view(B, n, C, H, W).sum(dim=1)                  # (B, C  H, W)
+        x = x / (self.k + (self.alpha / n) * a_sq_sum) ** self.beta     # (B, C, H, W)
         return x
 
     def __repr__(self):
@@ -459,7 +459,7 @@ class Conv2d(Module):
         if self.mem_optimized:  # Use torch to reduce memory usage on large models
             return torch.nn.functional.conv2d(X, self.weight, self.bias if self.has_bias else None, stride=self.stride, padding=self.padding, dilation=self.dilation)
 
-        N, C, W, H = X.shape
+        N, C, H, W = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
@@ -533,10 +533,10 @@ class Pool2d(Module):
             self.padding = Padding(*padding)
 
     def forward(self, X):
-        N, C, W, H, = X.shape
+        N, C, H, W, = X.shape
         if self.kernel_size == W == H and self.stride == 1 and self.dilation == 1 and self.padding == (0, 0, 0, 0):
             # shortcut computations if the pooling is global (but still channel-wise)
-            return self.pool(X.view(N, C, -1)).view(N, C, 1, 1)       # (N, C, W, H) -> # (N, C, 1, 1)
+            return self.pool(X.view(N, C, -1)).view(N, C, 1, 1)       # (N, C, H, W) -> # (N, C, 1, 1)
 
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
@@ -607,11 +607,11 @@ class SEGate(Module):
         init.kaiming_normal_relu_(self.weight, self.channels)
 
     def forward(self, x):
-        assert len(x.shape) == 4, f'Expected 4D input (N, C, W, H), but got {x.shape}'
-        N, C, W, H = x.shape
+        assert len(x.shape) == 4, f'Expected 4D input (N, C, H, W), but got {x.shape}'
+        N, C, H, W = x.shape
 
         # Squeeze (channel-wise) - provides global (spatially unrestricted) information
-        z = x.mean(dim=(2, 3))                   # (N, C, W, H) -> (N, C)
+        z = x.mean(dim=(2, 3))                         # (N, C, H, W) -> (N, C)
 
         # Excitation gate (adaptive recalibration)
         z = relu(z @ self.weight[0])                   # (N, C) -> (N, R)
@@ -619,7 +619,7 @@ class SEGate(Module):
         p = sigmoid(z)  # sigmoid ensures the probs aren't mutually-exclusive
 
         # Scale input features (self-attention)
-        x = x * p.view(N, C, 1, 1)                     # (N, C, W, H)
+        x = x * p.view(N, C, 1, 1)                     # (N, C, H, W)
         return x
 
     def __repr__(self):
@@ -1414,12 +1414,12 @@ class PatchEmbedding(Module):
         self.keep_dim = keep_img_dim
 
     def forward(self, X):
-        (B, C, W, H), P = X.shape, self.patch_size
+        (B, C, H, W), P = X.shape, self.patch_size
         assert W == H and W % P == 0
         T = (H // P) * (W // P)
 
         # Project and flatten to embed size:
-        x = self.proj(X)                     # (B, C, W, H) -> (B, E, W//P, H//P)
+        x = self.proj(X)                     # (B, C, H, W) -> (B, E, H//P, W//P)
         if not self.keep_dim:
             x = x.flatten(start_dim=2).mT    # (B, T, C)
         return x

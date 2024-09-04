@@ -13,7 +13,7 @@ def identity(n, sparse=False, device=None):
 
 
 def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
-    N, C, W, H, = X.shape
+    N, C, H, W, = X.shape
 
     if isinstance(padding, tuple):
         pad_left, pad_right, pad_top, pad_bottom = padding

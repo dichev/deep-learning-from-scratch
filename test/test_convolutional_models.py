@@ -44,11 +44,11 @@ def test_VGG16():
 
 @torch.no_grad()
 def test_Inception():
-    N, W, H = 2, 50, 50
+    N, H, W = 2, 50, 50
     inception = Inception(in_channels=3, out_channels=512, spec=(192, (96, 208), (16, 48), 64))
-    data = torch.randn(N, 3, W, H)
+    data = torch.randn(N, 3, H, W)
     out = inception.forward(data)
-    assert out.shape == (N, 512, W, H)
+    assert out.shape == (N, 512, H, W)
 
 @torch.no_grad()
 def test_GoogLeNet():
