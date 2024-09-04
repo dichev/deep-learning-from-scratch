@@ -45,7 +45,7 @@ models = {
     'LeNet-5':   (LeNet5(n_classes=10), T.Grayscale(num_output_channels=1)),
     'AlexNet':   (AlexNet(n_classes=10), T.Resize((227, 227), antialias=True)),  # well, yeah..
     'NetworkInNetwork':   (NetworkInNetwork(n_classes=10), T.Resize((227, 227), antialias=True)),
-    # 'VGG-16':   (VGG16(n_classes=10), T.Resize((224, 224))),  # reduce the batch_size
+    'VGG-16':   (VGG16(n_classes=10), T.Resize((224, 224))),  # reduce the batch_size
     'GoogLeNet': (GoogLeNet(n_classes=10), T.Resize((224, 224))),
 
     'ResNet50': (ResNet50(n_classes=10), T.Resize((224, 224))),

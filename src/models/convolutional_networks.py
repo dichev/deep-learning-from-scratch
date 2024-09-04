@@ -217,7 +217,7 @@ class VGG16(Module):
         def ConvBlock(n_convs, in_channels, out_channels):
             block = Sequential()
             for i in range(n_convs):
-                block.add(Conv2d(in_channels if i == 0 else out_channels, out_channels, kernel_size=3, stride=1, padding='same'))
+                block.add(Conv2d(in_channels if i == 0 else out_channels, out_channels, kernel_size=3, stride=1, padding='same', mem_optimized=True))
                 block.add(ReLU())
             block.add(MaxPool2d(kernel_size=2, stride=2))
             return block

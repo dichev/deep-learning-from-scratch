@@ -432,7 +432,7 @@ class RNN(Module):
 
 class Conv2d(Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True, mem_optimized=False):
         self.weight = Param((out_channels, in_channels, kernel_size, kernel_size))  # (C_out, C_in, K, K)
         if bias:
             self.bias = Param((out_channels,))  # (C)
@@ -444,6 +444,7 @@ class Conv2d(Module):
         self.stride = stride
         self.padding = padding
         self.has_bias = bias
+        self.mem_optimized = mem_optimized
         if isinstance(padding, str):  # e.g. valid, same, full
             self.padding = conv2d_pad_string_to_int(padding, kernel_size)
         self.reset_parameters()
@@ -455,6 +456,9 @@ class Conv2d(Module):
             init.kaiming_normal_relu_(self.bias, 1)
 
     def forward(self, X):
+        if self.mem_optimized:  # Use torch to reduce memory usage on large models
+            return torch.nn.functional.conv2d(X, self.weight, self.bias if self.has_bias else None, stride=self.stride, padding=self.padding, dilation=self.dilation)
+
         N, C, W, H = X.shape
         W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
