@@ -90,12 +90,6 @@ class BatchNorm(Module):
         self.running_mean.fill_(0)
         self.running_var.fill_(1)
 
-    def to(self, device):
-        super().to(device)
-        self.running_mean.data = self.running_mean.to(device)
-        self.running_var.data = self.running_var.to(device)
-        return self
-
     def forward(self, x):
         assert len(x.shape) == len(self.dims) + 1, f'Expect tensor with {len(self.dims) + 1} axis, but got {x.shape}'
 

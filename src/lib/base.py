@@ -54,7 +54,7 @@ class Module:
 
     def to(self, device):
         # print('module:', self)
-        for name, param in self.parameters(deep=False): # todo: test the loop against parameters(deep=True)
+        for name, param in self.parameters(deep=False, buffers=True): # todo: test the loop against parameters(deep=True)
             param.data = param.data.to(device)  # careful here
             # print(' -> param', name, param.device)
             if param.grad is not None:
