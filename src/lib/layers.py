@@ -470,6 +470,56 @@ class Conv2d(Module):
         return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}, bias={self.has_bias}): {self.n_params} parameters'
 
 
+
+class ConvTranspose2d(Module):
+
+    # Matches the arguments (padding, kernel, etc.) to Conv2d, except in_channels and out_channels which are flipped
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, bias=True, mem_optimized=False):
+        self.weight = Param((in_channels, out_channels, kernel_size, kernel_size))  # (C_in, C_out, K, K)
+        if bias:
+            self.bias = Param((out_channels,))  # (C)
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.stride = stride
+        self.padding = padding
+        self.has_bias = bias
+        self.mem_optimized = mem_optimized
+        if isinstance(padding, str):  # e.g. valid, same, full
+            self.padding = conv2d_pad_string_to_int(padding, kernel_size)
+        self.reset_parameters()
+
+    @torch.no_grad()
+    def reset_parameters(self):
+        fan_in = self.out_channels * self.kernel_size * self.kernel_size  # note: out_channels is used to match pytorch's initialization
+        init.linear_uniform_(self.weight, fan_in)
+        if self.has_bias:
+            init.linear_uniform_(self.bias, fan_in)
+
+    def forward(self, Y):
+        if self.mem_optimized:  # Use torch to reduce memory usage on large models
+            return torch.nn.functional.conv_transpose2d(Y, self.weight, self.bias if self.has_bias else None, stride=self.stride, padding=self.padding, dilation=self.dilation)
+
+        N, C, H, W = Y.shape
+        H_out, W_out = conv2d_calc_out_size(Y, self.kernel_size, self.stride, self.padding, self.dilation, transposed=True)  # useful validation
+
+        # basically reverse the steps of the convolution operations in Conv2d (not true inverse)
+        convolution = Y.view(N, self.in_channels, -1)
+        kernel = self.weight.reshape(self.in_channels, -1)
+        patches = torch.einsum('ncp,ck->nkp', convolution, kernel)
+        X = F.fold(patches, output_size=(H_out, W_out), kernel_size=self.kernel_size,  dilation=self.dilation, padding=self.padding, stride=self.stride)
+        if self.has_bias: # notice the bias is added to X (in convolution operator it was added to Y)
+            X += self.bias.reshape(1, -1, 1, 1)
+
+        return X  # (N, C_out, H_out, W_out)
+
+    def __repr__(self):
+        return f'ConvTranspose2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}, bias={self.has_bias}): {self.n_params} parameters'
+
+
+
 class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True):
         assert in_channels % groups == 0 and out_channels % groups == 0, f'the channels must be divisible by the groups, but got: {in_channels=}, {out_channels=} for {groups=}'

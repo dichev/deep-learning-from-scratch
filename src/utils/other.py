@@ -12,7 +12,7 @@ def identity(n, sparse=False, device=None):
         return torch.eye(n, device=device)
 
 
-def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
+def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1, transposed=False):
     N, C, H, W = X.shape
 
     if isinstance(padding, tuple):
@@ -20,8 +20,13 @@ def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
     else:
         pad_left = pad_right = pad_top = pad_bottom = padding
 
-    width  = (W + (pad_left + pad_right) - dilation * (kernel_size - 1) - 1) / stride + 1
-    height = (H + (pad_top + pad_bottom) - dilation * (kernel_size - 1) - 1) / stride + 1
+    if not transposed:  # conv2d
+        width  = (W + (pad_left + pad_right) - dilation * (kernel_size - 1) - 1) / stride + 1
+        height = (H + (pad_top + pad_bottom) - dilation * (kernel_size - 1) - 1) / stride + 1
+    else:               # conv_transpose2d
+        width  = (W - 1) * stride - (pad_left + pad_right) + dilation * (kernel_size - 1) + 1
+        height = (H - 1) * stride - (pad_top + pad_bottom) + dilation * (kernel_size - 1) + 1
+
     if width != int(width) or height != int(height):
         if 'pytest' not in sys.modules:  # hide the warning at test time
             warnings.warn(f'Caution: Input{list(X.shape)} - The expected output size after convolution ({width:.1f}x{height:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(width)}x{int(height)}')

@@ -31,6 +31,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - GRU_cell
 - RNN
 - Conv2d
+- ConvTranspose2d
 - Conv2dGroups
 - Pool2d
 - MaxPool2d

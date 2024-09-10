@@ -32,6 +32,32 @@ def test_conv2d(kernel, padding, stride, dilation, bias):
 
 
 @torch.no_grad()
+@pytest.mark.parametrize('dilation', [1, 2])
+@pytest.mark.parametrize('stride',   [1, 2, 3])
+@pytest.mark.parametrize('padding',  [0, 1, 2, 3])
+@pytest.mark.parametrize('kernel',   [1, 3, 5, 7])
+@pytest.mark.parametrize('bias',     [False, True])
+def test_conv2d_transposed(kernel, padding, stride, dilation, bias):
+    N, C_out, C_in, H, W = 10, 4, 3, 60, 100
+    A = torch.nn.ConvTranspose2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, bias=bias)
+    B = ConvTranspose2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, bias=bias)
+
+    # use the same parameters
+    assert B.weight.shape == A.weight.shape, f'Expected the same weight shape: {B.weight.shape}, {A.weight.shape}'
+    B.weight.data[:] = A.weight.data
+    if bias:
+        assert A.bias.shape == B.bias.shape, f'Expected the same bias shape: {A.bias.shape}, {B.bias.shape}'
+        B.bias.data[:] = A.bias.data
+
+    # compare the convolutions
+    input = torch.randn(N, C_in, H, W)
+    expected = A(input)
+    output = B.forward(input)
+    assert torch.allclose(expected, output, rtol=1e-04, atol=1e-06)
+
+
+
+@torch.no_grad()
 @pytest.mark.parametrize('in_channels',  [4, 8])
 @pytest.mark.parametrize('out_channels', [8, 4])
 @pytest.mark.parametrize('groups',   [1, 2, 4])
