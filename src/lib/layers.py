@@ -14,7 +14,6 @@ from collections import namedtuple
 
 Padding = namedtuple('Padding', ('pad_left', 'pad_right', 'pad_top', 'pad_bottom'))
 
-
 class Linear(Module):
     def __init__(self, input_size, output_size=1, weights_init=init.linear_uniform_, bias=True):
         self.weight = Param((input_size, output_size))
@@ -445,9 +444,10 @@ class Conv2d(Module):
 
     @torch.no_grad()
     def reset_parameters(self):
-        init.kaiming_normal_relu_(self.weight, self.in_channels * self.kernel_size * self.kernel_size)
+        fan_in = self.in_channels * self.kernel_size * self.kernel_size
+        init.linear_uniform_(self.weight, fan_in)
         if self.has_bias:
-            init.kaiming_normal_relu_(self.bias, 1)
+            init.linear_uniform_(self.bias, fan_in)
 
     def forward(self, X):
         if self.mem_optimized:  # Use torch to reduce memory usage on large models
