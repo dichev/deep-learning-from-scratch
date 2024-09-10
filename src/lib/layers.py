@@ -454,17 +454,17 @@ class Conv2d(Module):
             return torch.nn.functional.conv2d(X, self.weight, self.bias if self.has_bias else None, stride=self.stride, padding=self.padding, dilation=self.dilation)
 
         N, C, H, W = X.shape
-        W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
+        H_out, W_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         # Vectorized batched convolution: Y = [I] * K + b  (which is actually cross-correlation + bias shifting)
         patches = F.unfold(X, self.kernel_size, self.dilation, self.padding, self.stride)  # (N, kernel_size_flat, patches)
         kernel = self.weight.reshape(self.out_channels, -1)                                # * (channels, kernel_size_flat)
-        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                  # -> (N, channels, patches)
-        Y = convolution.reshape(N, self.out_channels, W_out, H_out)                        # (N, channels, out_width, out_height)
+        convolution = torch.einsum('nkp,ck->ncp', patches, kernel)                         # -> (N, channels, patches)
+        Y = convolution.reshape(N, self.out_channels, H_out, W_out)                        # (N, channels, out_width, out_height)
         if self.has_bias:
             Y += self.bias.reshape(1, -1, 1, 1)
 
-        return Y  # (N, C_out, W_out, H_out)
+        return Y  # (N, C_out, H_out, W_out)
 
     def __repr__(self):
         return f'Conv2d({self.in_channels}, {self.out_channels}, {self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation}, bias={self.has_bias}): {self.n_params} parameters'
@@ -489,9 +489,9 @@ class Conv2dGroups(Module):  # implemented as a stack of convolutional layers
 
     def forward(self, X):
         N, C, H, W = X.shape
-        W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
+        H_out, W_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
-        Y = torch.zeros(N, self.out_channels, W_out, H_out, device=X.device)
+        Y = torch.zeros(N, self.out_channels, H_out, W_out, device=X.device)
         for g in range(self.groups):
             Y[:, self.slice_out(g)] = self.convs[g].forward(X[:, self.slice_in(g)])
         return Y
@@ -527,23 +527,23 @@ class Pool2d(Module):
             self.padding = Padding(*padding)
 
     def forward(self, X):
-        N, C, H, W, = X.shape
+        N, C, H, W = X.shape
         if self.kernel_size == W == H and self.stride == 1 and self.dilation == 1 and self.padding == (0, 0, 0, 0):
             # shortcut computations if the pooling is global (but still channel-wise)
             return self.pool(X.view(N, C, -1)).view(N, C, 1, 1)       # (N, C, H, W) -> # (N, C, 1, 1)
 
-        W_out, H_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
+        H_out, W_out = conv2d_calc_out_size(X, self.kernel_size, self.stride, self.padding, self.dilation)  # useful validation
 
         if max(self.padding) > 0:  # the padding value for max pooling must be inf negatives for correct max pooling of negative inputs
             X = F.pad(X, self.padding, mode='constant', value=self.padding_fill_value)
 
         # Vectorized batched max pooling: Y = max[I]
-        patches = F.unfold(X, self.kernel_size, self.dilation, padding=0, stride=self.stride)             # (N, kernel_size_flat, patches)
+        patches = F.unfold(X, self.kernel_size, self.dilation, padding=0, stride=self.stride)     # (N, kernel_size_flat, patches)
         patches = patches.reshape(N, C, self.kernel_size*self.kernel_size, -1)                    # (N, C, kernel_size_flat, patches)
-        pooled = self.pool(patches)                                                                       # (N, C, patches)
-        Y = pooled.reshape(N, C, W_out, H_out)                                                            # (N, C, W_out, H_out)
+        pooled = self.pool(patches)                                                               # (N, C, patches)
+        Y = pooled.reshape(N, C, H_out, W_out)                                                    # (N, C, H_out, W_out)
 
-        return Y  # (N, C, W_out, H_out)
+        return Y  # (N, C, H_out, W_out)
 
     def pool(self, patches):
         raise Exception('Not implemented')

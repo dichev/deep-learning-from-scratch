@@ -10,17 +10,19 @@ from matplotlib import pyplot as plt
 @pytest.mark.parametrize('stride',   [1, 2, 3])
 @pytest.mark.parametrize('padding',  [0, 1, 2, 3])
 @pytest.mark.parametrize('kernel',   [1, 3, 5, 7])
-def test_conv2d(kernel, padding, stride, dilation):
-    N, C_out, C_in, H, W = 10, 4, 3, 100, 100
-    A = torch.nn.Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation)
-    B = Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation)
+@pytest.mark.parametrize('bias',     [False, True])
+def test_conv2d(kernel, padding, stride, dilation, bias):
+    N, C_out, C_in, H, W = 10, 4, 3, 60, 100
+    A = torch.nn.Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, bias=bias)
+    B = Conv2d(C_in, C_out, kernel, stride=stride, padding=padding, dilation=dilation, bias=bias)
 
     # use the same parameters
     assert B.weight.shape == A.weight.shape, f'Expected the same weight shape: {B.weight.shape}, {A.weight.shape}'
-    assert A.bias.shape == B.bias.shape, f'Expected the same bias shape: {A.bias.shape}, {B.bias.shape}'
-    with torch.no_grad():
-        B.weight[:] = A.weight.detach().clone()
-        B.bias[:] = A.bias.detach().clone()
+    B.weight.data[:] = A.weight.data
+    if bias:
+        assert A.bias.shape == B.bias.shape, f'Expected the same bias shape: {A.bias.shape}, {B.bias.shape}'
+        B.bias.data[:] = A.bias.data
+
 
     # compare the convolutions
     input = torch.randn(N, C_in, H, W)

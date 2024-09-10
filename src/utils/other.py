@@ -13,7 +13,7 @@ def identity(n, sparse=False, device=None):
 
 
 def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
-    N, C, H, W, = X.shape
+    N, C, H, W = X.shape
 
     if isinstance(padding, tuple):
         pad_left, pad_right, pad_top, pad_bottom = padding
@@ -25,7 +25,7 @@ def conv2d_calc_out_size(X, kernel_size, stride=1, padding=0, dilation=1):
     if width != int(width) or height != int(height):
         if 'pytest' not in sys.modules:  # hide the warning at test time
             warnings.warn(f'Caution: Input{list(X.shape)} - The expected output size after convolution ({width:.1f}x{height:.1f}) is not an integer. Consider adjusting stride/padding/kernel to get an integer output size. Using rounded value: {int(width)}x{int(height)}')
-    return int(width), int(height)
+    return int(height), int(width)
 
 def conv2d_pad_string_to_int(padding, kernel_size):
     if padding == 'valid':
