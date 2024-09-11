@@ -1,5 +1,5 @@
 import torch
-from lib.layers import Module, Sequential, Linear, Conv2d, Conv2dGroups, AvgPool2d, MaxPool2d, BatchNorm2d, ReLU, Flatten
+from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, BatchNorm2d, ReLU, Flatten, ModuleList, ConvTranspose2d
 from models.blocks.convolutional_blocks import ResBlock, ResBottleneckBlock, ResNeXtBlock, DenseBlock, DenseTransition
 
 class ResNet34(Module):
@@ -11,7 +11,7 @@ class ResNet34(Module):
     def __init__(self, n_classes=1000, attention=False):
 
         self.stem = Sequential(                                                                # in:   3, 224, 224
-             Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),   # ->   64, 112, 112
+            Conv2d(in_channels=3, out_channels=64, kernel_size=7, stride=2, padding='same', bias=False),   # ->   64, 112, 112
             BatchNorm2d(64), ReLU(),
             MaxPool2d(kernel_size=3, stride=2, padding=(0, 1, 0, 1)),                          # ->   64,  56,  56 (max)
         )
@@ -235,3 +235,89 @@ class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
         return self.forward(x, verbose=True)
 
 
+
+
+class Down(Module):
+    def __init__(self, in_channels, out_channels):
+        self.conv = ResBlock(in_channels, out_channels, attention=True, mem_optimized=True)
+        self.downscale = Conv2d(out_channels, out_channels, kernel_size=2, stride=2)  # the skip connections between encoder/decoder should provide the lost information
+        # self.downscale = MaxPool2d(kernel_size=2, stride=2)
+
+    def forward(self, x):
+        x_keep = self.conv(x)        # B, C, H, W  -> B, 2C, H, W
+        x = self.downscale(x_keep)   # B, 2C, H, W -> B, 2C, H/2, W/2
+        return x, x_keep
+
+
+class Middle(Module):
+    def __init__(self, in_channels, out_channels):
+        self.conv = ResBlock(in_channels, out_channels, attention=True, mem_optimized=True)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x
+
+
+class Up(Module):
+    def __init__(self, in_channels, in_skip_channels, out_channels):
+        self.upscale = ConvTranspose2d(in_channels, in_channels//2, kernel_size=2, stride=2, mem_optimized=True)
+        self.conv = ResBlock(in_channels//2 + in_skip_channels, out_channels, attention=True, mem_optimized=True)
+
+    def forward(self, x, x_skip):
+        x = self.upscale(x)                                     # B, 2C, 2H, 2W -> B, C, H, W
+        x = self.conv(torch.cat((x, x_skip), dim=1))    # B, [C, C_skip], H, W -> B, C, H, W
+        return x
+
+
+class UNet_simple(Module):
+    """
+    Very loose implementation of U-net with residuals and channel-wise attention
+    """
+
+    def __init__(self, img_sizes=(1, 32, 32)):
+        self.img_sizes = img_sizes
+        C, H, W = img_sizes
+        assert H == W and H % 2**4 == 0, f'The image size must be divisible by 2^4 (for proper down and up scaling): but got {H}x{W}'
+                                                                                                               # in:   1, 32, 32
+        self.proj = Conv2d(in_channels=C, out_channels=64, kernel_size=1, padding='same', mem_optimized=True)  # ->   64, 32, 32
+        self.down = ModuleList([
+            Down(in_channels=64,   out_channels=64),                                                           # ->   64, 32, 32
+            Down(in_channels=64,   out_channels=128),                                                          # ->  128, 16, 16
+            Down(in_channels=128,  out_channels=256),                                                          # ->  256,  8,  8
+            Down(in_channels=256,  out_channels=512),                                                          # ->  512,  4,  4
+        ])
+        self.middle = Middle(in_channels=512, out_channels=1024)                                               # -> 1024,  2,  2
+        self.up = ModuleList([
+            Up(in_channels=1024, in_skip_channels=512, out_channels=512),                                      # ->  512,  4,  4
+            Up(in_channels=512,  in_skip_channels=256, out_channels=256),                                      # ->  256,  8,  8
+            Up(in_channels=256,  in_skip_channels=128, out_channels=128),                                      # ->  128, 16, 16
+            Up(in_channels=128,  in_skip_channels=64,  out_channels=64),                                       # ->   64, 32, 32
+        ])
+        self.out = Conv2d(in_channels=64, out_channels=C, kernel_size=1, padding='same', mem_optimized=True)   # ->    1, 32, 32
+
+
+    def forward(self, x, t=None):
+        N, C, H, W = x.shape
+        x_skip = []   # store dense skip connections
+
+        # Encoder ---------------------------------------
+        x = self.proj(x)
+        for down in self.down:
+            x, x_keep = down(x)
+            x_skip.append(x_keep)
+
+        # Code ---------------------------------------
+        x = self.middle(x)
+
+        # Decoder ---------------------------------------
+        for up in self.up:
+            x = up(x, x_skip.pop())
+        x = self.out(x)
+
+        return x
+
+    @torch.no_grad()
+    def test(self, n_samples=1):
+        C, H, W = self.img_sizes
+        x = torch.randn(n_samples, C, H, W, device=self.device_of_first_parameter())
+        return self.forward(x)
