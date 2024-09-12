@@ -128,6 +128,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - SEResNet50 <sup>[*[30]*](#ref30 "Squeeze-and-Excitation Networks")</sup>
 - SEResNeXt50 <sup>[*[30]*](#ref30 "Squeeze-and-Excitation Networks")</sup>
 - DenseNet121 <sup>[*[31]*](#ref31 "Densely Connected Convolutional Networks")</sup>
+- UNet_simple
 
 `models.graph_networks` [➜](src/models/graph_networks.py)
 - GCN <sup>[*[8]*](#ref8 "Semi-Supervised Classification with Graph Convolutional Networks")</sup>
@@ -163,6 +164,9 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - VisionTransformerConvStem <sup>[*[40]*](#ref40 "Early Convolutions Help Transformers See Better")</sup>
 - SwinTransformerBlock <sup>[*[20]*](#ref20 "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows")</sup>
 - SwinTransformer <sup>[*[20]*](#ref20 "Swin Transformer: Hierarchical Vision Transformer using Shifted Windows")</sup>
+
+`models.diffusion_models` [➜](src/models/diffusion_models.py)
+- DenoiseDiffusion
 
 `models.blocks.convolutional_blocks` [➜](src/models/blocks/convolutional_blocks.py)
 - Inception <sup>[*[27]*](#ref27 "Going deeper with convolutions")</sup>

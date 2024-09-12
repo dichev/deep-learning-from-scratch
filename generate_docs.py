@@ -23,6 +23,7 @@ whitelist = {
         'src/models/attention_networks.py',
         'src/models/transformer_networks.py',
         'src/models/visual_transformers.py',
+        'src/models/diffusion_models.py',
         'src/models/blocks/convolutional_blocks.py',
     ],
     "Example usages": [
@@ -55,15 +56,16 @@ for group, paths in whitelist.items():
             module = path.replace('src/', '').replace('/', '.').replace('.py', '')
             text += f'\n`{module}` [➜]({path})\n'
             with open(path, 'r') as file:
-                pattern = r'\nclass (\w+).*\n\s+(?:"""\s+Paper: (.*?)\s+(https?:\S+))?'
+                pattern = r'\nclass (\w+).*\n\s+(?:\"\"\"\s+Paper: (.*?)\s+(https?:\S+))?(\"\"\"ignore docs\"\"\")?'
                 info = re.findall(pattern, file.read())
-                for cls, paper, link in info:
-                    text += f'- {cls}'
-                    if paper:
-                        if paper not in citations:
-                            citations[paper] = Citation(title=paper, link=link, id=len(citations)+1)
-                        text += f' <sup>[*[{citations[paper].id}]*](#ref{citations[paper].id} "{paper}")</sup>'
-                    text += '\n'
+                for cls, paper, link, ignore in info:
+                    if not ignore:
+                        text += f'- {cls}'
+                        if paper:
+                            if paper not in citations:
+                                citations[paper] = Citation(title=paper, link=link, id=len(citations)+1)
+                            text += f' <sup>[*[{citations[paper].id}]*](#ref{citations[paper].id} "{paper}")</sup>'
+                        text += '\n'
         else:
             text += f'- {path} [➜]({path})\n'
 

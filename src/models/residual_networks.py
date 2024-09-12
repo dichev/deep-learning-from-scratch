@@ -238,6 +238,7 @@ class DenseNet121(Module):  # DenseNet-BC (bottleneck + compression)
 
 
 class Down(Module):
+    """ignore docs"""
     def __init__(self, in_channels, out_channels):
         self.conv = ResBlock(in_channels, out_channels, attention=True, mem_optimized=True)
         self.downscale = Conv2d(out_channels, out_channels, kernel_size=2, stride=2)  # the skip connections between encoder/decoder should provide the lost information
@@ -250,6 +251,7 @@ class Down(Module):
 
 
 class Middle(Module):
+    """ignore docs"""
     def __init__(self, in_channels, out_channels):
         self.conv = ResBlock(in_channels, out_channels, attention=True, mem_optimized=True)
 
@@ -259,6 +261,7 @@ class Middle(Module):
 
 
 class Up(Module):
+    """ignore docs"""
     def __init__(self, in_channels, in_skip_channels, out_channels):
         self.upscale = ConvTranspose2d(in_channels, in_channels//2, kernel_size=2, stride=2, mem_optimized=True)
         self.conv = ResBlock(in_channels//2 + in_skip_channels, out_channels, attention=True, mem_optimized=True)
