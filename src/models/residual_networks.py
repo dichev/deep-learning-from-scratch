@@ -281,7 +281,7 @@ class Up(Module):
         return x
 
 
-class UNet_simple(Module):
+class UNet_DDPM(Module):
     """
     Very loose implementation of the DDPM U-net with residuals, channel-wise attention and timestep embeddings
     """
@@ -291,12 +291,7 @@ class UNet_simple(Module):
         C, H, W = img_sizes
         assert H == W and H % 2**4 == 0, f'The image size must be divisible by 2^4 (for proper down and up scaling): but got {H}x{W}'
 
-        self.time_emb_fixed = self.register_buffer('time_emb_fixed', PositionalEncoding.compute_encodings(64, seq_len=max_timesteps))
-        self.time_emb = Sequential(
-            Linear(64, 256),
-            ReLU(),
-            Linear(256, 256),
-        )
+        self.time_emb = PositionalEncoding(256, max_seq_len=max_timesteps)
                                                                                                                # in:   1, 32, 32
         self.proj = Conv2d(in_channels=C, out_channels=64, kernel_size=1, padding='same', mem_optimized=True)  # ->   64, 32, 32
         self.down = ModuleList([
@@ -316,15 +311,13 @@ class UNet_simple(Module):
 
 
     def forward(self, x, t):
-        B, C, H, W = x.shape
-        x_skip = []   # store dense skip connections
-
         # Timestep embeddings
-        t = self.time_emb_fixed[t]
-        t = self.time_emb(t)
+        t = self.time_emb.fixed_embeddings[t]
 
         # Encoder ---------------------------------------
+        B, C, H, W = x.shape
         x = self.proj(x)
+        x_skip = []   # store dense skip connections
         for down in self.down:
             x, x_keep = down(x, t)
             x_skip.append(x_keep)

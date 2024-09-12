@@ -1353,7 +1353,8 @@ class PositionalEncoding(Module):
     """
 
     def __init__(self, depth_size, max_seq_len, dropout=0., mixed=False, base_freq_theta=10_000):
-        self.fixed_embeddings = self.compute_encodings(depth_size, max_seq_len, mixed, base_freq_theta)
+        encodings = self.compute_encodings(depth_size, max_seq_len, mixed, base_freq_theta)
+        self.fixed_embeddings = self.register_buffer('fixed_embeddings', encodings)
         self.dropout = Dropout(dropout) if dropout else None
         self.depth_size, self.max_seq_len = depth_size, max_seq_len
 

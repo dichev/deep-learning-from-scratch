@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from torchvision.transforms import v2 as transforms
 
 from models.diffusion_models import DenoiseDiffusion
-from models.residual_networks import UNet_simple
+from models.residual_networks import UNet_DDPM
 from lib.optimizers import AdamW
 from lib.functions.losses import mse_loss
 from utils.rng import seed_global
@@ -34,7 +34,7 @@ T_sample = torch.randint(T, (BATCH_SIZE, ))
 
 
 # Model
-predictor = UNet_simple(img_sizes=(1, 32, 32), max_timesteps=T+1).to(DEVICE)
+predictor = UNet_DDPM(img_sizes=(1, 32, 32), max_timesteps=T + 1).to(DEVICE)
 model = DenoiseDiffusion(img_size=32, T=T, noise_predictor=predictor, betas=BETAS).to(DEVICE)
 optimizer = AdamW(predictor.parameters(), LEARN_RATE)
 
