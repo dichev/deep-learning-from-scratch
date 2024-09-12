@@ -13,13 +13,15 @@ def MNIST(batch_size, train_val_split=(.8, .2), transforms=None):
         ]
     transforms = T.Compose(transforms)
 
+    train_split, val_split = train_val_split
     train_dataset = datasets.MNIST('./data/', download=True, train=True, transform=transforms)
     test_dataset = datasets.MNIST('./data/', download=True, train=False, transform=transforms)
-    train_dataset, val_dataset = random_split(train_dataset, (train_val_split[0], train_val_split[1]))
+    if val_split > 0:
+        train_dataset, val_dataset = random_split(train_dataset, (train_val_split[0], train_val_split[1]))
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True) if val_split > 0 else None
 
     return train_loader, val_loader, test_loader
 
