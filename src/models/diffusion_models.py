@@ -5,8 +5,8 @@ from lib.layers import Module
 
 class DenoiseDiffusion(Module): # aka DDPM
     """
-    Denoising Diffusion Probabilistic Models
-    Paper: https://arxiv.org/pdf/2006.11239
+    Paper: Denoising Diffusion Probabilistic Models
+    https://arxiv.org/pdf/2006.11239
     """
 
     def __init__(self, img_size=28, T=100, betas=(0.0001, 0.02), noise_predictor: Callable=None):
