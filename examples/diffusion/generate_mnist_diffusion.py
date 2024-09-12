@@ -34,7 +34,7 @@ T_sample = torch.randint(T, (BATCH_SIZE, ))
 
 
 # Model
-predictor = UNet_simple(img_sizes=(1, 32, 32)).to(DEVICE)
+predictor = UNet_simple(img_sizes=(1, 32, 32), max_timesteps=T+1).to(DEVICE)
 model = DenoiseDiffusion(img_size=32, T=T, noise_predictor=predictor, betas=BETAS).to(DEVICE)
 optimizer = AdamW(predictor.parameters(), LEARN_RATE)
 
@@ -47,7 +47,7 @@ for epoch in range(EPOCHS):
     for x0, _ in train_loader:  # todo: condition on the label
         x0 = x0.to(DEVICE)
         batch_size = x0.shape[0]  # might be less than BATCH_SIZE
-        t = torch.randint(1, T, (batch_size, )).to(DEVICE)  # todo: use as time encoding, and care for t+1
+        t = torch.randint(1, T+1, (batch_size, )).to(DEVICE)
 
         optimizer.zero_grad()
         x_t, noise = model.diffuse(x0, t)

@@ -1394,6 +1394,9 @@ class PositionalEncoding(Module):
         plt.colorbar()
         plt.show()
 
+    def __repr__(self):
+        return f'PositionalEncoding(depth_size={self.depth_size}, max_seq_len={self.max_seq_len}, dropout={self.dropout.p if self.dropout is not None else None}): {self.fixed_embeddings.shape}'
+
 
 class RotaryEncoding(Module):
     """

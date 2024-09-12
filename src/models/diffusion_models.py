@@ -49,9 +49,9 @@ class DenoiseDiffusion(Module): # aka DDPM
         x_t = torch.randn((n, 1, H, W)).to(device)
         for t in range(self.T, 0, -1): # [T -> 1]
             # estimate the image from noise image
-            t = torch.tensor([t]).to(device)
-            z = torch.randn((n, 1, H, W)).to(device) if t > 1 else 0. # ignoring the variance of the final step (t=1)
-            noise_pred = self.predictor(x_t, t)
+            t_batch = torch.tensor([t]).expand(n).to(device)
+            z = torch.randn((n, 1, H, W)).to(device) if t > 1 else 0.  # ignoring the variance of the final step (t=1)
+            noise_pred = self.predictor(x_t, t_batch)
 
             # denoise: remove predicted noise + add some scheduled noise
             means = (x_t - noise_pred * (1-alpha[t]) / torch.sqrt(1-alpha_cum[t])) / alpha[t].sqrt()
