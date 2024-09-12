@@ -286,12 +286,17 @@ class UNet_DDPM(Module):
     Very loose implementation of the DDPM U-net with residuals, channel-wise attention and timestep embeddings
     """
 
-    def __init__(self, img_sizes=(1, 32, 32), max_timesteps=100):
+    def __init__(self, img_sizes=(1, 32, 32), context_features=10, max_timesteps=100):
         self.img_sizes = img_sizes
         C, H, W = img_sizes
         assert H == W and H % 2**4 == 0, f'The image size must be divisible by 2^4 (for proper down and up scaling): but got {H}x{W}'
 
-        self.time_emb = PositionalEncoding(256, max_seq_len=max_timesteps)
+        self.time_emb = PositionalEncoding(128, max_seq_len=max_timesteps)
+        self.context_emb = Sequential(
+            Linear(context_features, 256),
+            ReLU(),
+            Linear(256, 128),
+        )
                                                                                                                # in:   1, 32, 32
         self.proj = Conv2d(in_channels=C, out_channels=64, kernel_size=1, padding='same', mem_optimized=True)  # ->   64, 32, 32
         self.down = ModuleList([
@@ -310,24 +315,26 @@ class UNet_DDPM(Module):
         self.out = Conv2d(in_channels=64, out_channels=C, kernel_size=1, padding='same', mem_optimized=True)   # ->    1, 32, 32
 
 
-    def forward(self, x, t):
-        # Timestep embeddings
-        t = self.time_emb.fixed_embeddings[t]
+    def forward(self, x, t, context):
+        # Timestep & context embeddings
+        t = self.time_emb.fixed_embeddings[t]   # B, E
+        c = self.context_emb(context)           # B, E
+        tc = torch.cat((t, c), dim=1)           # B, 2E
 
         # Encoder ---------------------------------------
         B, C, H, W = x.shape
         x = self.proj(x)
         x_skip = []   # store dense skip connections
         for down in self.down:
-            x, x_keep = down(x, t)
+            x, x_keep = down(x, tc)
             x_skip.append(x_keep)
 
         # Code ---------------------------------------
-        x = self.middle(x, t)
+        x = self.middle(x, tc)
 
         # Decoder ---------------------------------------
         for up in self.up:
-            x = up(x, x_skip.pop(), t)
+            x = up(x, x_skip.pop(), tc)
         x = self.out(x)
 
         return x

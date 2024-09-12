@@ -41,7 +41,7 @@ class DenoiseDiffusion(Module): # aka DDPM
         return loss
 
     @torch.no_grad()
-    def sample_denoise(self, n=1, device=None):  # backward process
+    def sample_denoise(self, n, context, device=None):  # backward process
         H, W = self.img_size, self.img_size
         alpha, alpha_cum = self.alpha, self.alpha_cum
 
@@ -51,7 +51,7 @@ class DenoiseDiffusion(Module): # aka DDPM
             # estimate the image from noise image
             t_batch = torch.tensor([t]).expand(n).to(device)
             z = torch.randn((n, 1, H, W)).to(device) if t > 1 else 0.  # ignoring the variance of the final step (t=1)
-            noise_pred = self.predictor(x_t, t_batch)
+            noise_pred = self.predictor(x_t, t_batch, context.to(device))
 
             # denoise: remove predicted noise + add some scheduled noise
             means = (x_t - noise_pred * (1-alpha[t]) / torch.sqrt(1-alpha_cum[t])) / alpha[t].sqrt()
