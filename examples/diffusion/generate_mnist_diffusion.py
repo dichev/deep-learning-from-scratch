@@ -65,11 +65,21 @@ for epoch in range(EPOCHS):
 
 
     # Generate some samples
-    print('Generating images..')
-    x_t = model.sample_denoise(n=9, context=one_hot(torch.arange(9), num_classes=10), device=DEVICE)
-    grid = make_grid(x_t, nrow=3).detach().cpu().permute(1, 2, 0)
-    plt.imshow(grid, cmap='gray'); plt.title(f'Epoch {epoch+1}/{EPOCHS} | loss={avg_loss.item():.4f}'); plt.axis(False); plt.show()
-
+    n = 10
+    digits = torch.arange(n)
+    print(f'Generating {n} images with context {digits}..')
+    x_t, history = model.sample_denoise(n, context=one_hot(digits, num_classes=n), device=DEVICE)
+    # Visualize the backward diffusion process
+    steps = torch.arange(n+1) * 100  # on each 100 diffusion steps in [0, T]
+    x_seq = history[steps]
+    grid = make_grid(x_seq.transpose(0,1).reshape(-1, 1, 32, 32), nrow=n+1, padding=2).permute(1, 2, 0).detach().cpu()
+    plt.figure(figsize=(7, 6))
+    plt.imshow(grid, cmap='gray')
+    plt.xticks(ticks=16 + steps / (steps[-1]/(grid.shape[0])), labels=['$t_{'+str(t)+'}$' for t in steps.tolist()])
+    plt.yticks(ticks=16 + digits*34 , labels=[f'ctx={d}' for d in digits.tolist()])
+    plt.title(f'Epoch {epoch+1}/{EPOCHS} | loss={avg_loss.item():.4f}')
+    plt.tight_layout()
+    plt.show()
 
 
 

@@ -47,6 +47,7 @@ class DenoiseDiffusion(Module): # aka DDPM
 
         # ref: (Algorithm 2 Sampling)
         x_t = torch.randn((n, 1, H, W)).to(device)
+        history = [x_t]
         for t in range(self.T, 0, -1): # [T -> 1]
             # estimate the image from noise image
             t_batch = torch.tensor([t]).expand(n).to(device)
@@ -57,5 +58,6 @@ class DenoiseDiffusion(Module): # aka DDPM
             means = (x_t - noise_pred * (1-alpha[t]) / torch.sqrt(1-alpha_cum[t])) / alpha[t].sqrt()
             std = self.beta[t].sqrt()  # paper: Experimentally, both σₜ² = βₜ and σₜ²= βₜ(1−Πα[t-1])/(1−α[t]) had similar results. The first choice is optimal for x₀∼N(0, I)
             x_t = means + std * z
+            history.append(x_t)
 
-        return x_t
+        return x_t, torch.stack(history)
