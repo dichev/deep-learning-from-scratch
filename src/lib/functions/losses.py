@@ -39,3 +39,8 @@ def cross_entropy(y_hat, y, logits=True, ignore_idx=None, label_smoothing=0.0):
 
     return losses.mean()
 
+
+def mse_loss(y_hat, y, dim=None):
+    e = y_hat - y
+    mse = (e**2).mean(dim=dim)
+    return mse

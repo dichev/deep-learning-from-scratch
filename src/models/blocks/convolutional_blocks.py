@@ -43,20 +43,20 @@ class ResBlock(Module):
     https://arxiv.org/pdf/1512.03385.pdf
     """
 
-    def __init__(self, in_channels, out_channels, stride=1, attention=False):
+    def __init__(self, in_channels, out_channels, stride=1, attention=False, mem_optimized=False):
         self.downsampled = stride != 1 or in_channels != out_channels
         self.attention = attention
 
         self.residual = Sequential(
-            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', stride=stride, bias=False),
+            Conv2d(in_channels,  out_channels, kernel_size=3, padding='same', stride=stride, bias=False, mem_optimized=mem_optimized),
             BatchNorm2d(out_channels), ReLU(),
-            Conv2d(out_channels, out_channels, kernel_size=3, padding='same', bias=False),
+            Conv2d(out_channels, out_channels, kernel_size=3, padding='same', bias=False, mem_optimized=mem_optimized),
             BatchNorm2d(out_channels),  # no ReLU
         )
         if self.attention:
             self.se_gate = SEGate(out_channels, reduction=16)
         if self.downsampled:
-            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride)
+            self.project = Conv2d(in_channels, out_channels, kernel_size=1, stride=stride, mem_optimized=mem_optimized)
 
         self.in_channels = in_channels
         self.out_channels = out_channels
