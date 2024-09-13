@@ -187,6 +187,9 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - examples/attention [➜](examples/attention)
 - examples/transformer [➜](examples/transformer)
 - examples/diffusion [➜](examples/diffusion)
+
+<img src="/examples/diffusion/diffusion_mnist.png" />
+
 - examples/shallow [➜](examples/shallow)
 
 
