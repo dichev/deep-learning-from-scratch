@@ -34,6 +34,7 @@ whitelist = {
         'examples/recurrent',
         'examples/attention',
         'examples/transformer',
+        'examples/diffusion',
         'examples/shallow',
     ]
 }

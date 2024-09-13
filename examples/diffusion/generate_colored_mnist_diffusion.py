@@ -18,8 +18,8 @@ seed_global(2)
 EPOCHS = 50
 LEARN_RATE = 2e-4
 BATCH_SIZE = 128
-T = 1000            # diffusion steps
-BETAS = (1e-4, 0.02)  # variance linear schedule
+T = 1000                # diffusion steps
+BETAS = (1e-4, 0.02)    # variance linear schedule
 img_sizes = (3, 32, 32)
 DEVICE = 'cuda'
 
@@ -29,7 +29,7 @@ train_loader, val_loader, test_loader = MNIST(batch_size=BATCH_SIZE, train_val_s
     transforms.ToImage(),
     transforms.ToDtype(torch.float32, scale=True),                     # normalize to [ 0, 1]
     transforms.Pad(2),                                                 # 28x28 -> 32x32 (for nicer up/down sampling by the U-net)
-    transforms.Normalize((0.5,), (0.5,)),                              # normalize to [-1, 1]
+    # transforms.Normalize((0.5,), (0.5,)),                            # normalize to [-1, 1]  <- DISABLED for MNIST: speeds up training by ignoring the background pixels data (i.e. all 0 values)
     transforms.Lambda(lambda x: x * (torch.rand(3, 1, 1)*.6 +.4)),     # add colors to the digits (1, H, W) -> (3, H, W)
 ])
 X_sample, y_sample = next(iter(train_loader))  # non-varying sample used for visualizations

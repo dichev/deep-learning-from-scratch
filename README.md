@@ -186,6 +186,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 - examples/recurrent [➜](examples/recurrent)
 - examples/attention [➜](examples/attention)
 - examples/transformer [➜](examples/transformer)
+- examples/diffusion [➜](examples/diffusion)
 - examples/shallow [➜](examples/shallow)
 
 
