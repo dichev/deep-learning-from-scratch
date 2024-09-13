@@ -1,6 +1,9 @@
 import torch
+
 from lib.layers import Module, Sequential, Linear, Conv2d, AvgPool2d, MaxPool2d, BatchNorm2d, ReLU, Flatten, ModuleList, ConvTranspose2d, PositionalEncoding
 from models.blocks.convolutional_blocks import ResBlock, ResBottleneckBlock, ResNeXtBlock, DenseBlock, DenseTransition
+from preprocessing.integer import one_hot
+
 
 class ResNet34(Module):
     """
@@ -287,7 +290,7 @@ class UNet_DDPM(Module):
     """
 
     def __init__(self, img_sizes=(1, 32, 32), context_features=10, max_timesteps=100):
-        self.img_sizes = img_sizes
+        self.img_sizes, self.context_features, self.max_timesteps = img_sizes, context_features, max_timesteps
         C, H, W = img_sizes
         assert H == W and H % 2**4 == 0, f'The image size must be divisible by 2^4 (for proper down and up scaling): but got {H}x{W}'
 
@@ -341,6 +344,10 @@ class UNet_DDPM(Module):
 
     @torch.no_grad()
     def test(self, n_samples=1):
-        C, H, W = self.img_sizes
-        x = torch.randn(n_samples, C, H, W, device=self.device_of_first_parameter())
-        return self.forward(x)
+        B, (C, H, W) = n_samples, self.img_sizes
+        device = self.device_of_first_parameter()
+
+        x = torch.randn(B, C, H, W).to(device)
+        t = torch.randint(1, self.max_timesteps+1, (B, )).to(device)
+        context = one_hot(torch.randint(self.context_features, (B,)), num_classes=self.context_features).to(device)
+        return self.forward(x.to(device), t.to(device), context.to(device))

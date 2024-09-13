@@ -9,7 +9,7 @@ class DenoiseDiffusion(Module): # aka DDPM
     https://arxiv.org/pdf/2006.11239
     """
 
-    def __init__(self, img_size=28, T=100, betas=(0.0001, 0.02), noise_predictor: Callable=None):
+    def __init__(self, img_sizes=(1, 32, 32), T=100, betas=(0.0001, 0.02), noise_predictor: Callable=None):
         assert noise_predictor is not None, f'Provide noise predictor function or model'
 
         # Cache variances schedule
@@ -24,12 +24,12 @@ class DenoiseDiffusion(Module): # aka DDPM
         self.alpha = self.register_buffer('alpha', alpha)
         self.alpha_cum = self.register_buffer('alpha_cum', alpha_cum)
         self.predictor = noise_predictor
-        self.img_size = img_size
+        self.img_sizes = img_sizes
         self.T = T
 
     def diffuse(self, x0, t):  # forward process
         B, C, H, W = x0.shape
-        z = torch.randn((B, 1, H, W)).to(device=x0.device)
+        z = torch.randn((B, C, H, W)).to(device=x0.device)
         mean = x0 * torch.sqrt(self.alpha_cum[t]).view(B, 1, 1, 1)  # ref: (4)
         std = torch.sqrt(1-self.alpha_cum[t]).view(B, 1, 1, 1)      # q(xₜ|x₀) = N(μ=√(αₜx₀), σ²=(1−Παₜ)I)
         x_t = mean + std * z
@@ -42,16 +42,16 @@ class DenoiseDiffusion(Module): # aka DDPM
 
     @torch.no_grad()
     def sample_denoise(self, n, context, device=None):  # backward process
-        H, W = self.img_size, self.img_size
+        C, H, W = self.img_sizes
         alpha, alpha_cum = self.alpha, self.alpha_cum
 
         # ref: (Algorithm 2 Sampling)
-        x_t = torch.randn((n, 1, H, W)).to(device)
+        x_t = torch.randn((n, C, H, W)).to(device)
         history = [x_t]
         for t in range(self.T, 0, -1): # [T -> 1]
             # estimate the image from noise image
             t_batch = torch.tensor([t]).expand(n).to(device)
-            z = torch.randn((n, 1, H, W)).to(device) if t > 1 else 0.  # ignoring the variance of the final step (t=1)
+            z = torch.randn((n, C, H, W)).to(device) if t > 1 else 0.  # ignoring the variance of the final step (t=1)
             noise_pred = self.predictor(x_t, t_batch, context.to(device))
 
             # denoise: remove predicted noise + add some scheduled noise
