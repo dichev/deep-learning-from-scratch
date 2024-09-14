@@ -100,7 +100,7 @@ def generate_random_numbers(n=10):
         'random': [random.random() for _ in range(n)],
         'numpy': np.random.randn(n).tolist(),
         'torch': torch.randn(n).tolist(),
-        'cuda': torch.cuda.FloatTensor(n).normal_().tolist() if torch.cuda.is_available() else None
+        'cuda': torch.randn(n, device='cuda').tolist() if torch.cuda.is_available() else None
     }
 
 
