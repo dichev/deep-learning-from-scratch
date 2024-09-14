@@ -296,9 +296,9 @@ class UNet_DDPM(Module):
 
         self.time_emb = PositionalEncoding(128, max_seq_len=max_timesteps)
         self.context_emb = Sequential(
-            Linear(context_features, 256),
+            Linear(context_features, 256, bias=False),  # remove biases to allow zero context learning
             ReLU(),
-            Linear(256, 128),
+            Linear(256, 128, bias=False),
         )
                                                                                                                # in:   1, 32, 32
         self.proj = Conv2d(in_channels=C, out_channels=64, kernel_size=1, padding='same', mem_optimized=True)  # ->   64, 32, 32

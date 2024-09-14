@@ -47,10 +47,11 @@ for epoch in range(EPOCHS):
     avg_loss = 0
     pbar = trange(len(train_loader), desc=f'Epoch {epoch+1}/{EPOCHS}')
     for x0, y in train_loader:
-        x0 = x0.to(DEVICE)
         batch_size = x0.shape[0]  # might be less than BATCH_SIZE
+        x0 = x0.to(DEVICE)
         t = torch.randint(1, T+1, (batch_size, )).to(DEVICE)
         context = one_hot(y, num_classes=10).to(DEVICE)
+        context = context * torch.zeros(batch_size, 1).bernoulli(0.9).to(DEVICE)  # mask out some contexts to allow image denoising without context
 
         optimizer.zero_grad()
         x_t, noise = model.diffuse(x0, t)
@@ -69,8 +70,9 @@ for epoch in range(EPOCHS):
     n = 10
     C, H, W = img_sizes
     digits = torch.arange(n)
+    context = one_hot(digits, num_classes=n)
     print(f'Generating {n} images with context {digits}..')
-    x_t, history = model.sample_denoise(n, context=one_hot(digits, num_classes=n), device=DEVICE)
+    x_t, history = model.sample_denoise(n, context=context, device=DEVICE)
 
     # Visualize the backward diffusion process
     steps = torch.arange(n+1) * 100  # on each 100 diffusion steps in [0, T]
