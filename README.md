@@ -11,8 +11,6 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 * using PyTorch's tensors for GPU computation
 ---
 
-<!-- auto-generated-start -->
-
 
 ### Building blocks
 
@@ -273,16 +271,15 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 
 
 ### Example usages
-- examples/ [➜](examples/)
-- examples/convolutional [➜](examples/convolutional)
-- examples/energy_based [➜](examples/energy_based)
-- examples/graph [➜](examples/graph)
-- examples/recurrent [➜](examples/recurrent)
-- examples/attention [➜](examples/attention)
-- examples/transformer [➜](examples/transformer)
-- examples/diffusion [➜](examples/diffusion)
-- examples/shallow [➜](examples/shallow)
-
+- examples/ [[...]](examples/)
+- examples/convolutional [[...]](examples/convolutional)
+- examples/energy_based [[...]](examples/energy_based)
+- examples/graph [[...]](examples/graph)
+- examples/recurrent [[...]](examples/recurrent)
+- examples/attention [[...]](examples/attention)
+- examples/transformer [[...]](examples/transformer)
+- examples/diffusion [[...]](examples/diffusion)
+- examples/shallow [[...]](examples/shallow)
 
 <hr/>
 
@@ -331,7 +328,6 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 41. <a name="ref41" href="https://arxiv.org/pdf/2006.11239">Denoising Diffusion Probabilistic Models</a>
 
 
-<!-- auto-generated-end -->
 
 ## Installation
 ### Local Setup
@@ -340,8 +336,8 @@ conda env create --name dev --file=./environment.yml
 ```
 ### Docker Setup
 ```
-docker build -t deep . 
-docker run --rm --gpus all --name deep deep 
+docker build -t deep .
+docker run --rm --gpus all --name deep deep
 docker exec -it deep /bin/bash
 ```
 ```
