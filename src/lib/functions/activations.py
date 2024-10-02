@@ -10,21 +10,26 @@ def unit_step(x):
     return torch.where(x >= 0, 1, 0)
 
 
-def sigmoid(x):
-    return 1 / (1 + torch.exp(-x))
+@torch.jit.script
+def sigmoid(x): # numerically stable
+    e = torch.exp(-x.abs())
+    return torch.where(x >= 0, 1 / (1 + e), e / (1 + e))
 
 
-def tanh(x):
-    e = torch.exp(x)
-    return (e - 1/e) / (e + 1/e)
+@torch.jit.script
+def tanh(x): # numerically stable (sign is faster than masking)
+    e = torch.exp(-2 * x.abs())
+    return sign(x) * (1 - e) / (1 + e)
 
 
 def relu(x):
     return torch.clip(x, 0)
 
 
+@torch.jit.script
 def gelu(x):  # x * F(x), where F is the cumulative normal distribution
     return x * 0.5 * (1 + torch.erf(x / sqrt(2)))  # ≈ sigmoid(1.702 * x)
+
 
 @torch.jit.script
 def gelu_tanh_approx(x):
