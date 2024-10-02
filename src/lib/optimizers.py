@@ -31,6 +31,12 @@ class Optimizer:
         for k, v in state_dict.items():
             setattr(self, k, v)
 
+    def _validate_grad(self, grad, name):
+        if grad is None:
+            raise RuntimeError(f"Parameter {name} has no gradient")
+        if torch.isnan(grad).any():
+            raise RuntimeError(f'Detected NaN gradient in {name} parameter! Further debug with: torch.autograd.set_detect_anomaly(True)')
+
 
 class SGD(Optimizer):
 
@@ -41,8 +47,7 @@ class SGD(Optimizer):
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             param -= self.lr * self.weight_decay * param
             param -= self.lr * param.grad
 
@@ -64,8 +69,7 @@ class SGD_Momentum(Optimizer):
     def step(self):
         beta = self.momentum
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             self.exp_avg[name] = beta * self.exp_avg[name] + param.grad
             param -= self.lr * self.exp_avg[name]
 
@@ -86,8 +90,7 @@ class AdaGrad(Optimizer):
     @torch.no_grad()
     def step(self):
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             self.grad_sq[name] += param.grad ** 2
             adjusted_lr = self.lr / (self.grad_sq[name].sqrt() + self.eps)
             param -= adjusted_lr * param.grad
@@ -111,8 +114,7 @@ class RMSProp(Optimizer):
     def step(self):
         beta = self.decay
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             self.exp_avg_sq[name] = beta * self.exp_avg_sq[name] + (1 - beta) * (param.grad ** 2)
             adjusted_lr = self.lr / (self.exp_avg_sq[name].sqrt() + self.eps)
             param -= adjusted_lr * param.grad
@@ -137,8 +139,7 @@ class AdaDelta(Optimizer):
     def step(self):
         beta = self.decay
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             self.exp_avg_sq[name] = beta*self.exp_avg_sq[name] + (1-beta)*(param.grad**2)
             adjusted_lr = torch.sqrt((self.exp_avg_sq_delta[name] + self.eps) / (self.exp_avg_sq[name] + self.eps))
             param_delta = adjusted_lr * param.grad
@@ -173,8 +174,7 @@ class Adam(Optimizer):
         bias_correction2 = 1 - beta2**t
 
         for name, param in self._parameters:
-            if param.grad is None:
-                raise RuntimeError(f"Parameter {name} has no gradient")
+            self._validate_grad(param.grad, name)
             self.exp_avg[name] = beta1 * self.exp_avg[name] + (1 - beta1) * param.grad
             self.exp_avg_sq[name] = beta2 * self.exp_avg_sq[name] + (1 - beta2) * (param.grad**2)
 
