@@ -29,5 +29,6 @@ dependencies:
   - fsspec
   - einops
   - tiktoken
+  - pybars3
   - pip:
       torcheval

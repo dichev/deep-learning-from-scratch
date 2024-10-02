@@ -1,0 +1,89 @@
+## Deep learning from scratch
+
+> "What I cannot create, I do not understand." -- Richard Feynman
+
+I agree.
+
+
+---
+Clean code implementation of the foundational deep learning layers, optimizers and models
+* using PyTorch's autograd for the backpropagation
+* using PyTorch's tensors for GPU computation
+---
+
+
+### Building blocks
+
+<table>
+    {{#each blocks}}
+    <tr>
+        <td width="300">
+            <code><a href="{{path}}">{{name}}</a></code>
+        </td>
+        {{#each items}}
+        <td>
+            {{#each this}}
+            {{cls}}{{#if paper}}&nbsp;<sup><a href="#ref{{ref}}" title="{{paper}}">{{ref}}</a></sup>{{/if}}<br>
+            {{/each}}
+        </td>
+        {{/each}}
+    </tr>
+    {{/each}}
+</table>
+
+
+
+### Models / Networks
+
+<table>
+    <tr>
+        <th width="300">Family</th>
+        <th>Models</th>
+    </tr>
+    {{#each models}}
+    <tr>
+        <td>
+            <code><a href="{{path}}">{{name}}</a></code>
+        </td>
+        <td>
+            {{#each items}}
+            {{cls}}{{#if paper}}&nbsp;<sup><a href="#ref{{ref}}" title="{{paper}}">{{ref}}</a></sup>{{/if}}{{#unless @last}}, {{/unless}}
+            {{/each}}
+        </td>
+    </tr>
+    {{/each}}
+</table>
+
+
+
+
+### Example usages
+{{#each examples}}
+- {{this}} [[...]]({{this}})
+{{/each}}
+
+<hr/>
+
+
+### References
+{{#each citations}}
+{{id}}. <a name="ref{{id}}" href="{{link}}">{{title}}</a>
+{{/each}}
+
+
+
+## Installation
+### Local Setup
+```
+conda env create --name dev --file=./environment.yml
+```
+### Docker Setup
+```
+docker build -t deep .
+docker run --rm --gpus all --name deep deep
+docker exec -it deep /bin/bash
+```
+```
+# For debugging use:
+docker run -v .:/deep-learning --rm --gpus all --name deep deep
+```
