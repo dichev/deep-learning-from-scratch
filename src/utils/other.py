@@ -76,3 +76,20 @@ def custom_compile(model, wrap_methods=[]):
     for method in wrap_methods:
         setattr(compiled, method, getattr(model, method))
     return compiled
+
+
+def chunk_equal(arr, groups, pad_symbol=None):
+    n, left = divmod(len(arr), groups)
+    max_size = n + (1 if left else 0)
+
+    chunks = []
+    step = 0
+    for i in range(groups):
+        size = n + int(i < left)
+        part = arr[step : step + size]
+        pad = [pad_symbol] * (max_size - size)
+        chunks.append(part + pad)
+        step += size
+
+    return chunks
+

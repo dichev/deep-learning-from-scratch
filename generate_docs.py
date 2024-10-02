@@ -1,18 +1,17 @@
 import re
 from pybars import Compiler as Handlebars
+from utils.other import chunk_equal
 
 readme_path = 'README.md'
 marker_start = '<!-- auto-generated-start -->'
 marker_end = '<!-- auto-generated-end -->'
 whitelist = {
-    'Layers': [
+    'blocks': [
         'src/lib/layers.py',
         'src/lib/autoencoders.py',
-    ],
-    'Optimizers': [
         'src/lib/optimizers.py',
     ],
-    'Models / Networks': [
+    'models': [
         'src/models/shallow_models.py',
         'src/models/energy_based_models.py',
         'src/models/recurrent_networks.py',
@@ -49,7 +48,7 @@ with open(readme_path, 'r') as file:
 
 
 # Collect and format all the whitelisted classes and functions
-sections = []
+sections = {}
 citations = {}
 for group, paths in whitelist.items():
     modules = []
@@ -69,24 +68,57 @@ for group, paths in whitelist.items():
                         else:
                             items.append({'cls': cls })
             modules.append({'name': module, 'path': path, 'items': items})
-    sections.append({ 'group': group, 'modules': modules })
+    sections[group] = modules
 
 
 
 # Render markdown from a handlebars template
 template = """
-{{#each sections}}
 
-### {{group}}
+### Building blocks
 
-    {{#each modules}}
-`{{name}}` [➜]({{path}})
+<table>
+    {{#each blocks}}
+    <tr>
+        <td width="300">
+            <code><a href="{{path}}">{{name}}</a></code>
+        </td>
         {{#each items}}
-- {{cls}}{{#if paper}} <sup>[*[{{ref}}]*](#ref{{ref}} "{{paper}}")</sup>{{/if}}
+        <td>
+            {{#each this}}
+            {{cls}}{{#if paper}}&nbsp;<sup><a href="#ref{{ref}}" title="{{paper}}">{{ref}}</a></sup>{{/if}}<br>
+            {{/each}}
+        </td>
         {{/each}}
-
+    </tr>
     {{/each}}
-{{/each}}
+</table>
+
+
+
+### Models / Networks
+
+<table>
+    <tr>
+        <th width="300">Family</th>
+        <th>Models</th>
+    </tr>
+    {{#each models}}
+    <tr>
+        <td>
+            <code><a href="{{path}}">{{name}}</a></code>
+        </td>
+        <td>
+            {{#each items}}
+            {{cls}}{{#if paper}}&nbsp;<sup><a href="#ref{{ref}}" title="{{paper}}">{{ref}}</a></sup>{{/if}}{{#unless @last}}, {{/unless}}
+            {{/each}}
+        </td>
+    </tr>
+    {{/each}}
+</table>
+
+
+
 
 ### Example usages
 {{#each examples}}
@@ -100,15 +132,20 @@ template = """
 ### References
 {{#each citations}}
 {{id}}. <a name="ref{{id}}" href="{{link}}">{{title}}</a>
-
 {{/each}}
+
 """
 
 template = Handlebars().compile(template)
+
+for block in sections['blocks']:
+    block['items'] = chunk_equal(block['items'], 3)
+
 text = template({
-    'sections': sections,
+    'blocks': sections['blocks'],
+    'models': sections['models'],
     'examples': examples,
-    'citations': citations
+    'citations': citations,
 })
 
 
