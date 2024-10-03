@@ -373,10 +373,12 @@ class GPT3(GPT2):
         # GPT-3: "we use alternating dense and locally banded sparse attention patterns in the layers of the transformer, similar to the Sparse Transformer"
         assert n_layers % 2 == 0, f'number of layers must be even'
         self.transformers = ModuleList([
-            GPT_TransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout),
-            GPT_SparseTransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout, local_attn_block_size=local_attn_block_size),
-        ] for _ in range(n_layers//2))
-
+            block for _ in range(n_layers // 2)
+            for block in (
+                GPT_TransformerBlock(embed_size, hidden_size, attn_heads, dropout=dropout),
+                GPT_SparseTransformerBlock( embed_size, hidden_size, attn_heads, dropout=dropout, local_attn_block_size=local_attn_block_size)
+            )
+        ])
         self.final_norm = LayerNorm(embed_size)
 
         self.n_layers, self.n_heads = n_layers, attn_heads

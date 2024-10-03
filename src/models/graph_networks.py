@@ -60,7 +60,7 @@ class GIN(Module):  # Graph Isomorphism Network
 
     def __init__(self, in_channels, hidden_size, n_classes, k_iterations=5, eps=0.):
         self.layers = ModuleList([
-            Sequential(  # that is the MLP
+            Sequential(   # that is the MLP
                 Linear(in_channels if i == 0 else hidden_size, hidden_size),
                 BatchNorm(hidden_size, batch_dims=(0, 1)),
                 ReLU(),

@@ -114,11 +114,7 @@ class ModuleList(list, Module):
         super().__init__()
         for module in modules:
             if module is not None:  # sometimes None element is passed when the module is under condition (e.g. [... , Dropout(dropout_rate) if dropout_rate else None, ...]
-                if isinstance(module, tuple) or isinstance(module, list):
-                    for submodule in module:
-                        self.add(submodule)
-                else:
-                    self.add(module)
+                self.add(module)
 
     def add(self, module):
         assert isinstance(module, Module) or callable(module), f'Expected only Module instances or functions, but got: {module}'
