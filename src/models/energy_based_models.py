@@ -11,7 +11,7 @@ class HopfieldNetwork:
         assert X.shape == (len(X), self.n), f'Expected input to be a 2D array of shape (batch, n_features), but got {X.shape}'
         assert X.dtype is torch.float, f'Expected input to be a float tensor, but got {X.dtype}'
 
-        # do an outer product sum for all the training samples as first step
+        # do an outer product sum for all the training samples as first step (Hebbian rule, no gradients)
         self.W += (X.T @ X).fill_diagonal_(0)  # removing the self connections on the diagonal
 
     def forward(self, x, max_steps=100):
@@ -42,6 +42,7 @@ class HopfieldNetworkOptimized(HopfieldNetwork):
         super().fit(X)  # first do an outer product sum for all the training samples as first step
 
         # then iterate over the target and parasite patterns until convergence
+        print(f'optimize the weights:')
         for i in range(epochs):
             print(f'epoch={i}, E={self.avg_energy(X):.2f}')
 
@@ -51,7 +52,7 @@ class HopfieldNetworkOptimized(HopfieldNetwork):
                 not_x = self.forward(x, max_negative_steps)  # negative sampling for the nearest parasite patterns
                 self.W += lr * (torch.outer(x, x) - torch.outer(not_x, not_x)).fill_diagonal_(0)
 
-        print(f'done, E={self.avg_energy(X):.2f}')
+        print(f'done,    E={self.avg_energy(X):.2f}')
 
     def avg_energy(self, X):
         return torch.tensor([self.energy(x) for x in X]).mean()

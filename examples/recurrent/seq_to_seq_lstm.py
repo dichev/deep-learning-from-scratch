@@ -8,7 +8,7 @@ seed_global(1)
 # training settings
 EPOCHS = 100
 BATCH_SIZE = 1024
-LEARN_RATE = 0.02
+LEARN_RATE = 0.005
 DEVICE = 'cuda'
 
 # hyperparams

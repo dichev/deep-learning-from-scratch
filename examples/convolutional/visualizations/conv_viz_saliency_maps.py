@@ -23,6 +23,7 @@ def inject_backward_relu(model, mode):
             module.__handle = module.register_full_backward_hook(relu_gradient_hook)
 
 def generate_saliency_map(model, image, mode='guided_backprop', normalize=True):
+    print(f'Generate saliency map: mode={mode}')
     batch = image.clone()
     batch.requires_grad = True
     if mode != 'backprop':
@@ -42,6 +43,7 @@ image = Image.open('./data/images/cat-tiger.jpg')  # 360x480x3
 
 
 # Model
+print('Loading pretrained ResNet50 model..')
 weights = torchvision.models.ResNet50_Weights.IMAGENET1K_V2
 model = torchvision.models.resnet50(weights=torchvision.models.ResNet50_Weights.IMAGENET1K_V2)
 model.eval()  # very important (e.g. BatchNorm is used)
@@ -55,6 +57,7 @@ probs = prediction.squeeze(0).softmax(0)
 label = probs.argmax().item()
 score = probs.squeeze(0)[label].item()
 category = weights.meta['categories'][label]
+print(f"Forward a single image input:")
 print(f"{category}: {100 * score:.5}%")
 
 

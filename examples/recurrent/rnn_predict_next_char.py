@@ -41,7 +41,7 @@ models = {
     'LSTM':          LangModel(LSTM(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
     'GRU':           LangModel(GRU(vocab.size, HIDDEN_SIZE, n_layers=1, direction='forward')),
 }
-
+print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into:')
 for model_name, net in models.items():
     net.to(DEVICE)
     net.summary()
@@ -53,7 +53,7 @@ for model_name, net in models.items():
 
     # Train
     N = len(X)
-    print(f'Fit {X.shape[0]} sequences (with {X.shape[1]} tokens each) into the model: {model_name}')
+    print(f'Model: {model_name}')
     pbar = trange(1, EPOCHS+1, desc='EPOCH')
     for epoch in pbar:
         loss = grad_norm = 0
@@ -76,6 +76,7 @@ for model_name, net in models.items():
         writer.add_scalar('t/Perplexity', math.exp(loss), epoch)
         writer.add_scalar('a/Gradients Norm', grad_norm, epoch)
         writer.add_scalar('a/Weights Norm', net.weight_norm(), epoch)
+        pbar.set_postfix(cost=f"{loss:.4f}", perplexity=f"{math.exp(loss):.4f}")
 
         if epoch == 1 or epoch % 10 == 0:
             print('\n# Sampling --------------------------------------------')

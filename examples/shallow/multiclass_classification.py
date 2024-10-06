@@ -36,14 +36,14 @@ for Model in (MulticlassPerceptron, MulticlassSVM, MultinomialLogisticRegression
 
         history.append((tuple(model.parameters(named=False))[0].flatten().detach().clone(), tuple(model.parameters(named=False))[1].flatten().detach().clone(), cost.item()))
         if i < 10 or i % 100 == 1 or i+1 == EPOCHS:
-            print(f'#{i:<3} matched={torch.sum(model.predict(X)==torch.argmax(Y, dim=-1)).item()}/{Y_hat.shape[0]}, cost={cost.item()} ')
+            print(f'{model.name:<29} | steps #{i:<3} matched={torch.sum(model.predict(X)==torch.argmax(Y, dim=-1)).item()}/{Y_hat.shape[0]}, cost={cost.item()} ')
         if i > 10 and abs(cost.item() - history[-10][-1]) < 1e-5:
             break
 
     # Plot the results
     W, b, loss = zip(*history); W = torch.vstack(W); b = torch.vstack(b)
     plt.subplot(411)
-    plt.plot(range(len(loss)), loss, c=colors[idx], label=model.__class__.__name__); plt.xscale('log'); plt.title('Loss'); plt.xlabel('iterations'); plt.yscale('log'); plt.legend()
+    plt.plot(range(len(loss)), loss, c=colors[idx], label=model.name); plt.xscale('log'); plt.title('Loss'); plt.xlabel('iterations'); plt.yscale('log'); plt.legend()
     plt.subplot(412)
     plt.plot((W**2).sum(axis=1).sqrt(), c=colors[idx]); plt.plot((b**2).sum(axis=1).sqrt(), c=colors[idx], alpha=.5); plt.title('Parameters L2 norm evolution'); plt.xlabel(f'iterations'); plt.ylabel(f'w'); plt.xscale('log');
     plt.subplot(413)

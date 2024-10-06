@@ -1,4 +1,4 @@
-## Deep learning from scratch
+# Deep learning from scratch
 
 > "What I cannot create, I do not understand." -- Richard Feynman
 
@@ -11,8 +11,9 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 * using PyTorch's tensors for GPU computation
 ---
 
+<br>
 
-### Building blocks
+## Building blocks
 
 <table>
     <tr>
@@ -72,7 +73,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
         </td>
     </tr>
     <tr>
-        <td width="300">
+        <td>
             <code><a href="src/lib/autoencoders.py">lib.autoencoders</a></code>
         </td>
         <td>
@@ -86,7 +87,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
         </td>
     </tr>
     <tr>
-        <td width="300">
+        <td>
             <code><a href="src/lib/optimizers.py">lib.optimizers</a></code>
         </td>
         <td>
@@ -108,11 +109,29 @@ Clean code implementation of the foundational deep learning layers, optimizers a
             LR_CosineDecayScheduler<br>
         </td>
     </tr>
+    <tr>
+        <td>
+            <code><a href="src/lib/regularizers.py">lib.regularizers</a></code>
+        </td>
+        <td>
+            L2_regularizer<br>
+            L1_regularizer<br>
+        </td>
+        <td>
+            elastic_regularizer<br>
+            max_norm_constraint_<br>
+        </td>
+        <td>
+            grad_clip_<br>
+            grad_clip_norm_<br>
+        </td>
+    </tr>
 </table>
 
 
+<br>
 
-### Models / Networks
+## Models / Networks
 
 <table>
     <tr>
@@ -190,6 +209,20 @@ Clean code implementation of the foundational deep learning layers, optimizers a
     </tr>
     <tr>
         <td>
+            <code><a href="src/models/blocks/convolutional_blocks.py">models.blocks.convolutional_blocks</a></code>
+        </td>
+        <td>
+            Inception&nbsp;<sup><a href="#ref27" title="Going deeper with convolutions">27</a></sup>, 
+            ResBlock&nbsp;<sup><a href="#ref28" title="Deep Residual Learning for Image Recognition">28</a></sup>, 
+            ResBottleneckBlock&nbsp;<sup><a href="#ref28" title="Deep Residual Learning for Image Recognition">28</a></sup>, 
+            ResNeXtBlock&nbsp;<sup><a href="#ref29" title="Aggregated Residual Transformations for Deep Neural Networks">29</a></sup>, 
+            DenseLayer&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>, 
+            DenseBlock&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>, 
+            DenseTransition&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>
+        </td>
+    </tr>
+    <tr>
+        <td>
             <code><a href="src/models/graph_networks.py">models.graph_networks</a></code>
         </td>
         <td>
@@ -251,40 +284,143 @@ Clean code implementation of the foundational deep learning layers, optimizers a
             DenoiseDiffusion&nbsp;<sup><a href="#ref41" title="Denoising Diffusion Probabilistic Models">41</a></sup>
         </td>
     </tr>
-    <tr>
-        <td>
-            <code><a href="src/models/blocks/convolutional_blocks.py">models.blocks.convolutional_blocks</a></code>
-        </td>
-        <td>
-            Inception&nbsp;<sup><a href="#ref27" title="Going deeper with convolutions">27</a></sup>, 
-            ResBlock&nbsp;<sup><a href="#ref28" title="Deep Residual Learning for Image Recognition">28</a></sup>, 
-            ResBottleneckBlock&nbsp;<sup><a href="#ref28" title="Deep Residual Learning for Image Recognition">28</a></sup>, 
-            ResNeXtBlock&nbsp;<sup><a href="#ref29" title="Aggregated Residual Transformations for Deep Neural Networks">29</a></sup>, 
-            DenseLayer&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>, 
-            DenseBlock&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>, 
-            DenseTransition&nbsp;<sup><a href="#ref31" title="Densely Connected Convolutional Networks">31</a></sup>
-        </td>
-    </tr>
 </table>
 
 
 
+<br>
 
-### Example usages
-- examples/ [[...]](examples/)
-- examples/convolutional [[...]](examples/convolutional)
-- examples/energy_based [[...]](examples/energy_based)
-- examples/graph [[...]](examples/graph)
-- examples/recurrent [[...]](examples/recurrent)
-- examples/attention [[...]](examples/attention)
-- examples/transformer [[...]](examples/transformer)
-- examples/diffusion [[...]](examples/diffusion)
-- examples/shallow [[...]](examples/shallow)
-
-<hr/>
+## Example usages & experiments
 
 
-### References
+<table>
+    <tr>
+        <td width="230">
+            <code><a href="examples/shallow">examples/shallow</a></code>
+        </td>
+        <td>
+            Binary classification<br/> 
+            Multi-class classification<br/> 
+            Matrix factorization<br/> 
+            MNIST classification<br/> 
+            Visualize optimizers
+        </td>
+        <td width="300">
+            <img src="docs/images/shallow__binary_classification.png" height="50" />
+            <img src="docs/images/shallow__matrix_factorization.png" height="50" />
+            <img src="docs/images/shallow__mnist_classification.png" height="50" />
+            <img src="docs/images/shallow__multiclass_classification.png" height="50" />
+            <img src="docs/images/shallow__visualize_optimizers.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/energy_based">examples/energy_based</a></code>
+        </td>
+        <td>
+            Memorize patterns with Hopfield<br/> 
+            Memorize more - optimized Hopfield<br/> 
+            Memorize with RBM
+        </td>
+        <td>
+            <img src="docs/images/energy_based__hopfield_network_memorize_letters.png" height="50" />
+            <img src="docs/images/energy_based__hopfield_network_optimized_memorize_images.png" height="50" />
+            <img src="docs/images/energy_based__restricted_boltzmann_memorize_images.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/recurrent">examples/recurrent</a></code>
+        </td>
+        <td>
+            Predict next character<br/> 
+            Predict masked words<br/> 
+            Translate English to French<br/> 
+            word2vec embeddings
+        </td>
+        <td>
+            <img src="docs/images/recurrent__rnn_masked_words.png" height="50" />
+            <img src="docs/images/recurrent__rnn_predict_next_char.png" height="50" />
+            <img src="docs/images/recurrent__seq_to_seq_lstm.png" height="50" />
+            <img src="docs/images/recurrent__word2vec.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/convolutional">examples/convolutional</a></code>
+        </td>
+        <td>
+            Image classification<br/> 
+            Feature maps visualization<br/> 
+            Saliency maps visualization
+        </td>
+        <td>
+            <img src="docs/images/convolutional__cifar10_classification.png" height="50" />
+            <img src="docs/images/convolutional__conv_viz_feature_maps.png" height="50" />
+            <img src="docs/images/convolutional__conv_viz_saliency_maps.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/graph">examples/graph</a></code>
+        </td>
+        <td>
+            Classify nodes in a graph<br/> 
+            Classify protein graphs
+        </td>
+        <td>
+            <img src="docs/images/graph__graph_to_graph_classification.png" height="50" />
+            <img src="docs/images/graph__graph_to_node_classification_simple.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/attention">examples/attention</a></code>
+        </td>
+        <td>
+            Recurrent visual attention<br/> 
+            Translate  with additive attention
+        </td>
+        <td>
+            <img src="docs/images/attention__affine_mnist_spatial_transformer.png" height="50" />
+            <img src="docs/images/attention__seq_to_seq_with_attention.png" height="50" />
+            <img src="docs/images/attention__translated_mnist_attention_classification.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/transformers">examples/transformers</a></code>
+        </td>
+        <td>
+            Translate with Transformer<br/> 
+            Predict next token (byte-pair)<br/> 
+            Reproduce GPT-2 performance
+        </td>
+        <td>
+            <img src="docs/images/transformers__next_token_byte_pair.png" height="50" />
+            <img src="docs/images/transformers__reproduce_gpt.png" height="50" />
+            <img src="docs/images/transformers__reproduce_gpt2.png" height="50" />
+            <img src="docs/images/transformers__seq_to_seq_with_transformer.png" height="50" />
+        </td>
+    </tr>
+    <tr>
+        <td>
+            <code><a href="examples/diffusion">examples/diffusion</a></code>
+        </td>
+        <td>
+            Generate colored digits
+        </td>
+        <td>
+            <img src="docs/images/diffusion__generate_colored_mnist_diffusion.png" height="50" />
+        </td>
+    </tr>
+</table>
+
+<br>
+<hr />
+<br>
+
+## References
 1. <a name="ref1" href="https://proceedings.mlr.press/v37/ioffe15.pdf">Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift</a>
 2. <a name="ref2" href="https://arxiv.org/pdf/1607.06450.pdf">Layer Normalization</a>
 3. <a name="ref3" href="https://arxiv.org/pdf/1910.07467">Root Mean Square Layer Normalization</a>
@@ -307,7 +443,7 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 20. <a name="ref20" href="https://arxiv.org/pdf/2103.14030">Swin Transformer: Hierarchical Vision Transformer using Shifted Windows</a>
 21. <a name="ref21" href="https://arxiv.org/pdf/1301.3781.pdf">Efficient Estimation of Word Representations in Vector Space</a>
 22. <a name="ref22" href="https://arxiv.org/pdf/1711.05101">Decoupled Weight Decay Regularization</a>
-23. <a name="ref23" href="https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf">Sequence to Sequence Learning with Neural Networks</a>
+23. <a name="ref23" href="https://arxiv.org/pdf/1409.3215">Sequence to Sequence Learning with Neural Networks</a>
 24. <a name="ref24" href="https://hal.science/hal-03926082/document">Gradient-based learning applied to document recognition</a>
 25. <a name="ref25" href="https://arxiv.org/pdf/1312.4400.pdf">Network In Network</a>
 26. <a name="ref26" href="https://arxiv.org/pdf/1409.1556.pdf">Very Deep Convolutional Networks for Large-Scale Image Recognition</a>
@@ -327,20 +463,21 @@ Clean code implementation of the foundational deep learning layers, optimizers a
 40. <a name="ref40" href="https://arxiv.org/pdf/2106.14881">Early Convolutions Help Transformers See Better</a>
 41. <a name="ref41" href="https://arxiv.org/pdf/2006.11239">Denoising Diffusion Probabilistic Models</a>
 
-
+<br>
 
 ## Installation
 ### Local Setup
 ```
 conda env create --name dev --file=./environment.yml
+conda activate dev
+source .env
 ```
 ### Docker Setup
 ```
 docker build -t deep .
 docker run --rm --gpus all --name deep deep
-docker exec -it deep /bin/bash
-```
-```
+docker exec -it deep bash
+
 # For debugging use:
 docker run -v .:/deep-learning --rm --gpus all --name deep deep
 ```

@@ -15,6 +15,7 @@ n = width * height  # 25
 # Train the network
 net = HopfieldNetwork(n)
 X = torch.tensor(patterns.reshape(N, -1), dtype=torch.float)
+print(f'fitting all the {N} images')
 net.fit(X)
 
 
@@ -22,6 +23,7 @@ net.fit(X)
 print('Visualizing patterns...')
 fig, ax = plt.subplots(N, 3, figsize=(5, N))
 for i, pattern in enumerate(patterns):
+    print(f'reconstructing pattern {i+1}/{N}')
     pattern = np.array(pattern)
     pattern_noisy = pattern * np.random.choice([1, -1], size=pattern.shape, p=[0.8, 0.2])
     x = torch.tensor(pattern_noisy.ravel(), dtype=torch.float)

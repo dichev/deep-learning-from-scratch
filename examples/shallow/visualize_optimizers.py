@@ -61,5 +61,6 @@ for name, path in paths:
     for i in range(1, len(path)):
         plt.arrow(path[i-1, 0], path[i-1, 1], path[i, 0]-path[i-1, 0], path[i, 1]-path[i-1, 1], color=pos.get_facecolor()[0], head_width=0.2, head_length=0.2, length_includes_head=True)
 plt.legend()
+plt.tight_layout()
 plt.show()
 

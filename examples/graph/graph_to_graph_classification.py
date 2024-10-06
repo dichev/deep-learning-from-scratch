@@ -14,8 +14,8 @@ from utils.graph import edge_index_to_adj_list as to_adj_list
 
 # hyperparams
 HIDDEN_CHANNELS = 64
-LEARN_RATE = 0.01
-EPOCHS = 20
+LEARN_RATE = 0.0001
+EPOCHS = 100
 BATCH_SIZE = 32
 DEVICE = 'cuda'
 

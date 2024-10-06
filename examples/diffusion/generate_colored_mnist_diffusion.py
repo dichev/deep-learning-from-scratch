@@ -25,7 +25,7 @@ DEVICE = 'cuda'
 
 
 # Data loaders
-train_loader, val_loader, test_loader = MNIST(batch_size=BATCH_SIZE, train_val_split=(1., 0.), transforms = [
+train_loader, _, _ = MNIST(batch_size=BATCH_SIZE, train_val_split=(1., 0.), transforms = [
     transforms.ToImage(),
     transforms.ToDtype(torch.float32, scale=True),                     # normalize to [ 0, 1]
     transforms.Pad(2),                                                 # 28x28 -> 32x32 (for nicer up/down sampling by the U-net)

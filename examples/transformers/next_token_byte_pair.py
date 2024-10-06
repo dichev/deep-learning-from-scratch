@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 import math
 
-from models.transformer_networks import GPT2, GPT3, LLaMA1, LLaMA2
+from models.transformer_networks import GPT2, GPT3, LLaMA1, LLaMA2, LLaMA3
 from lib.functions.losses import cross_entropy
 from lib.functions.metrics import accuracy
 from lib.optimizers import AdamW, LR_CosineDecayScheduler
@@ -17,9 +17,11 @@ seed_global(1)
 # Hyperparams
 embed_size = 384
 context_size = 256
-n_layers = 6
+hidden_size = 4 * embed_size
+n_layers = 4
 attn_heads = 6
-vocab_size = 300  # from which 256 tokens are reserved for character-level bytes
+vocab_size = 500 + 256  # 256 tokens are reserved for character-level bytes
+
 
 # Training config
 batch_size = 64
@@ -27,7 +29,8 @@ epochs = 100
 warmup_epochs = 5
 learn_rate = 1e-3
 learn_rate_min = 1e-5
-weight_decay = 1e-2
+weight_decay = 1e-1
+dropout = .4
 device = 'cuda'
 speedup = True
 if speedup:
@@ -36,10 +39,11 @@ if speedup:
 
 # Models
 models = {  # stored in RAM
-    'GPT-2':     GPT2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0),
-    'GPT-3':     GPT3(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, dropout=0, local_attn_block_size=8),
-    'LLaMA-1': LLaMA1(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6),
-    'LLaMA-2': LLaMA2(vocab_size, context_size, embed_size, hidden_size=4*embed_size, n_layers=6, attn_heads=6, attn_kv_groups=3),
+    'GPT-2':     GPT2(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, dropout),
+    'GPT-3':     GPT3(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, dropout, local_attn_block_size=8),
+    'LLaMA-1': LLaMA1(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads),
+    'LLaMA-2': LLaMA2(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups=3),
+    'LLaMA-3': LLaMA3(vocab_size, context_size, embed_size, hidden_size, n_layers, attn_heads, attn_kv_groups=3),
 }
 
 # Prepare data
@@ -58,9 +62,9 @@ assert tokenizer.decode(encoded) == text
 encoded = torch.tensor(encoded)
 
 print('Split training data')
-split = int(len(encoded) * 0.9)
-train_data = RandomTextDataset(encoded[:split], context_size)
-val_data = RandomTextDataset(encoded[split:], context_size)
+split = int(len(encoded) * 0.1)
+train_data = RandomTextDataset(encoded[split:], context_size)
+val_data = RandomTextDataset(encoded[:split], context_size)
 train_loader = DataLoader(train_data, batch_size=batch_size)
 val_loader = DataLoader(val_data, batch_size=batch_size)
 
@@ -108,7 +112,7 @@ def train(model, optimizer, loader, desc=''):
 
 # Training loop
 for name, model in models.items():
-    print(f'Training {name}')
+    print(f'\n-> Training {model}')
     model.to(device)
     optimizer = AdamW(model.parameters(), lr=learn_rate, weight_decay=weight_decay, weight_decay_filter=r'weight')
     lr_scheduler = LR_CosineDecayScheduler(optimizer, warmup_steps=warmup_epochs, decay_steps=epochs-warmup_epochs, min_lr=learn_rate_min)
@@ -120,8 +124,8 @@ for name, model in models.items():
         val_loss, val_acc = evaluate(model, val_loader)
         print(f'Epoch {epoch}/{epochs} | lr={optimizer.lr:.5e} | {train_loss=:.4f} {val_loss=:.4f} | {train_acc=:.4f} {val_acc=:.4f}')
         lr_scheduler.step()
-        if epoch < 10 or epoch % 10 == 0:
-            model.visualize_attn_weights(subtitle=f'{epoch=}')
-            generate_random_text(model, max_tokens=100)
+        if epoch < 10 or epoch % 50 == 0:
+            model.visualize_attn_weights(subtitle=f'{name}: {epoch=}')
+            generate_random_text(model, max_tokens=context_size//2)
 
-    generate_random_text(model, max_tokens=100, prompt='Now that we have learned how to work with probability')
+    generate_random_text(model, max_tokens=context_size//2, prompt='Now that we have learned how to work with probability')

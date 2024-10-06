@@ -91,7 +91,7 @@ vocab.print_human(text_encoded[:5])
 # Prepare training batch
 data = generate_training_batch(text_encoded, vocab.counts, subsampling=True)
 targets, contexts, labels = [torch.tensor(d, device=DEVICE) for d in data]
-print('\ntargets:', targets.shape, '\ncontexts:', contexts.shape, '\nlabels:', labels.shape, '\n')
+print(f'\ntargets: {tuple(targets.shape)} | contexts: {tuple(contexts.shape)} | labels: {tuple(labels.shape)} \n')
 assert torch.all(targets > 1) and torch.all(contexts > 1), 'The training data contains paddings or unknown words'
 
 # Train a Word2Vec model
