@@ -1,14 +1,17 @@
 import re
+import os
 from pybars import Compiler as Handlebars
 from utils.other import chunk_equal
 
 readme_path = 'README.md'
 template_path = 'docs/README.template.hbs'
+images_dir = 'docs/images/'
 whitelist = {
     'blocks': [
         'src/lib/layers.py',
         'src/lib/autoencoders.py',
         'src/lib/optimizers.py',
+        'src/lib/regularizers.py',
     ],
     'models': [
         'src/models/shallow_models.py',
@@ -16,38 +19,39 @@ whitelist = {
         'src/models/recurrent_networks.py',
         'src/models/convolutional_networks.py',
         'src/models/residual_networks.py',
+        'src/models/blocks/convolutional_blocks.py',
         'src/models/graph_networks.py',
         'src/models/attention_networks.py',
         'src/models/transformer_networks.py',
         'src/models/visual_transformers.py',
         'src/models/diffusion_models.py',
-        'src/models/blocks/convolutional_blocks.py',
+    ],
+    'examples': [
+        'examples/shallow/README.md',
+        'examples/energy_based/README.md',
+        'examples/recurrent/README.md',
+        'examples/convolutional/README.md',
+        'examples/graph/README.md',
+        'examples/attention/README.md',
+        'examples/transformers/README.md',
+        'examples/diffusion/README.md',
     ]
 }
-examples = [
-    'examples/',
-    'examples/convolutional',
-    'examples/energy_based',
-    'examples/graph',
-    'examples/recurrent',
-    'examples/attention',
-    'examples/transformer',
-    'examples/diffusion',
-    'examples/shallow',
-]
+
 
 
 # Collect and format all the whitelisted classes and functions
 sections = {}
 citations = {}
+all_images = [f for f in os.listdir(images_dir) if f.endswith('.png')]
 for group, paths in whitelist.items():
     modules = []
     for path in paths:
-        if '.py' in path:
-            module = path.replace('src/', '').replace('/', '.').replace('.py', '')
+        with open(path, 'r', encoding='utf-8') as file:
             items = []
-            with open(path, 'r') as file:
-                pattern = r'\nclass (\w+).*\n\s+(?:\"\"\"\s+Paper: (.*?)\s+(https?:\S+))?(\"\"\"ignore docs\"\"\")?'
+
+            if '.py' in path:
+                pattern = r'\n(?:class|def) (\w+).*\n\s+(?:\"\"\"\s+Paper: (.*?)\s+(https?:\S+))?(\"\"\"ignore docs\"\"\")?'
                 info = re.findall(pattern, file.read())
                 for cls, paper, link, ignore in info:
                     if not ignore:
@@ -57,7 +61,18 @@ for group, paths in whitelist.items():
                             items.append({'cls': cls, 'ref': citations[paper]['id'], 'paper': paper})
                         else:
                             items.append({'cls': cls })
-            modules.append({'name': module, 'path': path, 'items': items})
+                module = path.replace('src/', '').replace('/', '.').replace('.py', '')
+                modules.append({'name': module, 'path': path, 'items': items})
+
+            elif '.md' in path:
+                pattern = r'<h3>(.*?)</h3>'
+                matches = re.findall(pattern, file.read())
+                items.extend(matches)
+                link = path.replace('/README.md', '')
+                category = path.split('/')[1]
+                images =  [img for img in all_images if img.startswith(category)]
+                modules.append({'name': link, 'path': link, 'items': items, 'images': images })
+
     sections[group] = modules
 
 
@@ -73,7 +88,7 @@ for block in sections['blocks']:
 text = template({
     'blocks': sections['blocks'],
     'models': sections['models'],
-    'examples': examples,
+    'examples': sections['examples'],
     'citations': citations,
 })
 
