@@ -11,8 +11,8 @@ from data.mnist import MNIST
 
 # training hyperparams & settings
 EPOCHS = 20
-BATCH_SIZE = 1024
-LEARN_RATE = 0.1
+BATCH_SIZE = 1024 * 2
+LEARN_RATE = 0.01
 DEVICE = 'cuda'
 
 

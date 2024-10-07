@@ -18,7 +18,7 @@ glimpses = 6
 # training hyperparams & settings
 EPOCHS = 100
 BATCH_SIZE = 2 * 1024
-LEARN_RATE = 0.1
+LEARN_RATE = 0.001
 DEVICE = 'cuda'
 
 
@@ -45,10 +45,13 @@ def evaluate(model, loader):
     n = len(loader)
     for X, y in loader:
         X, y = X.to(DEVICE), y.to(DEVICE)
-        z, _ = model.forward(X)
+        z, locs = model.forward(X)
         cost = cross_entropy(z, y, logits=True)
         total_acc += accuracy(z.argmax(dim=1), y) / n
         total_loss += cost.item() / n
+
+    for i in range(len(locs)):
+        model.visualize(X[:5], loc=locs[i][:5], title=f'Step {i+1}')
 
     return total_loss, total_acc
 

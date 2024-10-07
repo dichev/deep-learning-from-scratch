@@ -72,7 +72,7 @@ class GIN(Module):  # Graph Isomorphism Network
         ])
         self.add_pool = BatchAddPool()  # shared across layers, no parameters
 
-        self.head = Sequential(  # note in the paper they use a separate linear+dropbox for each graph layer output
+        self.head = Sequential(  # note in the paper they use a separate linear+dropout for each graph layer output
             Linear(hidden_size * k_iterations, hidden_size * k_iterations),
             ReLU(),
             Dropout(.5),

@@ -100,7 +100,7 @@ class RecurrentAttention(Module):
         coords = coords.round().long().clamp(min=0, max=img_size)
         return coords
 
-    def visualize(self, x, loc):
+    def visualize(self, x, loc, title=''):
         B, C, H, W = x.shape
         patches = self.glimpse_sensor(x, loc)
         pos = self.denormalize_loc(loc, W)
@@ -115,6 +115,7 @@ class RecurrentAttention(Module):
                 ax[i, 0].add_patch(Rectangle(pos[i].cpu() - size // 2, size, size, linewidth=1, edgecolor='r', facecolor='none'))
             ax[i, 1].imshow(grid)
             ax[i, 1].axis(False)
+        if title: plt.suptitle(title)
         plt.tight_layout()
         plt.show()
 

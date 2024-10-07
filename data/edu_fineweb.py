@@ -11,7 +11,7 @@ import subprocess
 SHARDS_TRAIN = 99
 SHARDS_VAL = 1
 DATA_ROOT = './data/edu_fineweb10B'
-TOKENIZE_SCRIPT = './data/fineweb_edu_tokenize.py'
+TOKENIZE_SCRIPT = './data/edu_fineweb_tokenize.py'
 
 
 class FineWebEduTokenizedDataset:

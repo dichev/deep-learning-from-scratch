@@ -20,7 +20,7 @@ B, n = len(images), width * height  # n = 100x100 = 10,000 units with 10,000x10,
 # Train the network
 net = HopfieldNetworkOptimized(n, device=DEVICE)
 images_batch = torch.tensor(images.reshape(B, -1), device=DEVICE, dtype=torch.float)
-print(f'fitting all the {B} images as a batch')
+print(f'fitting all the {B} images')
 net.fit(images_batch, epochs=3)
 
 

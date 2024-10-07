@@ -46,8 +46,8 @@ N = len(text_encoded_en)
 
 
 def diagnostics():
-    print(vocab_en)
-    print(vocab_fr)
+    print('[en]', vocab_en)
+    print('[fr]', vocab_fr)
 
     len_en = [len(seq) for seq in text_tokenized_en]
     len_fr = [len(seq) for seq in text_tokenized_fr]
@@ -91,6 +91,7 @@ def train(model, optimizer, loader, batch_size, device):
 
 
 def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', visualize_fn=None):
+    print(f'Model: {model.name} ({model.n_params} params)')
     writer = SummaryWriter(f'runs/{title or model.__class__.__name__} params={model.n_params} - {datetime.now().strftime("%b%d %H-%M-%S")}', flush_secs=2)
 
     for epoch in range(1, epochs+1):
@@ -124,7 +125,7 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', 
                     for beam_width in (1, 2, 3):
                         Y_hat, score = model.predict(X[i:i+1].to(device), max_steps=OUT_SEQ_LEN, beam_width=beam_width)
                         predicted = vocab_fr.decode(Y_hat.squeeze(0).tolist(), trim_after='<EOS>')
-                        print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width}, score={score})  -> {predicted}')
+                        print(f'-> BLEU(n_grams=4): {BLEU(target.split(), predicted.split(), max_n=4):.3f} | beam=(width={beam_width},score={score}) -> {predicted}')
                     print('------------------------------------------')
 
                 # translate with teacher forcing
@@ -134,7 +135,7 @@ def fit(model, optimizer, epochs=100, batch_size=1024, device='cuda', title='', 
                 Y_hat = Z.argmax(dim=-1).detach().cpu().numpy()
                 predicted = vocab_fr.decode(Y_hat.squeeze(0).tolist())
                 print(f'{source} (expected: {target})')
-                print(f'->  {predicted}')
+                print(f'-> [with teacher forcing] {predicted}')
                 if visualize_fn:
                     visualize_fn(source.split(), target.split(), f'- epoch {epoch}/{epochs}')
 

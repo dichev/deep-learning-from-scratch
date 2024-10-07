@@ -43,7 +43,7 @@ for epoch in pbar:
         net.update(X, lr=LEARN_RATE, k_reconstructions=k)
 
     sq_loss = ((images_batch - net.sample(images_batch)) ** 2).mean()
-    pbar.set_postfix(lr=LEARN_RATE, k_reconstructions=k, reconstruction_sq_error=f"{sq_loss:.4f}")
+    pbar.set_postfix(lr=LEARN_RATE, k_reconstr=k, reconstr_sq_error=f"{sq_loss:.4f}")
     train_writer.add_scalar('a/Reconstruction error (use but don\'t trust)', sq_loss, epoch)
     if epoch == 1 or epoch % 10 == 0:
         train_writer.add_histogram('h/Weights', net.W, epoch)

@@ -14,13 +14,13 @@ from utils.graph import edge_index_to_adj_matrix as to_adj_matrix
 
 # hyperparams
 HIDDEN_CHANNELS = 6
-LEARN_RATE = 0.1
+LEARN_RATE = 0.01
 EPOCHS = 100
 
 # Graph dataset
 dataset = KarateClub()
 n = len(dataset[0].x)                    # total nodes
-num_features = dataset.num_features + 6  # the one-hot features are equal to the num of nodes. Extending their dimensions for dimensionality sanity checks
+num_features = dataset.num_features + 6  # the one-hot features are equal to the num of nodes. Extending their dimensions for dimensionality sanity checks during debugging
 
 X = torch.zeros(1, n, num_features)      # batch, nodes, features
 X[:, :, :n] = dataset.x

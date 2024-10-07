@@ -169,7 +169,7 @@ class Decoder(Module):
 class Seq2Seq(Module):
     """
     Paper: Sequence to Sequence Learning with Neural Networks
-    https://papers.nips.cc/paper/2014/file/a14ac55a4f27472c5d894ec1c3c743d2-Paper.pdf
+    https://arxiv.org/pdf/1409.3215
     """
 
     def __init__(self, encoder, decoder, sos_token, eos_token):

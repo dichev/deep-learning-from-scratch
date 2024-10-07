@@ -51,7 +51,7 @@ models = {
     'ResNet50': (ResNet50(n_classes=10), T.Resize((224, 224))),
     'SEResNet50': (SEResNet50(n_classes=10), T.Resize((224, 224))),
     'SEResNeXt50': (SEResNeXt50(n_classes=10), T.Resize((224, 224))),
-
+    #
     'VisionTransformer': (VisionTransformer(n_classes=10, img_size=224, patch_size=16, in_channels=3, n_layers=6, attn_heads=8, embed_size=384, hidden_size=4*384), T.Resize((224, 224))),
     'VisionTransformerConvStem': (VisionTransformerConvStem(n_classes=10, img_size=224, patch_size=16, in_channels=3, n_layers=6-1, attn_heads=8, embed_size=384, hidden_size=4 * 384), T.Resize((224, 224))),
     'SwinTransformer': (SwinTransformer(n_classes=10, embed_size=96, n_layers=(2, 2, 3, 2)), T.Resize((224, 224))),
@@ -95,11 +95,12 @@ def train(model, loader, transform):
 
 
 # Training loop
+print(f'Training samples: {len(train_dataset)} | Validation samples: {len(val_dataset)} | Test samples: {len(test_dataset)}')
 for model_name, (model, transform) in models.items():
     model.to(DEVICE)
     optimizer = optimizers.AdamW(model.parameters(), lr=LEARN_RATE)
-    print(model.summary())
-    print(f'Fit {len(train_dataset)} training samples in model: {model}')
+    # print(model.summary())
+    print(f'Model: {model}')
 
     # Training
     for epoch in range(EPOCHS):
@@ -110,9 +111,7 @@ for model_name, (model, transform) in models.items():
         pbar.close()
 
     test_loss, test_acc = evaluate(model, test_loader, transform)
-    print(f'[Report only]: Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f}')
-    print(f'[Report only]: Failed on {int((1-test_acc)*len(test_loader))} samples out of {len(test_loader)}')
-
+    print(f'[Report only]: Test loss: {test_loss:.3f} | Test acc: {test_acc:.3f} | Failed on {int((1-test_acc)*len(test_loader))}/{len(test_loader)}')
 
     # Plot some predictions
     N = 6

@@ -31,7 +31,7 @@ learn_rate_min = 6e-5
 warmup_steps = 715
 weight_decay = 0.1
 device = 'cuda'
-compiled = False
+compiled = True if os.name != 'nt' else False # disable on windows
 torch.set_float32_matmul_precision('high')  # use TFloat32 for multiplications outside the mixed-precision region
 
 # Reproducing
@@ -118,6 +118,7 @@ print(f'Initial val loss: {evaluate(model):.4f}')
 
 # pytorch.compile
 if compiled:
+    print('Compiling the model..')
     model = custom_compile(model, wrap_methods=['state_dict', 'load_state_dict', 'parameters', 'generate',  'weight_norm', 'visualize_attn_weights'])
 
 

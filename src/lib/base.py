@@ -106,6 +106,10 @@ class Module:
     def bias_norm(self):
         return torch.cat([p.view(-1) for name, p in self.parameters() if 'bias' in name]).norm().item()
 
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
     def __repr__(self):
         return f'{self.__class__.__name__}(): {self.n_params} parameters'.replace(': 0 parameters', '')
 
@@ -122,7 +126,7 @@ class ModuleList(list, Module):
         setattr(self, f'm{len(self)}', module)  # this is to make the modules discoverable (refer to self.modules())
 
     def __repr__(self):
-        return f'{self.__class__.__name__}({len(self)}): {self.n_params} parameters'
+        return f'{self.name}({len(self)}): {self.n_params} parameters'
 
 
 class Sequential(ModuleList):
